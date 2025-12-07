@@ -1,96 +1,69 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/db.js';
+import User from './User.js';
 
-const propertySchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
-    },
+const Property = sequelize.define('Property', {
 
-    // STEP 1: Category
-    categoryId: {
-      type: String,
-      required: true
-    },
-
-    // STEP 2: Property & Privacy Type
-    propertyType: {
-      type: String,
-      required: true
-    },
-
-    privacyType: {
-      type: String,
-      required: true
-    },
-
-    // STEP 3: Basic Info
-    guests: Number,
-    bedrooms: Number,
-    bathrooms: Number,
-    petsAllowed: Number,
-    area: Number,
-
-    // STEP 4: Title + Description
-    title: String,
-    description: String,
-
-    // STEP 5: Address
-    country: String,
-    city: String,
-    address: String,
-
-    // STEP 6: Media
-    photos: {
-      type: [String],
-      default: []
-    },
-    video: {
-      type: String,
-      default: null
-    },
-
-    // STEP 7: Amenities
-    amenities: {
-      type: [String],
-      default: []
-    },
-
-    // STEP 8: House Rules
-    rules: {
-      type: [String],
-      default: []
-    },
-
-    // STEP 9: Legal Docs
-    legalDocs: {
-      type: [String],
-      default: []
-    },
-
-    // STEP 10: Pricing
-    pricePerHour: Number,      // NEW
-    pricePerNight: Number,
-    pricePerMonth: Number,
-    currency: {
-      type: String,
-      default: "USD"
-    },
-
-    // ADMIN STATUS
-    status: {
-      type: String,
-      enum: ["draft", "pending", "approved", "rejected"],
-      default: "draft"
-    },
-
-    rejectionReason: {
-      type: String,
-      default: ""
-    }
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
   },
-  { timestamps: true }
-);
 
-export default mongoose.model("Property", propertySchema);
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+
+  category_id: DataTypes.STRING,
+  property_type: DataTypes.STRING,
+  privacy_type: DataTypes.STRING,
+
+  guests: DataTypes.INTEGER,
+  bedrooms: DataTypes.INTEGER,
+  bathrooms: DataTypes.INTEGER,
+  pets_allowed: DataTypes.INTEGER,
+  area: DataTypes.INTEGER,
+
+  title: DataTypes.STRING,
+  description: DataTypes.TEXT,
+
+  country: DataTypes.STRING,
+  city: DataTypes.STRING,
+  address: DataTypes.TEXT,
+
+  photos: DataTypes.JSON,
+  video: DataTypes.STRING,
+
+  amenities: DataTypes.JSON,
+  rules: DataTypes.JSON,
+  legal_docs: DataTypes.JSON,
+
+  price_per_hour: DataTypes.DECIMAL(10,2),
+  price_per_night: DataTypes.DECIMAL(10,2),
+  price_per_month: DataTypes.DECIMAL(10,2),
+
+  currency: {
+    type: DataTypes.STRING,
+    defaultValue: 'USD'
+  },
+
+  status: {
+    type: DataTypes.STRING,
+    defaultValue: 'draft'
+  },
+
+  rejection_reason: {
+    type: DataTypes.TEXT,
+    defaultValue: ''
+  }
+
+}, {
+  tableName: 'properties',
+  timestamps: true,
+  underscored: true
+});
+
+Property.belongsTo(User, { foreignKey: 'user_id' });
+
+export default Property;

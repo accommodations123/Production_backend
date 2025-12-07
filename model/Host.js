@@ -1,26 +1,63 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/db.js';
+import User from './User.js';
 
-const hostVerificationSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+const Host = sequelize.define('Host', {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
   },
 
-  email: { type: String, default: null },
-  phone: { type: String, default: null },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
 
-  fullName: { type: String, required: true },
-  country: { type: String, required: true },
-  city: { type: String, required: true },
-  address: { type: String, required: true },
+  email: DataTypes.STRING,
+  phone: DataTypes.STRING,
 
-  idType: { type: String, required: true },
-  idNumber: { type: String, required: true },
-  idPhoto: { type: String, required: true },
-  selfiePhoto: { type: String, required: true },
+  full_name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  country: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  city: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  address: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
 
-}, { timestamps: true });
+  id_type: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  id_number: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  id_photo: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  selfie_photo: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+}, {
+  tableName: 'hosts',
+  timestamps: true,
+  underscored: true
+});
 
-export default mongoose.model('Host', hostVerificationSchema);
-    
+// Relationship
+Host.belongsTo(User, { foreignKey: 'user_id' });
+User.hasOne(Host, { foreignKey: 'user_id' });
+
+export default Host;

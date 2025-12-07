@@ -4,16 +4,20 @@ import User from '../model/User.js';
 // Save host details
 export const saveHost = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id; // from JWT middleware
 
-    // Get user login data
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
 
     const phoneFromLogin = user.phone;
     const emailFromLogin = user.email;
 
-    // If user logged in with phone, email must come from req.body
-    // If user logged in with email, phone must come from req.body
     const phone = phoneFromLogin || req.body.phone;
     const email = emailFromLogin || req.body.email;
 
@@ -24,19 +28,18 @@ export const saveHost = async (req, res) => {
       });
     }
 
-    // Create the record
     const data = await Host.create({
-      userId,
+      user_id: userId,
       email,
       phone,
-      fullName: req.body.fullName,
+      full_name: req.body.fullName,
       country: req.body.country,
       city: req.body.city,
       address: req.body.address,
-      idType: req.body.idType,
-      idNumber: req.body.idNumber,
-      idPhoto: req.body.idPhoto,
-      selfiePhoto: req.body.selfiePhoto
+      id_type: req.body.idType,
+      id_number: req.body.idNumber,
+      id_photo: req.body.idPhoto,
+      selfie_photo: req.body.selfiePhoto
     });
 
     return res.status(201).json({
@@ -57,9 +60,11 @@ export const saveHost = async (req, res) => {
 // Get the saved details for logged-in user
 export const getMyHost = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const data = await Host.findOne({ userId });
+    const data = await Host.findOne({
+      where: { user_id: userId }
+    });
 
     return res.status(200).json({
       success: true,

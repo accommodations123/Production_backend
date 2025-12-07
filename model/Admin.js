@@ -1,29 +1,38 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/db.js';
 
-const adminSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true
-    },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true
-    },
-
-    password: {
-      type: String,
-      required: true
-    },
-
-    role: {
-      type: String,
-      default: "admin"
-    }
+const Admin = sequelize.define('Admin', {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
   },
-  { timestamps: true }
-);
 
-export default mongoose.model("Admin", adminSchema);
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+
+  role: {
+    type: DataTypes.STRING,
+    defaultValue: 'admin'
+  }
+
+}, {
+  tableName: 'admins',
+  timestamps: true,
+  underscored: true
+});
+
+export default Admin;

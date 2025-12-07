@@ -11,6 +11,7 @@ import adminAuth from "../middleware/adminAuth.js";
 const router = express.Router();
 
 // Admin only
+router.get("/property/:id", adminAuth, getPendingProperties);
 router.get("/pending", adminAuth,  getPendingProperties);
 router.put("/approve/:id", adminAuth,  approveProperty);
 router.put("/reject/:id", adminAuth,  rejectProperty);
