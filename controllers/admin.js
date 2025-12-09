@@ -1,7 +1,6 @@
 import Admin from "../model/Admin.js";
 import bcrypt from "bcryptjs";
 import jwt from 'jsonwebtoken';
-import { getCache, setCache } from "../services/cacheService.js";
 
 export const adminRegister = async (req, res) => {
   try {
@@ -10,16 +9,9 @@ export const adminRegister = async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
-    const cachekeyEmail = `adminEmail:${email}`
-    const existingCached = getCache(cachekeyEmail)
-    if (existingCached) {
-      return res.status(400).json({message:"Email already exists"})
-    }
 
     const exists = await Admin.findOne({ where: { email }});
     if (exists) {
-      //write to cache for later lookups
-      await setCache(cachekeyEmail, true,300)
       return res.status(400).json({ message: 'Email already exists' });
     }
 
@@ -30,9 +22,6 @@ export const adminRegister = async (req, res) => {
       email,
       password: hashedPass
     });
-
-    await setCache(`admin:${admin.id}`,admin, 300)
-    await getCache(cachekeyEmail, true, 300)
 
     res.json({
       message: 'Admin registered successfully',
@@ -48,15 +37,8 @@ export const adminRegister = async (req, res) => {
 export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const cachekeyEmail = `adminEmail:${email}`
-    let admin = await getCache(cachekeyEmail)
-    if (!admin) {
-      admin = await Admin.findOne({ where: {email}})
-    }
-    if (admin) {
-      await setCache(cachekeyEmail,admin, 300)
-      await setCache(`admin:${admin.id}`, admin,300)
-    }
+
+    const admin = await Admin.findOne({ where: { email }});
     if (!admin) {
       return res.status(400).json({ message: 'Admin not found' });
     }
