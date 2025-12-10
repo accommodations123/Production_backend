@@ -2,11 +2,20 @@ import Approved from "../model/Approved.js";
 import Property from "../model/Property.js";
 import Host from "../model/Host.js";
 import User from "../model/User.js";
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
 
+// GET approved snapshot list
 export const getApprovedList = async (req, res) => {
   try {
+    const key = "approvedPropertySnapshots";
+
+    const cached = await getCache(key);
+    if (cached) {
+      return res.json({ success: true, data: cached });
+    }
+
     const list = await Approved.findAll({
-      order: [['createdAt', 'DESC']]
+      order: [["createdAt", "DESC"]]
     });
 
     const formatted = list.map(item => ({
@@ -16,27 +25,29 @@ export const getApprovedList = async (req, res) => {
       country: item.property_snapshot?.country,
       pricePerNight: item.property_snapshot?.pricePerNight,
       photos: item.property_snapshot?.photos,
-
       ownerName: item.host_snapshot?.fullName,
       ownerEmail: item.host_snapshot?.email,
       ownerPhone: item.host_snapshot?.phone
     }));
 
-    return res.json({
-      success: true,
-      data: formatted
-    });
+    await setCache(key, formatted, 600);
+
+    return res.json({ success: true, data: formatted });
 
   } catch (error) {
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-
-
 // GET only approved properties including host info
 export const getApprovedWithHosts = async (req, res) => {
   try {
+    const key = "approvedWithHosts";
+
+    const cached = await getCache(key);
+    if (cached) {
+      return res.json({ success: true, data: cached });
+    }
 
     const properties = await Property.findAll({
       where: { status: "approved" },
@@ -50,26 +61,22 @@ export const getApprovedWithHosts = async (req, res) => {
     });
 
     const data = await Promise.all(
-      properties.map(async (property) => {
+      properties.map(async property => {
         const host = await Host.findOne({
           where: { user_id: property.user_id }
         });
 
-        return {
-          property,
-          host
-        }
+        return { property, host };
       })
-    )
+    );
 
-    return res.json({
-      success: true,
-      data
-    })
+    await setCache(key, data, 600);
 
-  } catch(err){
-    console.log(err)
-    res.status(500).json({ message:"server error" })
+    return res.json({ success: true, data });
+
+  } catch (err) {
+    return res.status(500).json({ message: "server error" });
   }
-}
+};
+
 

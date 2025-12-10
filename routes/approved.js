@@ -6,6 +6,6 @@ const router = express.Router();
 
 // Admin approves a property by its ID
 router.get("/get",getApprovedList)
-router.get("/approved-host-details", getApprovedWithHosts)
+router.get("/approved-host-details",adminAuth, getApprovedWithHosts)
 
 export default router;

@@ -1,6 +1,9 @@
+import { Op } from "sequelize";
 import Property from "../model/Property.js";
 import User from "../model/User.js";
 import Host from "../model/Host.js";
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
   try {
@@ -19,20 +22,25 @@ export const createDraft = async (req, res) => {
       status: "draft"
     });
 
-    res.json({
+    // property lists for user and frontend become outdated
+    await deleteCache(`myListings:${userId}`);
+    await deleteCache("approvedListings");
+    await deleteCache("propertyStats");
+
+    return res.json({
       success: true,
       propertyId: property.id,
       message: "Draft created successfully."
     });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 // BASIC INFO
 export const saveBasicInfo = async (req, res) => {
   try {
-    const [updated] = await Property.update(
+    await Property.update(
       {
         guests: req.body.guests,
         bedrooms: req.body.bedrooms,
@@ -40,13 +48,18 @@ export const saveBasicInfo = async (req, res) => {
         pets_allowed: req.body.petsAllowed,
         area: req.body.area
       },
-      { where: { id: req.params.id }, returning: true }
+      { where: { id: req.params.id } }
     );
 
     const property = await Property.findByPk(req.params.id);
-    res.json({ success: true, property });
+
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, property });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -63,13 +76,19 @@ export const saveAddress = async (req, res) => {
     );
 
     const property = await Property.findByPk(req.params.id);
-    res.json({ success: true, property });
+
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, property });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// MEDIA (PHOTOS)
+// MEDIA
 export const saveMedia = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -77,18 +96,23 @@ export const saveMedia = async (req, res) => {
     }
 
     const newUrls = req.files.map(file => file.location);
-
     const property = await Property.findByPk(req.params.id);
-    if (!property) return res.status(404).json({ message: "Not found" });
+
+    if (!property) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
     const oldPhotos = property.photos || [];
     property.photos = [...oldPhotos, ...newUrls];
 
     await property.save();
 
-    res.json({ success: true, property });
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+
+    return res.json({ success: true, property });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -103,9 +127,12 @@ export const saveVideo = async (req, res) => {
 
     const property = await Property.findByPk(req.params.id);
 
-    res.json({ success: true, property });
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+
+    return res.json({ success: true, property });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -116,10 +143,15 @@ export const saveAmenities = async (req, res) => {
       { amenities: req.body.amenities || [] },
       { where: { id: req.params.id } }
     );
+
     const property = await Property.findByPk(req.params.id);
-    res.json({ success: true, property });
+
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+    return res.json({ success: true, property });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -130,10 +162,16 @@ export const saveRules = async (req, res) => {
       { rules: req.body.rules || [] },
       { where: { id: req.params.id } }
     );
+
     const property = await Property.findByPk(req.params.id);
-    res.json({ success: true, property });
+
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+
+    return res.json({ success: true, property });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -145,18 +183,24 @@ export const saveLegalDocs = async (req, res) => {
     }
 
     const newUrls = req.files.map(file => file.location);
-
     const property = await Property.findByPk(req.params.id);
-    if (!property) return res.status(404).json({ message: "Not found" });
+
+    if (!property) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
     const oldDocs = property.legal_docs || [];
     property.legal_docs = [...oldDocs, ...newUrls];
 
     await property.save();
 
-    res.json({ success: true, property });
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+
+    return res.json({ success: true, property });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -174,9 +218,15 @@ export const savePricing = async (req, res) => {
     );
 
     const property = await Property.findByPk(req.params.id);
-    res.json({ success: true, property });
+
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, property });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -184,27 +234,47 @@ export const savePricing = async (req, res) => {
 export const submitProperty = async (req, res) => {
   try {
     const property = await Property.findByPk(req.params.id);
-    if (!property) return res.status(404).json({ message: "Not found" });
+
+    if (!property) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
     property.status = "pending";
     await property.save();
 
-    res.json({ success: true, message: "Submitted to admin" });
+    await deleteCache(`property:${req.params.id}`);
+    await deleteCache("approvedListings");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, message: "Submitted to admin" });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 // GET HOST LISTINGS
 export const getMyListings = async (req, res) => {
   try {
+    const userId = req.user.id;
+    const key = `myListings:${userId}`;
+
+    const cached = await getCache(key);
+
+    if (cached) {
+      return res.json({ success: true, properties: cached });
+    }
+
     const properties = await Property.findAll({
-      where: { user_id: req.user.id }
+      where: { user_id: userId }
     });
 
-    res.json({ success: true, properties });
+    await setCache(key, properties, 300);
+
+    return res.json({ success: true, properties });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -212,17 +282,66 @@ export const getMyListings = async (req, res) => {
 export const getApprovedListings = async (req, res) => {
   try {
     const properties = await Property.findAll({
-      where: { status: "approved" }
+      where: { status: ["approved","pending"] },
+      include: [{
+        model: User,
+        attributes: ["id","email"],
+        include:[{
+          model:Host,
+          attributes:["id","status"]   // add this
+        }]
+      }]
     });
-    res.json({ success: true, properties });
+
+    return res.json({success:true,properties});
+  } catch(err){
+    res.status(500).json({message:"Server error"})
+  }
+};
+// PUBLIC: return all properties (approved + pending) with host
+export const getAllPropertiesWithHosts = async (req, res) => {
+  try {
+    const properties = await Property.findAll({
+      where: {
+        status: ["approved","pending"]
+      },
+      include: [
+        {
+          model: User,
+          attributes: ["id","email"],
+          include: [
+            {
+              model: Host,
+              attributes: ["id","full_name","status"]
+            }
+          ]
+        }
+      ]
+    });
+
+    return res.json({
+      success: true,
+      data: properties
+    });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
   }
 };
 
-
+// single property
 export const getPropertyById = async (req, res) => {
   try {
+    const key = `property:${req.params.id}`;
+    const cached = await getCache(key);
+
+    if (cached) {
+      return res.json({ success: true, property: cached });
+    }
+
     const property = await Property.findByPk(req.params.id, {
       include: [
         {
@@ -248,24 +367,21 @@ export const getPropertyById = async (req, res) => {
     });
 
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: "Property not found"
-      });
+      return res.status(404).json({ success: false, message: "Property not found" });
     }
 
-    return res.json({
-      success: true,
-      property
-    });
+    await setCache(key, property, 300);
+
+    return res.json({ success: true, property });
 
   } catch (err) {
-    console.log("getPropertyById Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// GET ALL properties with host info for public
+
+
+
 
 

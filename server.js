@@ -20,7 +20,7 @@ import adminApprovedRoutes from "./routes/approved.js";
 (async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync({ alter:true });
+    await sequelize.sync();
 
     console.log("MySQL connected");
 

@@ -1,24 +1,31 @@
 import Property from "../model/Property.js";
 import Host from "../model/Host.js";
 import User from "../model/User.js";
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
 
-// GET pending properties including user and host info
+// GET pending properties (admin)
 export const getPendingProperties = async (req, res) => {
   try {
+    const key = "pendingProperties";
+
+    const cached = await getCache(key);
+    if (cached) {
+      return res.json({ success: true, data: cached });
+    }
+
     const properties = await Property.findAll({
       where: { status: "pending" },
       order: [["created_at", "DESC"]],
-
       include: [
         {
           model: User,
-          attributes: ["id", "email"]  // only fields that actually exist
+          attributes: ["id", "email"]
         }
       ]
     });
 
     const data = await Promise.all(
-      properties.map(async (property) => {
+      properties.map(async property => {
         const host = await Host.findOne({
           where: { user_id: property.user_id }
         });
@@ -33,10 +40,12 @@ export const getPendingProperties = async (req, res) => {
       })
     );
 
-    res.json({ success: true, data });
+    await setCache(key, data, 300);
+
+    return res.json({ success: true, data });
 
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -50,9 +59,13 @@ export const approveProperty = async (req, res) => {
     property.rejection_reason = "";
     await property.save();
 
-    res.json({ success: true, message: "Property approved" });
+    await deleteCache("pendingProperties");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, message: "Property approved" });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -66,9 +79,13 @@ export const rejectProperty = async (req, res) => {
     property.rejection_reason = req.body.reason || "Not specified";
     await property.save();
 
-    res.json({ success: true, message: "Property rejected" });
+    await deleteCache("pendingProperties");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, message: "Property rejected" });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -76,45 +93,92 @@ export const rejectProperty = async (req, res) => {
 export const deleteProperty = async (req, res) => {
   try {
     await Property.destroy({ where: { id: req.params.id } });
-    res.json({ success: true, message: "Property deleted" });
+
+    await deleteCache("pendingProperties");
+    await deleteCache("approvedListings");
+    await deleteCache("propertyStats");
+
+    return res.json({ success: true, message: "Property deleted" });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-// SINGLE property with owner and host verification
-export const getPropertyDetailsForAdmin = async (req, res) => {
+// simple admin aggregation
+export const getPropertyStatusStats = async (req, res) => {
   try {
-    const property = await Property.findByPk(req.params.id, {
-      include: [
-        {
-          model: User,
-          attributes: ["id", "email"]
-        }
-      ]
-    });
+    const key = "propertyStats";
+    const cached = await getCache(key);
 
-    if (!property) {
-      return res.status(404).json({ message: "Not found" });
+    if (cached) {
+      return res.json({ success: true, stats: cached });
     }
 
-    const host = await Host.findOne({
-      where: { user_id: property.user_id }
-    });
+    const [stats] = await Property.sequelize.query(`
+      SELECT status, COUNT(*) as total
+      FROM properties
+      GROUP BY status
+    `);
 
-    const owner = {
-      userId: property.User?.id,
-      email: property.User?.email,
-      verification: host || null
-    };
+    await setCache(key, stats, 1200);
 
-    res.json({
-      success: true,
-      property,
-      owner
-    });
+    return res.json({ success: true, stats });
 
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// property stats aggregation (example)
+export const getPropertyStats = async (req, res) => {
+  try {
+    const key = "propertyStats";
+    const cached = await getCache(key);
+
+    if (cached) {
+      return res.json({ success: true, stats: cached });
+    }
+
+    const [stats] = await Property.sequelize.query(`
+      SELECT country, COUNT(*) as total
+      FROM properties
+      WHERE status = 'approved'
+      GROUP BY country
+    `);
+
+    await setCache(key, stats, 1800);
+
+    return res.json({ success: true, stats });
+
+  } catch(err){
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+// simple aggregation
+export const getHostStats = async (req, res) => {
+  try {
+    const key = "hostStats";
+
+    const cached = await getCache(key);
+    if (cached) {
+      return res.json({ success:true, stats: cached });
+    }
+
+    // aggregation query
+    const [stats] = await Host.sequelize.query(`
+      SELECT status, COUNT(*) as total
+      FROM hosts
+      GROUP BY status
+    `);
+
+    await setCache(key, stats, 600);
+
+    return res.json({ success:true, stats });
+
+  } catch(err){
+    return res.status(500).json({ message:"Server error" });
   }
 };

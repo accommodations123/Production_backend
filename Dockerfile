@@ -1,7 +1,7 @@
 # ---------- Stage 1: Build & install dependencies ----------
 FROM node:18-alpine AS build
  
-WORKDIR /backend-accommodations
+WORKDIR /accommodations-backend
  
 # Copy dependency files
 COPY package.json package-lock.json* ./
@@ -19,7 +19,7 @@ COPY . .
 # ---------- Stage 2: Production image ----------
 FROM node:18-alpine AS production
  
-WORKDIR /backend-accommodations
+WORKDIR /accommodations-backend
  
 # Copy only package files first for clean prod install
 COPY package.json package-lock.json* ./
@@ -28,12 +28,10 @@ COPY package.json package-lock.json* ./
 RUN npm ci --silent --only=production
  
 # Copy build output or JS source
-COPY --from=build /backend-accommodations ./
-
-ENV HOST=0.0.0.0
+COPY --from=build /accommodations-backend ./
 
 # Expose backend port
 EXPOSE 5000
  
 # Start the backend
-CMD ["node", "-e", "require('./server.js').app.listen(process.env.PORT || 5000, '0.0.0.0')"]
+CMD ["node", "server.js"]

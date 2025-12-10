@@ -1,10 +1,11 @@
-import Host from '../model/Host.js';
-import User from '../model/User.js';
+import Host from "../model/Host.js";
+import User from "../model/User.js";
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
 
 // Save host details
 export const saveHost = async (req, res) => {
   try {
-    const userId = req.user.id; // from JWT middleware
+    const userId = req.user.id;
 
     const user = await User.findByPk(userId);
 
@@ -39,10 +40,15 @@ export const saveHost = async (req, res) => {
       id_type: req.body.idType,
       id_number: req.body.idNumber,
 
-      // IMPORTANT: take from multer-s3
+      // multer-s3
       id_photo: req.files?.idPhoto ? req.files.idPhoto[0].location : null,
       selfie_photo: req.files?.selfiePhoto ? req.files.selfiePhoto[0].location : null
     });
+
+    // invalidate caches (fresh data)
+    await deleteCache(`host:${userId}`);
+    await deleteCache("pendingHosts");
+    await deleteCache("hostStats");
 
     return res.status(201).json({
       success: true,
@@ -59,25 +65,26 @@ export const saveHost = async (req, res) => {
   }
 };
 
-
-
-
-// Get the saved details for logged-in user
+// Get host data for logged-in user
 export const getMyHost = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    const cacheKey = `host:${userId}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
 
     const data = await Host.findOne({
       where: { user_id: userId }
     });
 
-    return res.status(200).json({
-      success: true,
-      data
-    });
+    await setCache(cacheKey, data, 300);
+
+    return res.status(200).json({ success: true, data });
 
   } catch (error) {
-    console.log("Get verification error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error."
@@ -85,18 +92,27 @@ export const getMyHost = async (req, res) => {
   }
 };
 
-
 // get pending hosts (admin)
 export const getPendingHosts = async (req, res) => {
   try {
+    const cacheKey = "pendingHosts";
+    const cached = await getCache(cacheKey);
+
+    if (cached) {
+      return res.json({ success: true, hosts: cached });
+    }
+
     const hosts = await Host.findAll({
       where: { status: "pending" },
       include: [{ model: User }]
     });
 
-    res.json({ success: true, hosts });
+    await setCache(cacheKey, hosts, 300);
+
+    return res.json({ success: true, hosts });
+
   } catch(err){
-    res.status(500).json({message:"Server error"});
+    return res.status(500).json({ message:"Server error" });
   }
 };
 
@@ -104,15 +120,22 @@ export const getPendingHosts = async (req, res) => {
 export const approveHost = async (req, res) => {
   try {
     const host = await Host.findByPk(req.params.id);
-    if(!host) return res.status(404).json({message:"Not found"});
+    if (!host) {
+      return res.status(404).json({ message:"Not found" });
+    }
 
     host.status = "approved";
     host.rejection_reason = "";
     await host.save();
 
-    res.json({success:true, message:"Host approved"});
+    await deleteCache("pendingHosts");
+    await deleteCache(`host:${host.user_id}`);
+    await deleteCache("hostStats");
+
+    return res.json({ success:true, message:"Host approved" });
+
   } catch(err){
-    res.status(500).json({message:"Server error"});
+    return res.status(500).json({ message:"Server error" });
   }
 };
 
@@ -120,17 +143,26 @@ export const approveHost = async (req, res) => {
 export const rejectHost = async (req, res) => {
   try {
     const host = await Host.findByPk(req.params.id);
-    if(!host) return res.status(404).json({message:"Not found"});
+    if (!host) {
+      return res.status(404).json({ message:"Not found" });
+    }
 
-    host.status="rejected";
-    host.rejection_reason=req.body.reason || "";
+    host.status = "rejected";
+    host.rejection_reason = req.body.reason || "";
     await host.save();
 
-    res.json({
+    await deleteCache("pendingHosts");
+    await deleteCache(`host:${host.user_id}`);
+    await deleteCache("hostStats");
+
+    return res.json({
       success:true,
       message:"Host rejected"
     });
+
   } catch(err){
-    res.status(500).json({message:"Server error"});
+    return res.status(500).json({ message:"Server error" });
   }
 };
+
+
