@@ -20,7 +20,7 @@ import EventsRoutes from './routes/Events.routes.js'
 (async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync();
+    await sequelize.sync({alter:true});
 
     console.log("MySQL connected");
 
