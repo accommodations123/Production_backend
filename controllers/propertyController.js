@@ -247,7 +247,7 @@ export const getApprovedListings = async (req, res) => {
       include: [
         {
           model: Host,
-          attributes: ["id", "full_name", "status"],
+          attributes: ["id", "full_name", "status","phone"],
           include: [
             {
               model: User,
@@ -275,7 +275,7 @@ export const getAllPropertiesWithHosts = async (req, res) => {
       include: [
         {
           model: Host,
-          attributes: ["id", "full_name", "status"],
+          attributes: ["id", "full_name", "status",],
           include: [
             {
               model: User,
