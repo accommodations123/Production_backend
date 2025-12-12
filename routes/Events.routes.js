@@ -10,6 +10,7 @@ import {
   updateMedia,
   updatePricing,
   submitEvent,
+  getPendingItems,
   approveEvent,
   rejectEvent,
   getApprovedEvents,
@@ -40,15 +41,7 @@ router.put("/location/:id", userauth, updateLocation);
 router.put("/schedule/:id", userauth, updateSchedule);
 
 // Upload banner + gallery
-router.put(
-  "/media/:id",
-  userauth,
-  upload.fields([
-    { name: "bannerImage", maxCount: 1 },
-    { name: "galleryImages", maxCount: 10 }
-  ]),
-  updateMedia
-);
+router.put("/media/:id",userauth,upload.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),updateMedia);
 
 // Update pricing
 router.put("/pricing/:id", userauth, updatePricing);
@@ -60,9 +53,7 @@ router.put("/submit/:id", userauth, submitEvent);
    ADMIN FLOW
 ----------------------------------------- */
 
-router.get("/admin/pending", adminAuth, async (req, res) => {
-  // This is optional: you can add a dedicated controller
-});
+router.get("/admin/pending", adminAuth, getPendingItems);
 
 router.put("/admin/approve/:id", adminAuth, approveEvent);
 router.put("/admin/reject/:id", adminAuth, rejectEvent);

@@ -1,5 +1,6 @@
 import Event from "../model/Events.models.js";
 import Host from "../model/Host.js";
+import User from "../model/User.js";
 import sequelize from "../config/db.js";
 
 // ======================================================
@@ -8,7 +9,7 @@ import sequelize from "../config/db.js";
 export const createEventDraft = async (req, res) => {
   try {
     const userId = req.user.id;
-
+   
     // Ensure host exists
     const host = await Host.findOne({ where: { user_id: userId } });
     if (!host) {
@@ -190,6 +191,54 @@ export const submitEvent = async (req, res) => {
 // ======================================================
 // ADMIN: APPROVE EVENT
 // ======================================================
+
+export const getPendingItems = async (req, res) => {
+  try {
+    // Pending events
+    const pendingEvents = await Event.findAll({
+      where: { status: "pending" },
+      order: [["created_at", "DESC"]],
+      include: [
+        {
+          model: Host,
+          attributes: ["id", "full_name", "status"],
+          include: [
+            {
+              model: User,
+              attributes: ["id", "email"]
+            }
+          ]
+        }
+      ]
+    });
+
+    // Pending hosts
+    const pendingHosts = await Host.findAll({
+      where: { status: "pending" },
+      order: [["created_at", "DESC"]],
+      include: [
+        {
+          model: User,
+          attributes: ["id", "email"]
+        }
+      ]
+    });
+
+    return res.json({
+      success: true,
+      events: pendingEvents,
+      hosts: pendingHosts
+    });
+
+  } catch (error) {
+    console.log("PENDING ITEMS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
 export const approveEvent = async (req, res) => {
   try {
     const event = await Event.findByPk(req.params.id);
