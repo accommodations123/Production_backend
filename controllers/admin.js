@@ -2,6 +2,8 @@ import Admin from "../model/Admin.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+
 // REGISTER ADMIN
 export const adminRegister = async (req, res) => {
   try {
@@ -24,6 +26,14 @@ export const adminRegister = async (req, res) => {
       password: hashedPass
     });
 
+    // CACHE newly created admin
+    await setCache(`admin:${email}`, {
+      id: admin.id,
+      name: admin.name,
+      email: admin.email,
+      password: admin.password
+    });
+
     return res.json({
       message: "Admin registered successfully",
       admin: {
@@ -44,10 +54,18 @@ export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const admin = await Admin.findOne({ where: { email } });
+    // CHECK CACHE FIRST
+    let admin = await getCache(`admin:${email}`);
 
     if (!admin) {
-      return res.status(400).json({ message: "Admin not found" });
+      // NOT IN CACHE → get from DB
+      admin = await Admin.findOne({ where: { email } });
+      if (!admin) {
+        return res.status(400).json({ message: "Admin not found" });
+      }
+
+      // STORE IN CACHE
+      await setCache(`admin:${email}`, admin);
     }
 
     const checkPass = await bcrypt.compare(password, admin.password);
@@ -57,8 +75,7 @@ export const adminLogin = async (req, res) => {
 
     const token = jwt.sign(
       { id: admin.id, role: "admin" },
-      process.env.JWT_SECRET,
-      // { expiresIn: "7d" }
+      process.env.JWT_SECRET
     );
 
     return res.json({

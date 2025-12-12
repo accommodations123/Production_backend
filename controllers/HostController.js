@@ -1,6 +1,8 @@
 import Host from "../model/Host.js";
 import User from "../model/User.js";
 
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+
 // Save host details
 export const saveHost = async (req, res) => {
   try {
@@ -29,7 +31,6 @@ export const saveHost = async (req, res) => {
       email,
       phone,
 
-      // SAME FIELD NAMES AS YOUR MODEL
       full_name: req.body.full_name,
       country: req.body.country,
       city: req.body.city,
@@ -40,6 +41,10 @@ export const saveHost = async (req, res) => {
       id_photo: req.files?.idPhoto ? req.files.idPhoto[0].location : null,
       selfie_photo: req.files?.selfiePhoto ? req.files.selfiePhoto[0].location : null
     });
+
+    // Invalidate caches
+    await deleteCache(`host:${userId}`);
+    await deleteCache("pending_hosts");
 
     return res.status(201).json({
       success: true,
@@ -61,9 +66,18 @@ export const getMyHost = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // Check Redis cache
+    const cached = await getCache(`host:${userId}`);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const data = await Host.findOne({
       where: { user_id: userId }
     });
+
+    // Save to cache
+    await setCache(`host:${userId}`, data, 300);
 
     return res.status(200).json({ success: true, data });
 
@@ -78,10 +92,19 @@ export const getMyHost = async (req, res) => {
 // get pending hosts (admin)
 export const getPendingHosts = async (req, res) => {
   try {
+    // Check cache
+    const cached = await getCache("pending_hosts");
+    if (cached) {
+      return res.json({ success: true, hosts: cached });
+    }
+
     const hosts = await Host.findAll({
       where: { status: "pending" },
       include: [{ model: User }]
     });
+
+    // Cache results
+    await setCache("pending_hosts", hosts, 300);
 
     return res.json({ success: true, hosts });
 
@@ -102,6 +125,10 @@ export const approveHost = async (req, res) => {
     host.rejection_reason = "";
     await host.save();
 
+    // Clear caches
+    await deleteCache(`host:${host.user_id}`);
+    await deleteCache("pending_hosts");
+
     return res.json({ success: true, message: "Host approved" });
 
   } catch (err) {
@@ -120,6 +147,10 @@ export const rejectHost = async (req, res) => {
     host.status = "rejected";
     host.rejection_reason = req.body.reason || "";
     await host.save();
+
+    // Clear caches
+    await deleteCache(`host:${host.user_id}`);
+    await deleteCache("pending_hosts");
 
     return res.json({
       success: true,

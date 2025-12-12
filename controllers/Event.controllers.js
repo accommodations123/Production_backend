@@ -3,14 +3,15 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 import sequelize from "../config/db.js";
 
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+
 // ======================================================
-// 1. CREATE EVENT DRAFT (Host must exist)
+// 1. CREATE EVENT DRAFT
 // ======================================================
 export const createEventDraft = async (req, res) => {
   try {
     const userId = req.user.id;
-   
-    // Ensure host exists
+
     const host = await Host.findOne({ where: { user_id: userId } });
     if (!host) {
       return res.status(400).json({
@@ -36,6 +37,9 @@ export const createEventDraft = async (req, res) => {
       start_time,
       status: "draft"
     });
+
+    // Invalidate pending items cache
+    await deleteCache("pending_events");
 
     return res.json({
       success: true,
@@ -66,6 +70,10 @@ export const updateBasicInfo = async (req, res) => {
       type: req.body.type
     });
 
+    // Invalidate caches
+    await deleteCache(`event:${event.id}`);
+    await deleteCache("approved_events");
+
     return res.json({ success: true, event });
 
   } catch (err) {
@@ -89,6 +97,10 @@ export const updateLocation = async (req, res) => {
       landmark: req.body.landmark
     });
 
+    // Clear caches
+    await deleteCache(`event:${event.id}`);
+    await deleteCache("approved_events");
+
     return res.json({ success: true, event });
 
   } catch (err) {
@@ -105,10 +117,11 @@ export const updateSchedule = async (req, res) => {
 
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
-    // Expecting schedule = []
     await event.update({
       schedule: req.body.schedule || []
     });
+
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
@@ -119,7 +132,7 @@ export const updateSchedule = async (req, res) => {
 };
 
 // ======================================================
-// 5. UPDATE BANNER + GALLERY
+// 5. UPDATE MEDIA
 // ======================================================
 export const updateMedia = async (req, res) => {
   try {
@@ -128,18 +141,18 @@ export const updateMedia = async (req, res) => {
 
     if (!event) return res.status(404).json({ message: "Event not found" });
 
-    // banner: req.files.bannerImage
     if (req.files?.bannerImage) {
       event.banner_image = req.files.bannerImage[0].location;
     }
 
-    // gallery: req.files.galleryImages[]
     if (req.files?.galleryImages) {
       const newGalleryImages = req.files.galleryImages.map(f => f.location);
       event.gallery_images = [...event.gallery_images, ...newGalleryImages];
     }
 
     await event.save();
+
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
@@ -162,6 +175,9 @@ export const updatePricing = async (req, res) => {
       price: req.body.price
     });
 
+    await deleteCache(`event:${event.id}`);
+    await deleteCache("approved_events");
+
     return res.json({ success: true, event });
 
   } catch (err) {
@@ -181,6 +197,8 @@ export const submitEvent = async (req, res) => {
     event.status = "pending";
     await event.save();
 
+    await deleteCache("pending_events");
+
     return res.json({ success: true, message: "Event submitted to admin." });
 
   } catch (err) {
@@ -189,12 +207,15 @@ export const submitEvent = async (req, res) => {
 };
 
 // ======================================================
-// ADMIN: APPROVE EVENT
+// ADMIN: GET PENDING EVENTS + HOSTS
 // ======================================================
-
 export const getPendingItems = async (req, res) => {
   try {
-    // Pending events
+    const cached = await getCache("pending_events");
+    if (cached) {
+      return res.json({ success: true, events: cached.events, hosts: cached.hosts });
+    }
+
     const pendingEvents = await Event.findAll({
       where: { status: "pending" },
       order: [["created_at", "DESC"]],
@@ -212,33 +233,29 @@ export const getPendingItems = async (req, res) => {
       ]
     });
 
-    // Pending hosts
     const pendingHosts = await Host.findAll({
       where: { status: "pending" },
       order: [["created_at", "DESC"]],
       include: [
-        {
-          model: User,
-          attributes: ["id", "email"]
-        }
+        { model: User, attributes: ["id", "email"] }
       ]
     });
 
-    return res.json({
-      success: true,
-      events: pendingEvents,
-      hosts: pendingHosts
-    });
+    const result = { events: pendingEvents, hosts: pendingHosts };
+
+    await setCache("pending_events", result, 300);
+
+    return res.json({ success: true, ...result });
 
   } catch (error) {
     console.log("PENDING ITEMS ERROR:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
+// ======================================================
+// APPROVE EVENT
+// ======================================================
 export const approveEvent = async (req, res) => {
   try {
     const event = await Event.findByPk(req.params.id);
@@ -249,6 +266,10 @@ export const approveEvent = async (req, res) => {
     event.rejection_reason = "";
     await event.save();
 
+    await deleteCache("pending_events");
+    await deleteCache("approved_events");
+    await deleteCache(`event:${event.id}`);
+
     return res.json({ success: true, message: "Event approved" });
 
   } catch (err) {
@@ -257,7 +278,7 @@ export const approveEvent = async (req, res) => {
 };
 
 // ======================================================
-// ADMIN: REJECT EVENT
+// REJECT EVENT
 // ======================================================
 export const rejectEvent = async (req, res) => {
   try {
@@ -268,6 +289,9 @@ export const rejectEvent = async (req, res) => {
     event.status = "rejected";
     event.rejection_reason = req.body.reason || "";
     await event.save();
+
+    await deleteCache("pending_events");
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, message: "Event rejected" });
 
@@ -281,10 +305,15 @@ export const rejectEvent = async (req, res) => {
 // ======================================================
 export const getApprovedEvents = async (req, res) => {
   try {
+    const cached = await getCache("approved_events");
+    if (cached) return res.json({ success: true, events: cached });
+
     const events = await Event.findAll({
       where: { status: "approved" },
       include: [{ model: Host, attributes: ["id", "full_name", "status"] }]
     });
+
+    await setCache("approved_events", events, 300);
 
     return res.json({ success: true, events });
 
@@ -304,9 +333,14 @@ export const getMyEvents = async (req, res) => {
       return res.status(400).json({ success: false, message: "You are not a host." });
     }
 
+    const cached = await getCache(`host_events:${host.id}`);
+    if (cached) return res.json({ success: true, events: cached });
+
     const events = await Event.findAll({
       where: { host_id: host.id }
     });
+
+    await setCache(`host_events:${host.id}`, events, 300);
 
     return res.json({ success: true, events });
 
@@ -320,6 +354,11 @@ export const getMyEvents = async (req, res) => {
 // ======================================================
 export const getEventById = async (req, res) => {
   try {
+    const cached = await getCache(`event:${req.params.id}`);
+    if (cached) {
+      return res.json({ success: true, event: cached });
+    }
+
     const event = await Event.findByPk(req.params.id, {
       include: [{ model: Host, attributes: ["id", "full_name", "status"] }]
     });
@@ -327,6 +366,8 @@ export const getEventById = async (req, res) => {
     if (!event) {
       return res.status(404).json({ success: false, message: "Event not found" });
     }
+
+    await setCache(`event:${req.params.id}`, event, 300);
 
     return res.json({ success: true, event });
 
@@ -336,7 +377,7 @@ export const getEventById = async (req, res) => {
 };
 
 // ======================================================
-// USER: JOIN EVENT
+// JOIN EVENT
 // ======================================================
 export const joinEvent = async (req, res) => {
   try {
@@ -353,6 +394,8 @@ export const joinEvent = async (req, res) => {
       await event.save();
     }
 
+    await deleteCache(`event:${event.id}`);
+
     return res.json({ success: true, message: "Joined event" });
 
   } catch (err) {
@@ -361,7 +404,7 @@ export const joinEvent = async (req, res) => {
 };
 
 // ======================================================
-// USER: LEAVE EVENT
+// LEAVE EVENT
 // ======================================================
 export const leaveEvent = async (req, res) => {
   try {
@@ -372,6 +415,8 @@ export const leaveEvent = async (req, res) => {
     const userId = req.user.id;
     event.members_going = event.members_going.filter(id => id !== userId);
     await event.save();
+
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, message: "Left event" });
 

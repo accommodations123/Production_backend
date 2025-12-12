@@ -3,6 +3,8 @@ import Property from "../model/Property.js";
 import User from "../model/User.js";
 import Host from "../model/Host.js";
 
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
   try {
@@ -29,6 +31,11 @@ export const createDraft = async (req, res) => {
       status: "draft"
     });
 
+    // Clear related cache
+    await deleteCache(`host_listings:${host.id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({
       success: true,
       propertyId: property.id,
@@ -45,6 +52,8 @@ export const createDraft = async (req, res) => {
 // BASIC INFO
 export const saveBasicInfo = async (req, res) => {
   try {
+    const id = req.params.id;
+
     await Property.update(
       {
         guests: req.body.guests,
@@ -53,10 +62,16 @@ export const saveBasicInfo = async (req, res) => {
         pets_allowed: req.body.petsAllowed,
         area: req.body.area
       },
-      { where: { id: req.params.id } }
+      { where: { id } }
     );
 
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
+
+    // Clear caches
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
 
     return res.json({ success: true, property });
   } catch (err) {
@@ -64,19 +79,28 @@ export const saveBasicInfo = async (req, res) => {
   }
 };
 
+
 // ADDRESS
 export const saveAddress = async (req, res) => {
   try {
+    const id = req.params.id;
+
     await Property.update(
       {
         country: req.body.country,
         city: req.body.city,
         address: req.body.address
       },
-      { where: { id: req.params.id } }
+      { where: { id } }
     );
 
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
 
   } catch (err) {
@@ -84,15 +108,18 @@ export const saveAddress = async (req, res) => {
   }
 };
 
+
 // MEDIA
 export const saveMedia = async (req, res) => {
   try {
+    const id = req.params.id;
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No images uploaded" });
     }
 
     const newUrls = req.files.map(file => file.location);
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
 
     if (!property) {
       return res.status(404).json({ message: "Not found" });
@@ -102,53 +129,84 @@ export const saveMedia = async (req, res) => {
     property.photos = [...oldPhotos, ...newUrls];
 
     await property.save();
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
   } catch (err) {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 export const saveVideo = async (req, res) => {
   try {
-    const url = req.file.location;
+    const id = req.params.id;
 
     await Property.update(
-      { video: url },
-      { where: { id: req.params.id } }
+      { video: req.file.location },
+      { where: { id } }
     );
 
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
   } catch (err) {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // AMENITIES
 export const saveAmenities = async (req, res) => {
   try {
+    const id = req.params.id;
+
     await Property.update(
       { amenities: req.body.amenities || [] },
-      { where: { id: req.params.id } }
+      { where: { id } }
     );
 
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
 
   } catch (err) {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // RULES
 export const saveRules = async (req, res) => {
   try {
+    const id = req.params.id;
+
     await Property.update(
       { rules: req.body.rules || [] },
-      { where: { id: req.params.id } }
+      { where: { id } }
     );
 
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
 
   } catch (err) {
@@ -156,15 +214,18 @@ export const saveRules = async (req, res) => {
   }
 };
 
+
 // LEGAL DOCS
 export const saveLegalDocs = async (req, res) => {
   try {
+    const id = req.params.id;
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No documents uploaded" });
     }
 
     const newUrls = req.files.map(file => file.location);
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
 
     if (!property) {
       return res.status(404).json({ message: "Not found" });
@@ -174,6 +235,12 @@ export const saveLegalDocs = async (req, res) => {
     property.legal_docs = [...oldDocs, ...newUrls];
 
     await property.save();
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
 
   } catch (err) {
@@ -181,9 +248,12 @@ export const saveLegalDocs = async (req, res) => {
   }
 };
 
+
 // PRICING
 export const savePricing = async (req, res) => {
   try {
+    const id = req.params.id;
+
     await Property.update(
       {
         price_per_hour: req.body.pricePerHour,
@@ -191,10 +261,16 @@ export const savePricing = async (req, res) => {
         price_per_month: req.body.pricePerMonth,
         currency: req.body.currency
       },
-      { where: { id: req.params.id } }
+      { where: { id } }
     );
 
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(id);
+
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, property });
 
   } catch (err) {
@@ -202,10 +278,13 @@ export const savePricing = async (req, res) => {
   }
 };
 
+
 // SUBMIT TO ADMIN
 export const submitProperty = async (req, res) => {
   try {
-    const property = await Property.findByPk(req.params.id);
+    const id = req.params.id;
+
+    const property = await Property.findByPk(id);
 
     if (!property) {
       return res.status(404).json({ message: "Not found" });
@@ -214,12 +293,18 @@ export const submitProperty = async (req, res) => {
     property.status = "pending";
     await property.save();
 
+    await deleteCache(`property:${id}`);
+    await deleteCache(`host_listings:${property.host_id}`);
+    await deleteCache("approved_listings");
+    await deleteCache("all_properties");
+
     return res.json({ success: true, message: "Submitted to admin" });
 
   } catch (err) {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // GET HOST LISTINGS
 export const getMyListings = async (req, res) => {
@@ -232,9 +317,16 @@ export const getMyListings = async (req, res) => {
       return res.json({ success: true, properties: [] });
     }
 
+    const cached = await getCache(`host_listings:${host.id}`);
+    if (cached) {
+      return res.json({ success: true, properties: cached });
+    }
+
     const properties = await Property.findAll({
       where: { host_id: host.id }
     });
+
+    await setCache(`host_listings:${host.id}`, properties, 300);
 
     return res.json({ success: true, properties });
 
@@ -243,9 +335,15 @@ export const getMyListings = async (req, res) => {
   }
 };
 
+
 // FRONTEND APPROVED LISTINGS
 export const getApprovedListings = async (req, res) => {
   try {
+    const cached = await getCache("approved_listings");
+    if (cached) {
+      return res.json({ success: true, properties: cached });
+    }
+
     const properties = await Property.findAll({
       where: {
         status: ["approved", "pending"]
@@ -264,6 +362,8 @@ export const getApprovedListings = async (req, res) => {
       ]
     });
 
+    await setCache("approved_listings", properties, 300);
+
     return res.json({ success: true, properties });
 
   } catch (err) {
@@ -272,9 +372,15 @@ export const getApprovedListings = async (req, res) => {
   }
 };
 
-// PUBLIC: return all properties (approved + pending) with host
+
+// PUBLIC — ALL PROPERTIES
 export const getAllPropertiesWithHosts = async (req, res) => {
   try {
+    const cached = await getCache("all_properties");
+    if (cached) {
+      return res.json({ success: true, data: cached });
+    }
+
     const properties = await Property.findAll({
       where: { status: ["approved", "pending"] },
       include: [
@@ -291,6 +397,8 @@ export const getAllPropertiesWithHosts = async (req, res) => {
       ]
     });
 
+    await setCache("all_properties", properties, 300);
+
     return res.json({
       success: true,
       data: properties
@@ -305,10 +413,18 @@ export const getAllPropertiesWithHosts = async (req, res) => {
   }
 };
 
+
 // single property
 export const getPropertyById = async (req, res) => {
   try {
-    const property = await Property.findByPk(req.params.id, {
+    const id = req.params.id;
+
+    const cached = await getCache(`property:${id}`);
+    if (cached) {
+      return res.json({ success: true, property: cached });
+    }
+
+    const property = await Property.findByPk(id, {
       include: [
         {
           model: Host,
@@ -335,6 +451,8 @@ export const getPropertyById = async (req, res) => {
     if (!property) {
       return res.status(404).json({ success: false, message: "Property not found" });
     }
+
+    await setCache(`property:${id}`, property, 300);
 
     return res.json({ success: true, property });
 

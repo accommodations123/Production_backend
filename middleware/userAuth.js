@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import User from "../model/User.js";
 
+import { getCache, setCache } from "../services/cacheService.js";
+
 export default async function userAuth(req, res, next) {
   try {
     const token = req.header("Authorization")?.replace("Bearer ", "");
@@ -15,9 +17,19 @@ export default async function userAuth(req, res, next) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const user = await User.findByPk(decoded.id);
+    const userId = decoded.id;
+
+    // Check Redis cache first
+    let user = await getCache(`user:${userId}`);
+
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Cache user for 10 minutes
+      await setCache(`user:${userId}`, user, 600);
     }
 
     // OTP verification check
@@ -32,4 +44,3 @@ export default async function userAuth(req, res, next) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 }
- 
