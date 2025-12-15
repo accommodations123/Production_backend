@@ -33,7 +33,6 @@ export const createEventDraft = async (req, res) => {
       host_id: host.id,
       title,
       type,
-      selfie_photo,
       start_date,
       start_time,
       status: "draft"
