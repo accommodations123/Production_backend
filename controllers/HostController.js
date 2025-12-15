@@ -60,9 +60,6 @@ export const saveHost = async (req, res) => {
   }
 };
 
-import Host from "../model/Host.js";
-import { deleteCache } from "../services/cacheService.js";
-
 export const updateHost = async (req, res) => {
   try {
     const hostId = req.params.id;
