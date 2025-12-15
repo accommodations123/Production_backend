@@ -60,6 +60,74 @@ export const saveHost = async (req, res) => {
   }
 };
 
+import Host from "../model/Host.js";
+import { deleteCache } from "../services/cacheService.js";
+
+export const updateHost = async (req, res) => {
+  try {
+    const hostId = req.params.id;
+    const userId = req.user.id;
+
+    const host = await Host.findByPk(hostId);
+
+    if (!host) {
+      return res.status(404).json({
+        success: false,
+        message: "Host not found"
+      });
+    }
+
+    // Ownership check (important for security)
+    if (host.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to update this host"
+      });
+    }
+
+    const updates = {
+      full_name: req.body.full_name ?? host.full_name,
+      phone: req.body.phone ?? host.phone,
+      email: req.body.email ?? host.email,
+      country: req.body.country ?? host.country,
+      city: req.body.city ?? host.city,
+      address: req.body.address ?? host.address,
+      id_type: req.body.id_type ?? host.id_type,
+      id_number: req.body.id_number ?? host.id_number
+    };
+
+    // Update ID photo if uploaded
+    if (req.files?.idPhoto?.[0]?.location) {
+      updates.id_photo = req.files.idPhoto[0].location;
+    }
+
+    // Update selfie photo if uploaded
+    if (req.files?.selfiePhoto?.[0]?.location) {
+      updates.selfie_photo = req.files.selfiePhoto[0].location;
+    }
+
+    await host.update(updates);
+
+    // Clear caches
+    await deleteCache(`host:${userId}`);
+    await deleteCache("pending_hosts");
+
+    return res.json({
+      success: true,
+      message: "Host updated successfully",
+      data: host
+    });
+
+  } catch (error) {
+    console.error("Update host error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+
 // Get host data for logged-in user
 export const getMyHost = async (req, res) => {
   try {
