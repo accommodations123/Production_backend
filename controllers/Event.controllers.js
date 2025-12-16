@@ -20,7 +20,7 @@ export const createEventDraft = async (req, res) => {
       });
     }
 
-    const { title, type, start_date, start_time,event_mode,event_url,online_instructions } = req.body;
+    const { title, type, start_date, start_time } = req.body;
 
     if (!title || !start_date || !start_time) {
       return res.status(400).json({
@@ -64,12 +64,23 @@ export const updateBasicInfo = async (req, res) => {
       return res.status(404).json({ success: false, message: "Event not found" });
     }
 
-    await event.update({
-      title: req.body.title,
-      description: req.body.description,
-      type: req.body.type
-    });
+     const {
+      title,
+      description,
+      type,
+      event_mode,
+      event_url,
+      online_instructions
+    } = req.body;
 
+    await event.update({
+      title,
+      description,
+      type,
+      event_mode,
+      event_url,
+      online_instructions
+    });
     // Invalidate caches
     await deleteCache(`event:${event.id}`);
     await deleteCache("approved_events");
