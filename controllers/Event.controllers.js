@@ -20,7 +20,7 @@ export const createEventDraft = async (req, res) => {
       });
     }
 
-    const { title, type, start_date, start_time } = req.body;
+    const { title, type, start_date, start_time,event_mode,event_url,online_instructions } = req.body;
 
     if (!title || !start_date || !start_time) {
       return res.status(400).json({

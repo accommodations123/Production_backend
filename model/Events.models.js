@@ -136,7 +136,25 @@ longitude: {
   rejection_reason: {
     type: DataTypes.TEXT,
     defaultValue: ""
-  }
+  },
+  // Event type (online / offline / hybrid)
+event_mode: {
+  type: DataTypes.ENUM("offline", "online", "hybrid"),
+  defaultValue: "offline"
+},
+
+// Online event URL (Zoom / Meet / custom)
+event_url: {
+  type: DataTypes.STRING,
+  allowNull: true
+},
+
+// Optional joining instructions
+online_instructions: {
+  type: DataTypes.TEXT,
+  allowNull: true
+}
+
 
 }, {
   tableName: "events",
