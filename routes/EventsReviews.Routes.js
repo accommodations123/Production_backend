@@ -34,6 +34,6 @@ router.patch("/reviews/:reviewId/hide", userAuth, hideMyReview);
 ================================ */
 
 // Get all reviews (no cache, moderation view)
-router.get("/admin/reviews", adminAuth, getAllEventReviews);
+router.get("/admin/all", adminAuth, getAllEventReviews);
 
 export default router;
