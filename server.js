@@ -17,6 +17,7 @@ import propertyRoutes from "./routes/propertyRoutes.js";
 import adminPropertyRoutes from "./routes/adminPropertyRoutes.js";
 import adminApprovedRoutes from "./routes/approved.js";
 import EventsRoutes from './routes/Events.routes.js'
+import eventReviewRoutes from './routes/EventsReviews.Routes.js'
 (async () => {
   try {
     await sequelize.authenticate();
@@ -36,6 +37,8 @@ import EventsRoutes from './routes/Events.routes.js'
     app.use('/adminproperty', adminPropertyRoutes);
     app.use("/admin/approved", adminApprovedRoutes);
     app.use("/events",EventsRoutes)
+    app.use("/events/reviews", eventReviewRoutes);
+
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, "0.0.0.0", () => console.log("Server running on", PORT));

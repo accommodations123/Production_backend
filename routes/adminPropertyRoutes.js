@@ -15,7 +15,7 @@ const router = express.Router();
 // Admin only
 router.get("/pending", adminAuth, getPendingProperties);
 router.put("/approve/:id", adminAuth, approveProperty);
-router.put("/reject/:id", adminAuth, rejectProperty);
+router.put("/reject/:id", adminAuth, rejectProperty);   
 router.delete("/delete/:id", adminAuth, deleteProperty);
 
 // admin analytics

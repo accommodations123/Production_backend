@@ -1,6 +1,7 @@
 import EventReview from "../model/EventReview.js";
-import Event from "../model/Event.js";
+import Event from "../model/Events.models.js";
 import sequelize from "../config/db.js";
+import { getCache, setCache, deleteCache } from "../services/cacheService.js";
 
 /* =====================================================
    ADD / CREATE REVIEW
@@ -11,10 +12,8 @@ export const addEventReview = async (req, res) => {
   try {
     const userId = req.user.id;
     const eventId = req.params.id;
-
     const { reviewer_name, rating, comment } = req.body;
 
-    // Basic validation
     if (!reviewer_name || !rating || !comment) {
       await transaction.rollback();
       return res.status(400).json({
@@ -31,7 +30,6 @@ export const addEventReview = async (req, res) => {
       });
     }
 
-    // Check event exists
     const event = await Event.findByPk(eventId);
     if (!event) {
       await transaction.rollback();
@@ -41,7 +39,6 @@ export const addEventReview = async (req, res) => {
       });
     }
 
-    // Prevent duplicate review by same user
     const existingReview = await EventReview.findOne({
       where: { event_id: eventId, user_id: userId }
     });
@@ -54,29 +51,40 @@ export const addEventReview = async (req, res) => {
       });
     }
 
-    // Create review
-    await EventReview.create({
-      event_id: eventId,
-      user_id: userId,
-      reviewer_name,
-      rating,
-      comment
-    }, { transaction });
+    await EventReview.create(
+      {
+        event_id: eventId,
+        user_id: userId,
+        reviewer_name,
+        rating,
+        comment,
+        status: "active"
+      },
+      { transaction }
+    );
 
-    // Recalculate average rating
-    const stats = await EventReview.findAll({
-      where: { event_id: eventId },
+    // Aggregate rating (ACTIVE reviews only)
+    const stats = await EventReview.findOne({
+      where: { event_id: eventId, status: "active" },
       attributes: [
-        [sequelize.fn("AVG", sequelize.col("rating")), "avgRating"]
+        [sequelize.fn("AVG", sequelize.col("rating")), "avgRating"],
+        [sequelize.fn("COUNT", sequelize.col("id")), "totalReviews"]
       ],
       raw: true
     });
 
-    const avgRating = Number(stats[0].avgRating || 0).toFixed(1);
+    const ratingData = {
+      avgRating: Number(stats.avgRating || 0).toFixed(1),
+      totalReviews: Number(stats.totalReviews || 0)
+    };
 
-    await event.update({ rating: avgRating }, { transaction });
+    await event.update({ rating: ratingData.avgRating }, { transaction });
 
     await transaction.commit();
+
+    // Invalidate Redis
+    await deleteCache(`event:${eventId}:reviews`);
+    await deleteCache(`event:${eventId}:rating`);
 
     return res.status(201).json({
       success: true,
@@ -94,14 +102,27 @@ export const addEventReview = async (req, res) => {
 };
 
 /* =====================================================
-   GET REVIEWS FOR EVENT
+   GET REVIEWS FOR EVENT (PUBLIC + REDIS)
 ===================================================== */
 export const getEventReviews = async (req, res) => {
   try {
     const eventId = req.params.id;
+    const cacheKey = `event:${eventId}:reviews`;
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        reviews: cached,
+        cached: true
+      });
+    }
 
     const reviews = await EventReview.findAll({
-      where: { event_id: eventId },
+      where: {
+        event_id: eventId,
+        status: "active"
+      },
       order: [["created_at", "DESC"]],
       attributes: [
         "id",
@@ -112,9 +133,12 @@ export const getEventReviews = async (req, res) => {
       ]
     });
 
+    await setCache(cacheKey, reviews, 600); // 10 minutes
+
     return res.json({
       success: true,
-      reviews
+      reviews,
+      cached: false
     });
 
   } catch (error) {
@@ -127,15 +151,67 @@ export const getEventReviews = async (req, res) => {
 };
 
 /* =====================================================
-   DELETE REVIEW (USER)
+   GET EVENT RATING (AGGREGATION + REDIS)
 ===================================================== */
-export const deleteMyReview = async (req, res) => {
+export const getEventRating = async (req, res) => {
+  try {
+    const eventId = req.params.id;
+    const cacheKey = `event:${eventId}:rating`;
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        rating: cached,
+        cached: true
+      });
+    }
+
+    const stats = await EventReview.findOne({
+      where: { event_id: eventId, status: "active" },
+      attributes: [
+        [sequelize.fn("AVG", sequelize.col("rating")), "avgRating"],
+        [sequelize.fn("COUNT", sequelize.col("id")), "totalReviews"]
+      ],
+      raw: true
+    });
+
+    const ratingData = {
+      avgRating: Number(stats.avgRating || 0).toFixed(1),
+      totalReviews: Number(stats.totalReviews || 0)
+    };
+
+    await setCache(cacheKey, ratingData, 1800); // 30 minutes
+
+    return res.json({
+      success: true,
+      rating: ratingData,
+      cached: false
+    });
+
+  } catch (error) {
+    console.error("GET RATING ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+};
+
+/* =====================================================
+   HIDE MY REVIEW (SAFE DELETE)
+===================================================== */
+export const hideMyReview = async (req, res) => {
   try {
     const userId = req.user.id;
     const reviewId = req.params.reviewId;
 
     const review = await EventReview.findOne({
-      where: { id: reviewId, user_id: userId }
+      where: {
+        id: reviewId,
+        user_id: userId,
+        status: "active"
+      }
     });
 
     if (!review) {
@@ -145,15 +221,18 @@ export const deleteMyReview = async (req, res) => {
       });
     }
 
-    await review.destroy();
+    await review.update({ status: "hidden" });
+
+    await deleteCache(`event:${review.event_id}:reviews`);
+    await deleteCache(`event:${review.event_id}:rating`);
 
     return res.json({
       success: true,
-      message: "Review deleted"
+      message: "Review hidden successfully"
     });
 
   } catch (error) {
-    console.error("DELETE REVIEW ERROR:", error);
+    console.error("HIDE REVIEW ERROR:", error);
     return res.status(500).json({
       success: false,
       message: "Server error"
@@ -161,7 +240,9 @@ export const deleteMyReview = async (req, res) => {
   }
 };
 
-// GET ALL EVENT REVIEWS (PUBLIC)
+/* =====================================================
+   GET ALL REVIEWS (ADMIN)
+===================================================== */
 export const getAllEventReviews = async (req, res) => {
   try {
     const reviews = await EventReview.findAll({
@@ -172,6 +253,7 @@ export const getAllEventReviews = async (req, res) => {
         "reviewer_name",
         "rating",
         "comment",
+        "status",
         "created_at"
       ],
       include: [
@@ -195,4 +277,3 @@ export const getAllEventReviews = async (req, res) => {
     });
   }
 };
-

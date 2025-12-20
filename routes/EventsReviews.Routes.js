@@ -1,18 +1,39 @@
 import express from "express";
-import userauth from "../middleware/userAuth.js";
+import userAuth from "../middleware/userAuth.js";
+import adminAuth from "../middleware/adminAuth.js";
+
 import {
   addEventReview,
   getEventReviews,
-  deleteMyReview,
+  getEventRating,
+  hideMyReview,
   getAllEventReviews
 } from "../controllers/EventReview.controller.js";
 
 const router = express.Router();
 
-router.post("/:id/reviews", userauth, addEventReview);
-router.get("/:id/reviews", getEventReviews);
-router.delete("/reviews/:reviewId", userauth, deleteMyReview);
-router.get("/reviews/all", getAllEventReviews);
+/* ===============================
+   USER ROUTES
+================================ */
 
+// Add review (after attending event)
+router.post("/:id/reviews", userAuth, addEventReview);
+
+// Get public reviews for an event (Redis cached)
+router.get("/:id/reviews", getEventReviews);
+
+// Get event rating + review count (Redis cached)
+router.get("/:id/rating", getEventRating);
+
+// Hide my review (SAFE DELETE)
+router.patch("/reviews/:reviewId/hide", userAuth, hideMyReview);
+
+
+/* ===============================
+   ADMIN ROUTES
+================================ */
+
+// Get all reviews (no cache, moderation view)
+router.get("/admin/reviews", adminAuth, getAllEventReviews);
 
 export default router;
