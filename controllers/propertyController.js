@@ -394,21 +394,33 @@ export const softDeleteProperty = async (req, res) => {
 // FRONTEND APPROVED LISTINGS
 export const getApprovedListings = async (req, res) => {
   try {
-    const { country, city, zip_code } = req.query;
+    // ✅ Read from headers FIRST, fallback to query
+    const country =
+      req.headers["x-country"] || req.query.country || null
+    const city =
+      req.headers["x-city"] || req.query.city || null
+    const zip_code =
+      req.headers["x-zip-code"] || req.query.zip_code || null
 
-    const cacheKey = `approved_listings:${country || "all"}:${city || "all"}:${zip_code || "all"}`;
-    const cached = await getCache(cacheKey);
+    // ✅ Country-aware cache key
+    const cacheKey = `approved_listings:${country || "all"}:${city || "all"}:${zip_code || "all"}`
+
+    const cached = await getCache(cacheKey)
     if (cached) {
-      return res.json({ success: true, properties: cached });
+      console.log("⚡ Cache hit:", cacheKey)
+      return res.json({ success: true, properties: cached })
     }
 
+    // ✅ Dynamic DB filter
     const where = {
       status: ["approved", "pending"]
-    };
+    }
 
-    if (country) where.country = country;
-    if (city) where.city = city;
-    if (zip_code) where.zip_code = zip_code;
+    if (country) where.country = country
+    if (city) where.city = city
+    if (zip_code) where.zip_code = zip_code
+
+    console.log("📍 DB Query Filter:", where)
 
     const properties = await Property.findAll({
       where,
@@ -423,18 +435,20 @@ export const getApprovedListings = async (req, res) => {
             }
           ]
         }
-      ]
-    });
+      ],
+      order: [["createdAt", "DESC"]]
+    })
 
-    await setCache(cacheKey, properties, 300);
+    // ✅ Cache per location
+    await setCache(cacheKey, properties, 300)
 
-    return res.json({ success: true, properties });
+    return res.json({ success: true, properties })
 
   } catch (err) {
-    console.log("Error:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("❌ getApprovedListings error:", err)
+    return res.status(500).json({ message: "Server error" })
   }
-};
+}
 
 
 
