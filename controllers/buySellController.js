@@ -16,7 +16,9 @@ export const createBuySellListing = async (req, res) => {
       subcategory,
       price,
       description,
-      location,
+      country,
+      city,
+      zip_code,
       name,
       phone
     } = req.body;
@@ -26,7 +28,8 @@ export const createBuySellListing = async (req, res) => {
       !category ||
       !price ||
       !description ||
-      !location ||
+      !country ||
+      !city ||
       !name ||
       !phone
     ) {
@@ -45,7 +48,9 @@ export const createBuySellListing = async (req, res) => {
       subcategory,
       price,
       description,
-      location,
+      country,
+      city,
+      zip_code: zip_code || null,
       name,
       email :userEmail,
       phone,
@@ -72,9 +77,12 @@ export const createBuySellListing = async (req, res) => {
 ========================= */
 export const getActiveBuySellListings = async (req, res) => {
   try {
-    const { category, minPrice, maxPrice, search } = req.query;
+    const {country, category, city, zip_code, minPrice, maxPrice, search } = req.query;
 
     const where = { status: "active" };
+    if(country) where.country = country;
+    if(city) where.city = city;
+    if(zip_code) where.zip_code = zip_code
 
     if (category) {
       where.category = category;

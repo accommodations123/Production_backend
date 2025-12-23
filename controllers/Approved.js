@@ -8,13 +8,21 @@ import { getCache, setCache } from "../services/cacheService.js";
 // GET approved snapshot list
 export const getApprovedList = async (req, res) => {
   try {
-    // Check Redis cache first
-    const cached = await getCache("approved_snapshot_list");
+    const { country, city, zip_code } = req.query;
+
+    const cacheKey = `approved_snapshot_list:${country || "all"}:${city || "all"}:${zip_code || "all"}`;
+    const cached = await getCache(cacheKey);
     if (cached) {
       return res.json({ success: true, data: cached });
     }
 
+    const where = {};
+    if (country) where["property_snapshot.country"] = country;
+    if (city) where["property_snapshot.city"] = city;
+    if (zip_code) where["property_snapshot.zip_code"] = zip_code;
+
     const list = await ApprovedHost.findAll({
+      where,
       order: [["createdAt", "DESC"]]
     });
 
@@ -23,16 +31,15 @@ export const getApprovedList = async (req, res) => {
       title: item.property_snapshot?.title,
       city: item.property_snapshot?.city,
       country: item.property_snapshot?.country,
+      zip_code: item.property_snapshot?.zip_code,
       pricePerNight: item.property_snapshot?.price_per_night,
       photos: item.property_snapshot?.photos,
-
       ownerName: item.host_snapshot?.full_name,
       ownerEmail: item.host_snapshot?.email,
       ownerPhone: item.host_snapshot?.phone
     }));
 
-    // Cache result for 5 minutes
-    await setCache("approved_snapshot_list", formatted, 300);
+    await setCache(cacheKey, formatted, 300);
 
     return res.json({ success: true, data: formatted });
 
@@ -43,17 +50,25 @@ export const getApprovedList = async (req, res) => {
 };
 
 
+
 // GET approved properties with live host details
 export const getApprovedWithHosts = async (req, res) => {
   try {
-    // Check Redis cache first
-    const cached = await getCache("approved_properties_with_hosts");
+    const { country, city, zip_code } = req.query;
+
+    const cacheKey = `approved_properties_with_hosts:${country || "all"}:${city || "all"}:${zip_code || "all"}`;
+    const cached = await getCache(cacheKey);
     if (cached) {
       return res.json({ success: true, data: cached });
     }
 
+    const where = { status: "approved" };
+    if (country) where.country = country;
+    if (city) where.city = city;
+    if (zip_code) where.zip_code = zip_code;
+
     const properties = await Property.findAll({
-      where: { status: "approved" },
+      where,
       order: [["created_at", "DESC"]],
       include: [
         {
@@ -69,8 +84,7 @@ export const getApprovedWithHosts = async (req, res) => {
       ]
     });
 
-    // Cache for 5 minutes
-    await setCache("approved_properties_with_hosts", properties, 300);
+    await setCache(cacheKey, properties, 300);
 
     return res.json({ success: true, data: properties });
 
@@ -79,3 +93,4 @@ export const getApprovedWithHosts = async (req, res) => {
     return res.status(500).json({ message: "server error" });
   }
 };
+

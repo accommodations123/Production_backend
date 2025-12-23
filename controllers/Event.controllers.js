@@ -95,6 +95,7 @@ export const updateLocation = async (req, res) => {
     await event.update({
       country: req.body.country,
       city: req.body.city,
+      zip_code: req.body.zip_code || null,
       address: req.body.address,
       landmark: req.body.landmark
     });
@@ -386,15 +387,33 @@ export const rejectEvent = async (req, res) => {
 // ======================================================
 export const getApprovedEvents = async (req, res) => {
   try {
-    const cached = await getCache("approved_events");
-    if (cached) return res.json({ success: true, events: cached });
+    const { country, city, zip_code } = req.query;
+
+    const where = { status: "approved" };
+
+    if (country) where.country = country;
+    if (city) where.city = city;
+    if (zip_code) where.zip_code = zip_code;
+
+    const cacheKey = `approved_events:${country || "all"}:${city || "all"}:${zip_code || "all"}`;
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({ success: true, events: cached });
+    }
 
     const events = await Event.findAll({
-      where: { status: "approved" },
-      include: [{ model: Host, attributes: ["id", "full_name", "selfie_photo", "phone", "email", "status"] }]
+      where,
+      include: [
+        {
+          model: Host,
+          attributes: ["id", "full_name", "selfie_photo", "phone", "email", "status"]
+        }
+      ],
+      order: [["created_at", "DESC"]]
     });
 
-    await setCache("approved_events", events, 300);
+    await setCache(cacheKey, events, 300);
 
     return res.json({ success: true, events });
 
@@ -402,6 +421,7 @@ export const getApprovedEvents = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ======================================================
 // HOST: GET MY EVENTS

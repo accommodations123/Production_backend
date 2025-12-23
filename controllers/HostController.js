@@ -33,6 +33,7 @@ export const saveHost = async (req, res) => {
       full_name: req.body.full_name,
       country: req.body.country,
       city: req.body.city,
+      zip_code: req.body.zip_code || null,
       address: req.body.address,
       id_type: req.body.id_type,
       id_number: req.body.id_number,
@@ -88,6 +89,7 @@ export const updateHost = async (req, res) => {
       email: req.body.email ?? host.email,
       country: req.body.country ?? host.country,
       city: req.body.city ?? host.city,
+      zip_code : req.body.zip_code ?? host.zip_code,
       address: req.body.address ?? host.address,
       id_type: req.body.id_type ?? host.id_type,
       id_number: req.body.id_number ?? host.id_number

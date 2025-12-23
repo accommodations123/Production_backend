@@ -89,6 +89,7 @@ export const saveAddress = async (req, res) => {
       {
         country: req.body.country,
         city: req.body.city,
+        zip_code: req.body.zip_code || null,
         address: req.body.address
       },
       { where: { id } }
@@ -443,6 +444,7 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     const {
       city,
       country,
+      zip_code,
       minPrice,
       maxPrice
     } = req.query;
@@ -463,6 +465,9 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     if (country) {
       where.country = country;
     }
+    if (zip_code) {
+      where.zip_code = zip_code;
+    }
 
     // Price range filter
     if (minPrice || maxPrice) {
@@ -480,7 +485,8 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     // -------------------------
     // Cache key (filters aware)
     // -------------------------
-    const cacheKey = `all_properties:${page}:${limit}:${city || "all"}:${country || "all"}:${minPrice || 0}:${maxPrice || 0}`;
+    const cacheKey = `all_properties:${page}:${limit}:${country || "all"}:${city || "all"}:${zip_code || "all"}:${minPrice || 0}:${maxPrice || 0}`;
+
 
     const cached = await getCache(cacheKey);
     if (cached) {
