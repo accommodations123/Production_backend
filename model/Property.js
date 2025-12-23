@@ -30,6 +30,10 @@ const Property = sequelize.define('Property', {
 
   country: DataTypes.STRING,
   city: DataTypes.STRING,
+   zip_code: {
+    type: DataTypes.STRING(20),
+    allowNull: true
+  },
   address: DataTypes.TEXT,
 
   photos: DataTypes.JSON,
@@ -85,10 +89,12 @@ const Property = sequelize.define('Property', {
     { fields: ['host_id'] },
     { fields: ['status'] },
     { fields: ['city'] },
+     { fields: ['zip_code'] },
     { fields: ['country'] },
     { fields: ['category_id'] },
     { fields: ['property_type'] },
-    { fields: ['is_deleted']}
+    { fields: ['is_deleted']},
+     { fields: ['country', 'city', 'zip_code'] } // ✅ ADDED (important)
   ]
 });
 

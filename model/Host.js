@@ -29,6 +29,10 @@ const Host = sequelize.define('Host', {
     type: DataTypes.STRING,
     allowNull: false
   },
+  zip_code : {
+    type: DataTypes.STRING(20),
+    allowNull:true
+  },
   address: {
     type: DataTypes.STRING,
     allowNull: false
@@ -62,7 +66,13 @@ const Host = sequelize.define('Host', {
 }, {
   tableName: 'hosts',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+  { fields: ['country'] },
+  { fields: ['country', 'city'] },
+  { fields: ['country', 'city', 'zip_code'] }
+]
+
 });
 
 // Relationship

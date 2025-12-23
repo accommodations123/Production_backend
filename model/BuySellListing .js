@@ -41,11 +41,21 @@ const BuySellListing = sequelize.define(
             type: DataTypes.TEXT,
             allowNull: false
         },
-
-        location: {
-            type: DataTypes.STRING(120),
+        country: {
+            type: DataTypes.STRING(100),
             allowNull: false
         },
+
+        city: {
+            type: DataTypes.STRING(100),
+            allowNull: false
+        },
+
+        zip_code: {
+            type: DataTypes.STRING(20),
+            allowNull: true
+        },
+
 
         // Snapshot contact details (not tied to Host)
         name: {
@@ -91,7 +101,11 @@ const BuySellListing = sequelize.define(
             { fields: ["user_id"] },
             { fields: ["category", "status"] },
             { fields: ["status", "created_at"] },
-            { fields: ["price"] }
+            { fields: ["price"] },
+            // ✅ Location indexes
+            { fields: ["country"] },
+            { fields: ["country", "city"] },
+            { fields: ["country", "city", "zip_code"] }
         ]
     }
 );

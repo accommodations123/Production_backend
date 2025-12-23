@@ -38,6 +38,10 @@ const Event = sequelize.define("Event", {
   // Location
   country: DataTypes.STRING,
   city: DataTypes.STRING,
+   zip_code: {
+    type: DataTypes.STRING(20),
+    allowNull: true
+  },
   address: DataTypes.STRING,
   landmark: DataTypes.STRING,
 
@@ -159,7 +163,15 @@ online_instructions: {
 }, {
   tableName: "events",
   timestamps: true,
-  underscored: true
+  underscored: true,
+    indexes: [
+    { fields: ["host_id"] },
+    { fields: ["status"] },
+    { fields: ["country"] },
+    { fields: ["city"] },
+    { fields: ["zip_code"] },                 // ✅ ADDED
+    { fields: ["country", "city", "zip_code"] } // ✅ ADDED
+  ]
 });
 
 Event.belongsTo(Host, { foreignKey: "host_id" });
