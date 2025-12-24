@@ -15,11 +15,11 @@ const User = sequelize.define('User', {
   otp: {
     type: DataTypes.STRING
   },
-  phone: {
-    type: DataTypes.STRING(20),
-    unique:true,
-    allowNull:true
-  },
+  // phone: {
+  //   type: DataTypes.STRING(20),
+  //   unique:true,
+  //   allowNull:true
+  // },
   otpExpires: {
     type: DataTypes.DATE,
     field: 'otp_expires',
