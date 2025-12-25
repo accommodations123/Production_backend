@@ -1,14 +1,12 @@
 import Event from "../model/Events.models.js";
 import Host from "../model/Host.js";
 
+
 export const verifyEventOwnership = async (req, res, next) => {
   try {
-    // 🔹 Auth guard
-    if (!req.user || typeof req.user.id !== "number") {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const eventId = Number(req.params.id);
+    const userId = Number(req.user.id);
+
     if (!eventId) {
       return res.status(400).json({ message: "Invalid event id" });
     }
@@ -23,17 +21,19 @@ export const verifyEventOwnership = async (req, res, next) => {
       return res.status(404).json({ message: "Host not found" });
     }
 
-    // 🔹 IMPORTANT: numeric comparison
-    if (Number(host.user_id) !== Number(req.user.id)) {
+    if (Number(host.user_id) !== userId) {
       return res.status(403).json({ message: "You do not own this event" });
     }
 
     req.event = event;
     req.host = host;
-
     next();
+
   } catch (err) {
-    console.error("OWNERSHIP ERROR:", err);
-    return res.status(500).json({ message: "Ownership verification failed" });
+    console.error("VERIFY EVENT OWNERSHIP ERROR:", err);
+    return res.status(500).json({
+      message: "Ownership verification failed",
+      error: err.message
+    });
   }
 };
