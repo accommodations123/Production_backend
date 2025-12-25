@@ -51,7 +51,7 @@ const Event = sequelize.define("Event", {
     type: DataTypes.TEXT,
     allowNull: false
   },
-  address: DataTypes.STRING,
+  // address: DataTypes.STRING,
   landmark: DataTypes.STRING,
 
   // Schedule fields (event duration)
