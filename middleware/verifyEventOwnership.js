@@ -1,5 +1,5 @@
-import Event from "../models/Event.js";
-import Host from "../models/Host.js";
+import Event from "../model/Events.models.js";
+import Host from "../model/Host.js";
 
 export const verifyEventOwnership = async (req, res, next) => {
   try {
