@@ -35,7 +35,7 @@ const router = express.Router();
 router.post("/create-draft", userauth, createEventDraft);
 
 // Update basic info
-router.put("/basic-info/:id", userauth, updateBasicInfo);
+router.put("/basic-info/:id", userauth,verifyEventOwnership, updateBasicInfo);
 
 // Update location
 router.put("/location/:id", userauth,verifyEventOwnership, updateLocation);
