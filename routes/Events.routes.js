@@ -20,7 +20,7 @@ import {
   joinEvent,
   leaveEvent
 } from "../controllers/Event.controllers.js";
-// import { verifyEventOwnership } from "../middleware/verifyEventOwnership.js";
+import { verifyEventOwnership } from "../middleware/verifyEventOwnership.js";
 
 
 import { upload } from "../middleware/upload.js";
@@ -35,25 +35,25 @@ const router = express.Router();
 router.post("/create-draft", userauth, createEventDraft);
 
 // Update basic info
-router.put("/basic-info/:id", userauth, updateBasicInfo);
+router.put("/basic-info/:id", userauth,verifyEventOwnership, updateBasicInfo);
 
 // Update location
-router.put("/location/:id", userauth, updateLocation);
+router.put("/location/:id", userauth,verifyEventOwnership, updateLocation);
 
 // Update venue + what's included
-router.put("/venue/:id", userauth, updateVenue);
+router.put("/venue/:id", userauth,verifyEventOwnership, updateVenue);
 
 // Update schedule (JSON array)
-router.put("/schedule/:id", userauth, updateSchedule);
+router.put("/schedule/:id", userauth,verifyEventOwnership, updateSchedule);
 
 // Upload banner + gallery
-router.put("/media/:id",userauth,upload.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),updateMedia);
+router.put("/media/:id",userauth,verifyEventOwnership,upload.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),updateMedia);
 
 // Update pricing
-router.put("/pricing/:id", userauth, updatePricing);
+router.put("/pricing/:id", userauth,verifyEventOwnership, updatePricing);
 
 // Submit event for admin approval
-router.put("/submit/:id", userauth, submitEvent);
+router.put("/submit/:id", userauth,verifyEventOwnership, submitEvent);
 
 /* -----------------------------------------
    ADMIN FLOW

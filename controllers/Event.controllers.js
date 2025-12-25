@@ -5,7 +5,7 @@ import sequelize from "../config/db.js";
 import EventParticipant from "../model/EventParticipant.js";
 import { createNotification } from "../services/notificationService.js";
 
-import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 
 // ======================================================
 // 1. CREATE EVENT DRAFT
@@ -15,6 +15,7 @@ export const createEventDraft = async (req, res) => {
     const userId = req.user.id;
 
     const host = await Host.findOne({ where: { user_id: userId } });
+
     if (!host) {
       return res.status(400).json({
         success: false,
@@ -41,7 +42,7 @@ export const createEventDraft = async (req, res) => {
     });
 
     // Invalidate pending items cache
-    await deleteCache("pending_events");
+    await deleteCacheByPrefix("pending_events");
 
     return res.json({
       success: true,
@@ -60,7 +61,8 @@ export const createEventDraft = async (req, res) => {
 // ======================================================
 export const updateBasicInfo = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = req.event;
+
 
     if (!event) {
       return res.status(404).json({ success: false, message: "Event not found" });
@@ -73,8 +75,8 @@ export const updateBasicInfo = async (req, res) => {
     });
 
     // Invalidate caches
-    await deleteCache(`event:${event.id}`);
-    await deleteCache("approved_events");
+    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events");
 
     return res.json({ success: true, event });
 
@@ -88,22 +90,23 @@ export const updateBasicInfo = async (req, res) => {
 // ======================================================
 export const updateLocation = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = req.event;
+
 
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
     await event.update({
       country: req.body.country,
-      state: req.body.state, 
+      state: req.body.state,
       city: req.body.city,
       zip_code: req.body.zip_code || null,
-      street_address: req.body.street_address, 
+      street_address: req.body.street_address,
       landmark: req.body.landmark
     });
 
     // Clear caches
-    await deleteCache(`event:${event.id}`);
-    await deleteCache("approved_events");
+    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events");
 
     return res.json({ success: true, event });
 
@@ -117,7 +120,7 @@ export const updateLocation = async (req, res) => {
 // ======================================================
 export const updateSchedule = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = req.event;
 
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
@@ -125,7 +128,7 @@ export const updateSchedule = async (req, res) => {
       schedule: req.body.schedule || []
     });
 
-    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
@@ -140,7 +143,8 @@ export const updateSchedule = async (req, res) => {
 // ======================================================
 export const updateVenue = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = req.event;
+
 
     if (!event) {
       return res.status(404).json({
@@ -197,8 +201,8 @@ export const updateVenue = async (req, res) => {
 
     await event.update(updateData);
 
-    await deleteCache(`event:${event.id}`);
-    await deleteCache("approved_events");
+    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events");
 
     return res.json({
       success: true,
@@ -220,7 +224,8 @@ export const updateVenue = async (req, res) => {
 export const updateMedia = async (req, res) => {
   try {
     const id = req.params.id;
-    const event = await Event.findByPk(id);
+    const event = req.event;
+
 
     if (!event) return res.status(404).json({ message: "Event not found" });
 
@@ -235,7 +240,7 @@ export const updateMedia = async (req, res) => {
 
     await event.save();
 
-    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
@@ -250,7 +255,8 @@ export const updateMedia = async (req, res) => {
 // ======================================================
 export const updatePricing = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = req.event;
+
 
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
@@ -258,8 +264,8 @@ export const updatePricing = async (req, res) => {
       price: req.body.price
     });
 
-    await deleteCache(`event:${event.id}`);
-    await deleteCache("approved_events");
+    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events");
 
     return res.json({ success: true, event });
 
@@ -273,14 +279,15 @@ export const updatePricing = async (req, res) => {
 // ======================================================
 export const submitEvent = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = req.event;
+
 
     if (!event) return res.status(404).json({ message: "Event not found" });
 
     event.status = "pending";
     await event.save();
 
-    await deleteCache("pending_events");
+    await deleteCacheByPrefix("pending_events");
 
     return res.json({ success: true, message: "Event submitted to admin." });
 
@@ -351,9 +358,10 @@ export const approveEvent = async (req, res) => {
     event.rejection_reason = "";
     await event.save();
 
-    await deleteCache("pending_events");
-    await deleteCache("approved_events");
-    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix(`host_events:${event.host_id}`);
+    await deleteCacheByPrefix("pending_events");
+    await deleteCacheByPrefix("approved_events");
+    await deleteCacheByPrefix(`event:${event.id}`);
 
     return res.json({ success: true, message: "Event approved" });
 
@@ -375,8 +383,9 @@ export const rejectEvent = async (req, res) => {
     event.rejection_reason = req.body.reason || "";
     await event.save();
 
-    await deleteCache("pending_events");
-    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix(`host_events:${event.host_id}`);
+    await deleteCacheByPrefix("pending_events");
+    await deleteCacheByPrefix(`event:${event.id}`);
 
     return res.json({ success: true, message: "Event rejected" });
 
@@ -474,12 +483,16 @@ export const getEventById = async (req, res) => {
     }
 
     const event = await Event.findByPk(req.params.id, {
-      include: [{ model: Host, attributes: ["id", "full_name", "selfie_photo", "phone", "email", "status", "country", "state","city"] }]
+      include: [{ model: Host, attributes: ["id", "full_name", "selfie_photo", "phone", "email", "status", "country", "state", "city"] }]
     });
-
     if (!event) {
-      return res.status(404).json({ success: false, message: "Event not found" });
+      return res.status(404).json({ message: "Event not found" });
     }
+
+    if (event.status !== "approved") {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
 
     await setCache(`event:${req.params.id}`, event, 300);
 
