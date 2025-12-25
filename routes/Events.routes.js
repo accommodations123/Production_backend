@@ -32,7 +32,7 @@ const router = express.Router();
 ----------------------------------------- */
 
 // Create draft
-router.post("/create-draft", userauth,verifyEventOwnership, createEventDraft);
+router.post("/create-draft", userauth, createEventDraft);
 
 // Update basic info
 router.put("/basic-info/:id", userauth,verifyEventOwnership, updateBasicInfo);

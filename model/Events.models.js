@@ -39,7 +39,7 @@ const Event = sequelize.define("Event", {
   country: DataTypes.STRING,
   state: {                        // ✅ ADDED
     type: DataTypes.STRING(100),
-    allowNull: false
+    allowNull: true
   },
   city: DataTypes.STRING,
   zip_code: {
@@ -49,7 +49,7 @@ const Event = sequelize.define("Event", {
 
   street_address: {               // ✅ ADDED
     type: DataTypes.TEXT,
-    allowNull: false
+    allowNull: true
   },
   address: DataTypes.STRING,
   landmark: DataTypes.STRING,
