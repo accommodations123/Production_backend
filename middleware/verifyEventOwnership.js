@@ -6,45 +6,25 @@ export const verifyEventOwnership = async (req, res, next) => {
     const eventId = req.params.id;
     const userId = req.user.id;
 
-    // 1. Fetch event
     const event = await Event.findByPk(eventId);
     if (!event) {
-      return res.status(404).json({
-        success: false,
-        message: "Event not found"
-      });
+      return res.status(404).json({ message: "Event not found" });
     }
 
-    // 2. Fetch host for logged-in user
-    const host = await Host.findOne({
-      where: { user_id: userId }
-    });
-
+    const host = await Host.findByPk(event.host_id);
     if (!host) {
-      return res.status(403).json({
-        success: false,
-        message: "Host profile not found"
-      });
+      return res.status(404).json({ message: "Host not found" });
     }
 
-    // 3. Ownership check
-    if (event.host_id !== host.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized"
-      });
+    if (host.user_id !== userId) {
+      return res.status(403).json({ message: "You do not own this event" });
     }
 
-    // 4. Attach event to request (avoid re-querying)
     req.event = event;
-
+    req.host = host;
     next();
-
-  } catch (error) {
-    console.error("verifyEventOwnership error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Ownership verification failed" });
   }
 };
