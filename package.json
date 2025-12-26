@@ -27,6 +27,7 @@
     "nodemailer": "^7.0.11",
     "rate-limiter-flexible": "^9.0.0",
     "redis": "^5.10.0",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "socket.io": "^4.8.3"
   }
 }

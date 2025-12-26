@@ -103,7 +103,6 @@ export const saveHost = async (req, res) => {
       street_address: location.street_address,
       id_type: req.body.id_type,
       id_number: req.body.id_number,
-
       id_photo: req.files?.idPhoto ? req.files.idPhoto[0].location : null,
       selfie_photo: req.files?.selfiePhoto ? req.files.selfiePhoto[0].location : null
     });

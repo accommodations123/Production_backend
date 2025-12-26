@@ -1,10 +1,10 @@
 import dotenv from "dotenv";
 dotenv.config();
-
+import http from 'http'
 import express from "express";
 import cors from "cors";
 import sequelize from "./config/db.js";
-
+import { initSocket } from "./services/socket.js";
 import "./model/User.js";
 import "./model/Host.js";
 import "./model/Property.js";   // add any other models here
@@ -41,9 +41,10 @@ import buySellRoutes from './routes/buySellRoutes.js'
     app.use("/events/reviews", eventReviewRoutes);
     app.use('/buy-sell',buySellRoutes)
 
-
+    const server = http.createServer(app)
+    initSocket(server)
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, "0.0.0.0", () => console.log("Server running on", PORT));
+    server.listen(PORT, "0.0.0.0", () => console.log("Server running on", PORT));
 
   } catch (err) {
     console.log("DB Error:", err.message);

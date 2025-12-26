@@ -3,7 +3,7 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 import sequelize from "../config/db.js";
 import EventParticipant from "../model/EventParticipant.js";
-import { createNotification } from "../services/notificationService.js";
+import { getIO } from "../services/socket.js";
 
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 
@@ -536,21 +536,22 @@ export const joinEvent = async (req, res) => {
 
     // Increment count
     await event.increment("attendees_count");
-
-    const newCount = event.attendees_count + 1;
+    await event.reload()
+    const newCount = event.attendees_count;
 
     // 🔔 Notify only at milestones
     const milestones = [1, 10, 25, 50, 100];
+    const io = getIO()
 
     if (milestones.includes(newCount)) {
       try {
-        await createNotification({
-          userId: event.host_id,
-          title: "Event Update",
-          message: `${newCount} people have joined your event`,
-          type: "event_milestone",
-          entityId: event.id
-        });
+      io.to(`user:${event.host_id}`).emit("notification",{
+        type: "EVENT_MILESTONE",
+        title: "Event Update",
+        message : `${newCount} people have joined your event`,
+        eventId : event.id,
+        attendees_count : newCount
+      })
       } catch (err) {
         console.error("NOTIFICATION ERROR:", err);
       }
@@ -599,11 +600,12 @@ export const leaveEvent = async (req, res) => {
 
     // Decrement count
     await event.decrement("attendees_count");
-
-    const newCount = Math.max(event.attendees_count - 1, 0);
+    await event.reload()
+    const newCount = event.attendees_count;
 
     // 🔔 Notify only at meaningful LEAVE milestones
     const leaveMilestones = [0, 9, 24, 49];
+    const io = getIO()
 
     if (leaveMilestones.includes(newCount)) {
       try {
@@ -615,13 +617,13 @@ export const leaveEvent = async (req, res) => {
           message = `Attendee count dropped to ${newCount}`;
         }
 
-        await createNotification({
-          userId: event.host_id,
-          title: "Event Update",
+        io.to(`user:${event.host_id}`).emit("notification",{
+          type : "EVENT_LEAVE_MILESTONE",
+          title : "Event update",
           message,
-          type: "event_leave_milestone",
-          entityId: event.id
-        });
+          eventId : event.id,
+          attendees_count : newCount
+        })
       } catch (err) {
         console.error("NOTIFICATION ERROR (LEAVE):", err);
       }
