@@ -39,7 +39,7 @@ const Host = sequelize.define('Host', {
   },
   street_address: {             // ✅ ADDED
     type: DataTypes.TEXT,
-    allowNull: false
+    allowNull: true
   },
 
   id_type: {

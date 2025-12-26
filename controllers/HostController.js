@@ -2,6 +2,9 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
+import axios from "axios";
+import geoip from "geoip-lite";
+
 
 // Save host details
 export const saveHost = async (req, res) => {
@@ -29,6 +32,63 @@ export const saveHost = async (req, res) => {
     if (existing) {
       return res.status(400).json({ message: "Host profile already exists" });
     }
+    const { latitude, longitude } = req.body;
+
+    let location = {
+      country: null,
+      state: null,
+      city: null,
+      zip_code: null,
+      street_address: null
+    };
+
+    // 1. GPS-based resolution
+    if (latitude && longitude) {
+      const response = await axios.get(
+        "https://nominatim.openstreetmap.org/reverse",
+        {
+          params: { lat: latitude, lon: longitude, format: "json" },
+          headers: { "User-Agent": "accommodations-app" }
+        }
+      );
+
+      const addr = response.data.address || {};
+
+      location = {
+        country: addr.country || null,
+        state: addr.state || null,
+        city: addr.city || addr.town || addr.village || null,
+        zip_code: addr.postcode || null,
+        street_address: response.data.display_name || null
+      };
+    }
+
+    // 2. IP fallback
+    if (!location.country) {
+      const ip =
+        req.headers["x-forwarded-for"]?.split(",")[0] ||
+        req.socket.remoteAddress;
+
+      const geo = geoip.lookup(ip);
+      if (geo) {
+        location = {
+          country: geo.country,
+          state: geo.region,
+          city: geo.city,
+          zip_code: null,
+          street_address: null
+        };
+      }
+    }
+
+    // 3. Enforce required location
+    if (!location.country || !location.state || !location.city) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to determine location automatically"
+      });
+    }
+
 
 
     const data = await Host.create({
@@ -36,11 +96,11 @@ export const saveHost = async (req, res) => {
       email,
       phone,
       full_name: req.body.full_name,
-      country: req.body.country,
-      state: req.body.state,
-      city: req.body.city,
-      zip_code: req.body.zip_code || null,
-      street_address: req.body.street_address,
+      country: location.country,
+      state: location.state,
+      city: location.city,
+      zip_code: location.zip_code,
+      street_address: location.street_address,
       id_type: req.body.id_type,
       id_number: req.body.id_number,
 
