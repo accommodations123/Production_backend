@@ -3,6 +3,7 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
+import { getIO } from "../services/socket.js";
 
 export const getPendingProperties = async (req, res) => {
   try {
@@ -69,6 +70,14 @@ export const approveProperty = async (req, res) => {
     await deleteCacheByPrefix("pending_properties");
     await deleteCacheByPrefix("property_status_stats");
     await deleteCacheByPrefix("property_country_stats");
+    const io = getIO();
+    io.to(`user:${property.user_id}`).emit("notification",{
+      type: "PROPERTY_APPROVED",
+      title: "property approved",
+      message: "Your property has been approved and is now visible",
+      entityType: "property",
+      entityId: property.id
+    })
 
     return res.json({ success: true, message: "Property approved" });
 

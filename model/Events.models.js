@@ -36,21 +36,27 @@ const Event = sequelize.define("Event", {
   },
 
   // Location
-  country: DataTypes.STRING,
-  state: {                        // ✅ ADDED
-    type: DataTypes.STRING(100),
-    allowNull: true
+  country: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  city: DataTypes.STRING,
+  state: {
+    type: DataTypes.STRING(100),
+    allowNull: false
+  },
+  city: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
   zip_code: {
     type: DataTypes.STRING(20),
-    allowNull: true
+    allowNull: false
   },
-
-  street_address: {               // ✅ ADDED
+  street_address: {
     type: DataTypes.TEXT,
     allowNull: true
   },
+
   // address: DataTypes.STRING,
   landmark: DataTypes.STRING,
 
@@ -173,14 +179,14 @@ const Event = sequelize.define("Event", {
   tableName: "events",
   timestamps: true,
   underscored: true,
- indexes: [
-  { fields: ["host_id"] },
-  { fields: ["status"] },
-  { fields: ["country"] },
-  { fields: ["country", "state"] },
-  { fields: ["country", "state", "city"] },
-  { fields: ["country", "state", "city", "zip_code"] }
-]
+  indexes: [
+    { fields: ["host_id"] },
+    { fields: ["status"] },
+    { fields: ["country"] },
+    { fields: ["country", "state"] },
+    { fields: ["country", "state", "city"] },
+    { fields: ["country", "state", "city", "zip_code"] }
+  ]
 
 });
 
