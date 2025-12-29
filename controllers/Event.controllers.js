@@ -362,6 +362,14 @@ export const approveEvent = async (req, res) => {
     await deleteCacheByPrefix("pending_events");
     await deleteCacheByPrefix("approved_events");
     await deleteCacheByPrefix(`event:${event.id}`);
+    const io = getIO();
+    io.to(`user:${event.host_id}`).emit("notification",{
+      type: "Event_approved",
+      title: "Event Approved",
+      message: "Your event has been approved and is now live",
+      entityType: "event",
+      entityId: event.id
+    })
 
     return res.json({ success: true, message: "Event approved" });
 
