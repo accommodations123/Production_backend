@@ -4,7 +4,7 @@ import User from "../model/User.js";
 import sequelize from "../config/db.js";
 import EventParticipant from "../model/EventParticipant.js";
 import { getIO } from "../services/socket.js";
-
+import { sendEventApprovedEmail } from '../services/emailService.js'
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 
 // ======================================================
@@ -350,9 +350,23 @@ export const getPendingItems = async (req, res) => {
 // ======================================================
 export const approveEvent = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = await Event.findByPk(req.params.id, {
+      include: [
+        {
+          model: Host,
+          include: [
+            {
+              model: User,
+              attributes: ["email"] // only what exists
+            }
+          ]
+        }
+      ]
+    });
 
-    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
 
     event.status = "approved";
     event.rejection_reason = "";
@@ -362,21 +376,35 @@ export const approveEvent = async (req, res) => {
     await deleteCacheByPrefix("pending_events");
     await deleteCacheByPrefix("approved_events");
     await deleteCacheByPrefix(`event:${event.id}`);
+
+    // 🔔 WebSocket notification
     const io = getIO();
-    io.to(`user:${event.host_id}`).emit("notification",{
-      type: "Event_approved",
+    io.to(`user:${event.host_id}`).emit("notification", {
+      type: "EVENT_APPROVED",
       title: "Event Approved",
       message: "Your event has been approved and is now live",
       entityType: "event",
       entityId: event.id
-    })
+    });
 
-    return res.json({ success: true, message: "Event approved" });
+    // 📧 Email notification
+    await sendEventApprovedEmail({
+      to: event.Host.User.email,
+      name: "Host", // since full_name does not exist
+      eventTitle: event.title
+    });
+
+    return res.json({
+      success: true,
+      message: "Event approved"
+    });
 
   } catch (err) {
+    console.error("APPROVE EVENT ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ======================================================
 // REJECT EVENT
@@ -553,13 +581,13 @@ export const joinEvent = async (req, res) => {
 
     if (milestones.includes(newCount)) {
       try {
-      io.to(`user:${event.host_id}`).emit("notification",{
-        type: "EVENT_MILESTONE",
-        title: "Event Update",
-        message : `${newCount} people have joined your event`,
-        eventId : event.id,
-        attendees_count : newCount
-      })
+        io.to(`user:${event.host_id}`).emit("notification", {
+          type: "EVENT_MILESTONE",
+          title: "Event Update",
+          message: `${newCount} people have joined your event`,
+          eventId: event.id,
+          attendees_count: newCount
+        })
       } catch (err) {
         console.error("NOTIFICATION ERROR:", err);
       }
@@ -625,12 +653,12 @@ export const leaveEvent = async (req, res) => {
           message = `Attendee count dropped to ${newCount}`;
         }
 
-        io.to(`user:${event.host_id}`).emit("notification",{
-          type : "EVENT_LEAVE_MILESTONE",
-          title : "Event update",
+        io.to(`user:${event.host_id}`).emit("notification", {
+          type: "EVENT_LEAVE_MILESTONE",
+          title: "Event update",
           message,
-          eventId : event.id,
-          attendees_count : newCount
+          eventId: event.id,
+          attendees_count: newCount
         })
       } catch (err) {
         console.error("NOTIFICATION ERROR (LEAVE):", err);

@@ -4,6 +4,7 @@ import User from "../model/User.js";
 
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { getIO } from "../services/socket.js";
+import { sendPropertyApprovedEmail } from "../services/emailService.js";
 
 export const getPendingProperties = async (req, res) => {
   try {
@@ -59,8 +60,18 @@ export const getPendingProperties = async (req, res) => {
 // APPROVE property
 export const approveProperty = async (req, res) => {
   try {
-    const property = await Property.findByPk(req.params.id);
-    if (!property) return res.status(404).json({ message: "Not found" });
+    const property = await Property.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          attributes: ["email"]
+        }
+      ]
+    });
+
+    if (!property) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
     property.status = "approved";
     property.rejection_reason = "";
@@ -70,22 +81,34 @@ export const approveProperty = async (req, res) => {
     await deleteCacheByPrefix("pending_properties");
     await deleteCacheByPrefix("property_status_stats");
     await deleteCacheByPrefix("property_country_stats");
+
+    // 🔔 WebSocket notification
     const io = getIO();
-    io.to(`user:${property.user_id}`).emit("notification",{
+    io.to(`user:${property.user_id}`).emit("notification", {
       type: "PROPERTY_APPROVED",
-      title: "property approved",
+      title: "Property Approved",
       message: "Your property has been approved and is now visible",
       entityType: "property",
       entityId: property.id
-    })
+    });
 
-    return res.json({ success: true, message: "Property approved" });
+    // 📧 Email notification
+    await sendPropertyApprovedEmail({
+      to: property.User.email,
+      propertyTitle: property.title
+    });
+
+    return res.json({
+      success: true,
+      message: "Property approved"
+    });
 
   } catch (err) {
-    console.log("APPROVE ERROR:", err);
+    console.error("APPROVE ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // REJECT property
