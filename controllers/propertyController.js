@@ -2,8 +2,7 @@ import { Op } from "sequelize";
 import Property from "../model/Property.js";
 import User from "../model/User.js";
 import Host from "../model/Host.js";
-
-import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
+import { getCache, setCache,deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
@@ -33,8 +32,8 @@ export const createDraft = async (req, res) => {
 
     // Clear related cache
     await deleteCacheByPrefix(`host_listings:${host.id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({
       success: true,
@@ -68,10 +67,10 @@ export const saveBasicInfo = async (req, res) => {
     const property = await Property.findByPk(id);
 
     // Clear caches
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
   } catch (err) {
@@ -98,10 +97,10 @@ export const saveAddress = async (req, res) => {
 
     const property = await Property.findByPk(id);
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
 
@@ -132,10 +131,10 @@ export const saveMedia = async (req, res) => {
 
     await property.save();
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
   } catch (err) {
@@ -155,10 +154,10 @@ export const saveVideo = async (req, res) => {
 
     const property = await Property.findByPk(id);
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
   } catch (err) {
@@ -179,10 +178,10 @@ export const saveAmenities = async (req, res) => {
 
     const property = await Property.findByPk(id);
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
 
@@ -204,10 +203,10 @@ export const saveRules = async (req, res) => {
 
     const property = await Property.findByPk(id);
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
 
@@ -238,10 +237,10 @@ export const saveLegalDocs = async (req, res) => {
 
     await property.save();
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
 
@@ -268,10 +267,10 @@ export const savePricing = async (req, res) => {
 
     const property = await Property.findByPk(id);
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, property });
 
@@ -295,10 +294,10 @@ export const submitProperty = async (req, res) => {
     property.status = "pending";
     await property.save();
 
-    await deleteCacheByPrefix(`property:${id}`);
+    await deleteCache(`property:${id}`);
     await deleteCacheByPrefix(`host_listings:${property.host_id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({ success: true, message: "Submitted to admin" });
 
@@ -373,10 +372,10 @@ export const softDeleteProperty = async (req, res) => {
     });
 
     // clear caches
-    await deleteCacheByPrefix(`property:${property_id}`);
+    await deleteCache(`property:${property_id}`);
     await deleteCacheByPrefix(`host_listings:${host.id}`);
-    await deleteCacheByPrefix("approved_listings");
-    await deleteCacheByPrefix("all_properties");
+    await deleteCacheByPrefix("approved_listings:");
+    await deleteCacheByPrefix("all_properties:");
 
     return res.json({
       success: true,
@@ -417,7 +416,9 @@ export const getApprovedListings = async (req, res) => {
 
     // ✅ Dynamic DB filter
     const where = {
-      status: ["approved", "pending"]
+     status:{
+      [Op.in]: ['approved','pending']
+     }
     }
 
     if (country) where.country = country
@@ -441,7 +442,8 @@ export const getApprovedListings = async (req, res) => {
           ]
         }
       ],
-      order: [["createdAt", "DESC"]]
+      order: [["created_at", "DESC"]]
+
     })
 
     // ✅ Cache per location
@@ -488,7 +490,9 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     // WHERE clause
     // -------------------------
     const where = {
-      status: ["approved", "pending"],
+      status:{
+       [Op.in]:["approved","pending"]
+      },
       is_deleted: false
     };
 

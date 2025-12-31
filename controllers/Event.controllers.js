@@ -5,7 +5,7 @@ import sequelize from "../config/db.js";
 import EventParticipant from "../model/EventParticipant.js";
 import { getIO } from "../services/socket.js";
 import { sendEventApprovedEmail } from '../services/emailService.js'
-import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
+import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 
 // ======================================================
 // 1. CREATE EVENT DRAFT
@@ -42,7 +42,7 @@ export const createEventDraft = async (req, res) => {
     });
 
     // Invalidate pending items cache
-    await deleteCacheByPrefix("pending_events");
+    await deleteCacheByPrefix("pending_events:");
 
     return res.json({
       success: true,
@@ -75,8 +75,8 @@ export const updateBasicInfo = async (req, res) => {
     });
 
     // Invalidate caches
-    await deleteCacheByPrefix(`event:${event.id}`);
-    await deleteCacheByPrefix("approved_events");
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
 
     return res.json({ success: true, event });
 
@@ -105,8 +105,8 @@ export const updateLocation = async (req, res) => {
     });
 
     // Clear caches
-    await deleteCacheByPrefix(`event:${event.id}`);
-    await deleteCacheByPrefix("approved_events");
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
 
     return res.json({ success: true, event });
 
@@ -128,7 +128,7 @@ export const updateSchedule = async (req, res) => {
       schedule: req.body.schedule || []
     });
 
-    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
@@ -201,8 +201,8 @@ export const updateVenue = async (req, res) => {
 
     await event.update(updateData);
 
-    await deleteCacheByPrefix(`event:${event.id}`);
-    await deleteCacheByPrefix("approved_events");
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
 
     return res.json({
       success: true,
@@ -240,7 +240,7 @@ export const updateMedia = async (req, res) => {
 
     await event.save();
 
-    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
@@ -264,8 +264,8 @@ export const updatePricing = async (req, res) => {
       price: req.body.price
     });
 
-    await deleteCacheByPrefix(`event:${event.id}`);
-    await deleteCacheByPrefix("approved_events");
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
 
     return res.json({ success: true, event });
 
@@ -287,7 +287,7 @@ export const submitEvent = async (req, res) => {
     event.status = "pending";
     await event.save();
 
-    await deleteCacheByPrefix("pending_events");
+    await deleteCacheByPrefix("pending_events:");
 
     return res.json({ success: true, message: "Event submitted to admin." });
 
@@ -373,9 +373,9 @@ export const approveEvent = async (req, res) => {
     await event.save();
 
     await deleteCacheByPrefix(`host_events:${event.host_id}`);
-    await deleteCacheByPrefix("pending_events");
-    await deleteCacheByPrefix("approved_events");
-    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCacheByPrefix("pending_events:");
+    await deleteCacheByPrefix("approved_events:");
+    await deleteCache(`event:${event.id}`);
 
     // 🔔 WebSocket notification
     const io = getIO();
@@ -420,8 +420,8 @@ export const rejectEvent = async (req, res) => {
     await event.save();
 
     await deleteCacheByPrefix(`host_events:${event.host_id}`);
-    await deleteCacheByPrefix("pending_events");
-    await deleteCacheByPrefix(`event:${event.id}`);
+    await deleteCacheByPrefix("pending_events:");
+    await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, message: "Event rejected" });
 
@@ -574,6 +574,10 @@ export const joinEvent = async (req, res) => {
     await event.increment("attendees_count");
     await event.reload()
     const newCount = event.attendees_count;
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
+    await deleteCacheByPrefix(`host_events:${event.host_id}`);
+
 
     // 🔔 Notify only at milestones
     const milestones = [1, 10, 25, 50, 100];
@@ -638,6 +642,10 @@ export const leaveEvent = async (req, res) => {
     await event.decrement("attendees_count");
     await event.reload()
     const newCount = event.attendees_count;
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
+    await deleteCacheByPrefix(`host_events:${event.host_id}`);
+
 
     // 🔔 Notify only at meaningful LEAVE milestones
     const leaveMilestones = [0, 9, 24, 49];

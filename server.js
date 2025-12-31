@@ -19,6 +19,8 @@ import adminApprovedRoutes from "./routes/approved.js";
 import EventsRoutes from './routes/Events.routes.js'
 import eventReviewRoutes from './routes/EventsReviews.Routes.js'
 import buySellRoutes from './routes/buySellRoutes.js'
+import communities from './routes/community/communityRoutes.js'
+import communityContentRoutes from './routes/community/communityContentRoutes.js'
 (async () => {
   try {
     await sequelize.authenticate();
@@ -39,7 +41,9 @@ import buySellRoutes from './routes/buySellRoutes.js'
     app.use("/admin/approved", adminApprovedRoutes);
     app.use("/events",EventsRoutes)
     app.use("/events/reviews", eventReviewRoutes);
-    app.use('/buy-sell',buySellRoutes)
+    app.use('/buy-sell',buySellRoutes);
+    app.use('/community',communities)
+    app.use('/community',communityContentRoutes)
 
     const server = http.createServer(app)
     initSocket(server)
