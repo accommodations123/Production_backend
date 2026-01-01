@@ -63,8 +63,13 @@ export const approveProperty = async (req, res) => {
     const property = await Property.findByPk(req.params.id, {
       include: [
         {
-          model: User,
-          attributes: ["email"]
+          model: Host,
+          include: [
+            {
+              model: User,
+              attributes: ["email"]
+            }
+          ]
         }
       ]
     });
@@ -77,14 +82,14 @@ export const approveProperty = async (req, res) => {
     property.rejection_reason = "";
     await property.save();
 
-    // Invalidate related caches
+    // Cache cleanup
     await deleteCacheByPrefix("pending_properties");
     await deleteCacheByPrefix("property_status_stats");
     await deleteCacheByPrefix("property_country_stats");
 
-    // 🔔 WebSocket notification
+    // WebSocket
     const io = getIO();
-    io.to(`user:${property.user_id}`).emit("notification", {
+    io.to(`user:${property.Host.user_id}`).emit("notification", {
       type: "PROPERTY_APPROVED",
       title: "Property Approved",
       message: "Your property has been approved and is now visible",
@@ -92,11 +97,15 @@ export const approveProperty = async (req, res) => {
       entityId: property.id
     });
 
-    // 📧 Email notification
-    await sendPropertyApprovedEmail({
-      to: property.User.email,
-      propertyTitle: property.title
-    });
+    // Email (safe)
+    try {
+      await sendPropertyApprovedEmail({
+        to: property.Host.User.email,
+        propertyTitle: property.title
+      });
+    } catch (emailErr) {
+      console.error("EMAIL ERROR:", emailErr);
+    }
 
     return res.json({
       success: true,
@@ -108,6 +117,7 @@ export const approveProperty = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 
