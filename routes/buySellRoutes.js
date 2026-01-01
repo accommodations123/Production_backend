@@ -6,7 +6,8 @@ const router = express.Router();
 ========================= */
 import userAuth from "../middleware/userAuth.js";
 import adminAuth from "../middleware/adminAuth.js";
-import { upload } from "../middleware/upload.js";
+import { uploadListingImages } from "../middleware/uploads/sell.upload.js";
+import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
 /* =========================
    Controllers
 ========================= */
@@ -28,7 +29,7 @@ import {
 ========================= */
 
 // Create listing (goes to pending)
-router.post("/create",userAuth,upload.array("galleryImages", 10),createBuySellListing);
+router.post("/create",userAuth,uploadListingImages.array("galleryImages", 10),multerErrorHandler,createBuySellListing);
 
 
 // Public listings (only active)

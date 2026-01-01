@@ -21,9 +21,9 @@ import {
   leaveEvent
 } from "../controllers/Event.controllers.js";
 import { verifyEventOwnership } from "../middleware/verifyEventOwnership.js";
+import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
 
-
-import { upload } from "../middleware/upload.js";
+import { uploadEventImages } from "../middleware/uploads/event.upload.js";
 
 const router = express.Router();
 
@@ -47,7 +47,7 @@ router.put("/venue/:id", userauth,verifyEventOwnership, updateVenue);
 router.put("/schedule/:id", userauth,verifyEventOwnership, updateSchedule);
 
 // Upload banner + gallery
-router.put("/media/:id",userauth,verifyEventOwnership,upload.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),updateMedia);
+router.put("/media/:id",userauth,verifyEventOwnership,uploadEventImages.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),multerErrorHandler,updateMedia);
 
 // Update pricing
 router.put("/pricing/:id", userauth,verifyEventOwnership, updatePricing);

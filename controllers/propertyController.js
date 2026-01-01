@@ -338,7 +338,8 @@ export const getMyListings = async (req, res) => {
 
 export const softDeleteProperty = async (req, res) => {
   try {
-    const { property_id, reason } = req.body;
+    const property_id = req.params.id;
+    const { reason } = req.body;
     const userId = req.user.id;
 
     if (!property_id) {
@@ -371,7 +372,7 @@ export const softDeleteProperty = async (req, res) => {
       delete_reason: reason || null
     });
 
-    // clear caches
+    // Clear caches
     await deleteCache(`property:${property_id}`);
     await deleteCacheByPrefix(`host_listings:${host.id}`);
     await deleteCacheByPrefix("approved_listings:");
@@ -387,6 +388,7 @@ export const softDeleteProperty = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 
