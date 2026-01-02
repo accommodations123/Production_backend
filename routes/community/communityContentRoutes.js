@@ -7,7 +7,8 @@ import {
   getResources,
   deleteResource
 } from "../../controllers/community/communityContentController.js";
-
+import { uploadCommunityMedia } from "../../middleware/uploads/community.upload.js";
+import {multerErrorHandler} from '../../middleware/uploads/multerErrorHandler.js'
 import userAuth from "../../middleware/userAuth.js";
 
 const router = express.Router();
@@ -20,7 +21,7 @@ const router = express.Router();
   Create a post (text / image / video)
   POST /communities/:id/posts
 */
-router.post("/communities/:id/posts",userAuth,createPost);
+router.post("/communities/:id/posts",userAuth, uploadCommunityMedia.array("media", 5),multerErrorHandler,createPost);
 
 /*
   Get community feed (paginated)

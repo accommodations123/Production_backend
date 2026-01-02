@@ -15,13 +15,13 @@ import {
   activateCommunity
 } from "../../controllers/community/communityController.js";
 import adminAuth from "../../middleware/adminAuth.js";
-import { uploadCommunityImages } from "../../middleware/uploads/community.upload.js";
+import { uploadCommunityMedia } from "../../middleware/uploads/community.upload.js";
 import {multerErrorHandler} from '../../middleware/uploads/multerErrorHandler.js'
 
 const router = express.Router();
 
 router.post("/", userAuth, createCommunity);
-router.put('/:id/update',userAuth,uploadCommunityImages.fields([{name: "avatar_image", maxcount:1},{name: "cover_image", maxcount:1}]),multerErrorHandler, updateCommunityProfile)
+router.put('/:id/update',userAuth,uploadCommunityMedia.fields([{name: "avatar_image", maxcount:1},{name: "cover_image", maxcount:1}]),multerErrorHandler, updateCommunityProfile)
 router.get("/", listCommunities);
 router.get("/:id", getCommunityById);
 router.post("/:id/join", userAuth, joinCommunity);
