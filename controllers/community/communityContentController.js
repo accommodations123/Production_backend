@@ -1,7 +1,7 @@
 import Community from "../../model/community/Community.js";
 import CommunityPost from "../../model/community/CommunityPost.js";
 import CommunityResource from "../../model/community/CommunityResource.js";
-import {getCache,setCache,deleteCache,deleteCacheByPrefix} from "../../services/cacheService.js";
+import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
 
 /* ======================================================
    HELPERS
@@ -26,10 +26,19 @@ export const createPost = async (req, res) => {
   try {
     const userId = req.user.id;
     const communityId = req.params.id;
-    const { content, media_urls = [] } = req.body;
 
-    if (!content && media_urls.length === 0) {
-      return res.status(400).json({ message: "Post must contain text or media" });
+    // ✅ Extract uploaded media URLs from multer
+    const uploadedMedia =
+      req.files && req.files.length > 0
+        ? req.files.map(file => file.location)
+        : [];
+
+    const { content } = req.body;
+
+    if (!content && uploadedMedia.length === 0) {
+      return res.status(400).json({
+        message: "Post must contain text or media"
+      });
     }
 
     const community = await Community.findByPk(communityId);
@@ -41,19 +50,23 @@ export const createPost = async (req, res) => {
       return res.status(403).json({ message: "Join community first" });
     }
 
+    // ✅ Detect media type
     let mediaType = "text";
-    if (media_urls.length > 0 && content) mediaType = "mixed";
-    else if (media_urls.length > 0) mediaType = "image";
+    if (uploadedMedia.length > 0 && content) {
+      mediaType = "mixed";
+    } else if (uploadedMedia.length > 0) {
+      mediaType = "media"; // covers image + video
+    }
 
     const post = await CommunityPost.create({
       community_id: communityId,
       user_id: userId,
-      content,
-      media_urls,
+      content: content || null,
+      media_urls: uploadedMedia,
       media_type: mediaType
     });
 
-    /* ✅ AGGREGATION (O(1)) */
+    /* ✅ AGGREGATION */
     await Community.increment("posts_count", {
       where: { id: communityId }
     });
@@ -64,9 +77,11 @@ export const createPost = async (req, res) => {
     return res.json({ success: true, post });
 
   } catch (err) {
+    console.error("CREATE POST ERROR:", err);
     return res.status(500).json({ message: "Failed to create post" });
   }
 };
+
 
 
 /* GET COMMUNITY FEED (PAGINATED) */
