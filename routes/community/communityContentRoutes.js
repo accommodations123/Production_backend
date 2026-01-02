@@ -21,7 +21,7 @@ const router = express.Router();
   Create a post (text / image / video)
   POST /communities/:id/posts
 */
-router.post("/communities/:id/posts",userAuth,postRateLimit, uploadCommunityMedia.array("media", 5),multerErrorHandler,createPost);
+router.post("/communities/:id/posts",userAuth, uploadCommunityMedia.array("media", 5),multerErrorHandler,createPost);
 
 /*
   Get community feed (paginated)

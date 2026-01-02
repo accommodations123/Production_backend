@@ -8,14 +8,27 @@ import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../../serv
 ====================================================== */
 
 const isMember = (community, userId) => {
-  return community.members?.some(m => m.user_id === userId);
-};
+  const members = Array.isArray(community.members)
+    ? community.members
+    : [];
 
-const isAdminOrOwner = (community, userId) => {
-  return community.members?.some(
-    m => m.user_id === userId && (m.role === "owner" || m.role === "admin")
+  return members.some(
+    m => Number(m.user_id) === Number(userId)
   );
 };
+
+
+
+const isAdminOrOwner = (community, userId) => {
+  if (!Array.isArray(community.members)) return false;
+
+  return community.members.some(
+    m =>
+      Number(m.user_id) === Number(userId) &&
+      (m.role === "owner" || m.role === "admin")
+  );
+};
+
 
 /* ======================================================
    FEED CONTROLLERS
@@ -27,37 +40,55 @@ export const createPost = async (req, res) => {
     const userId = req.user.id;
     const communityId = req.params.id;
 
-    // ✅ Extract uploaded media URLs from multer
-    const uploadedMedia =
-      req.files && req.files.length > 0
-        ? req.files.map(file => file.location)
-        : [];
+    /* 1️⃣ Extract uploaded media */
+    const uploadedMedia = Array.isArray(req.files)
+      ? req.files.map(file => file.location)
+      : [];
 
     const { content } = req.body;
 
+    /* 2️⃣ Validate post content */
     if (!content && uploadedMedia.length === 0) {
       return res.status(400).json({
         message: "Post must contain text or media"
       });
     }
 
+    /* 3️⃣ Fetch community */
     const community = await Community.findByPk(communityId);
-    if (!community || community.status !== "active") {
-      return res.status(404).json({ message: "Community not found" });
+
+    if (!community) {
+      return res.status(404).json({
+        message: "Community not found"
+      });
     }
 
-    if (!isMember(community, userId)) {
-      return res.status(403).json({ message: "Join community first" });
+    if (community.status !== "active") {
+      return res.status(400).json({
+        message: "Community is not active"
+      });
     }
 
-    // ✅ Detect media type
+    /* 4️⃣ Membership check (FIXED) */
+   const isOwner = Array.isArray(community.members) &&
+  community.members.some(
+    m => Number(m.user_id) === Number(userId) && m.role === "owner"
+  );
+
+if (!isOwner && community.members_count <= 0) {
+  return res.status(403).json({ message: "Join community first" });
+}
+
+    /* 5️⃣ Detect media type (FIXED) */
     let mediaType = "text";
+
     if (uploadedMedia.length > 0 && content) {
       mediaType = "mixed";
     } else if (uploadedMedia.length > 0) {
-      mediaType = "media"; // covers image + video
+      mediaType = "image"; // safe default
     }
 
+    /* 6️⃣ Create post */
     const post = await CommunityPost.create({
       community_id: communityId,
       user_id: userId,
@@ -66,21 +97,27 @@ export const createPost = async (req, res) => {
       media_type: mediaType
     });
 
-    /* ✅ AGGREGATION */
+    /* 7️⃣ Increment post count (atomic) */
     await Community.increment("posts_count", {
       where: { id: communityId }
     });
 
-    /* 🔥 REDIS INVALIDATION */
+    /* 8️⃣ Invalidate feed cache */
     await deleteCacheByPrefix(`community:${communityId}:feed:`);
 
-    return res.json({ success: true, post });
+    return res.json({
+      success: true,
+      post
+    });
 
   } catch (err) {
     console.error("CREATE POST ERROR:", err);
-    return res.status(500).json({ message: "Failed to create post" });
+    return res.status(500).json({
+      message: "Failed to create post"
+    });
   }
 };
+
 
 
 
