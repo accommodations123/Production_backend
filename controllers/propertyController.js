@@ -23,6 +23,7 @@ export const createDraft = async (req, res) => {
     }
 
     const property = await Property.create({
+      user_id: userId,          // 🔥 THIS LINE FIXES THE ISSUE
       host_id: host.id,
       category_id: categoryId,
       property_type: propertyType,
@@ -31,6 +32,7 @@ export const createDraft = async (req, res) => {
     });
 
     // Clear related cache
+    await deleteCacheByPrefix(`user_listings:${userId}`);
     await deleteCacheByPrefix(`host_listings:${host.id}`);
     await deleteCacheByPrefix("approved_listings:");
     await deleteCacheByPrefix("all_properties:");
@@ -46,6 +48,7 @@ export const createDraft = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // BASIC INFO
