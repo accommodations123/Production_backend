@@ -9,6 +9,10 @@ const Property = sequelize.define('Property', {
     autoIncrement: true,
     primaryKey: true
   },
+     user_id: {                         // 🔥 THIS IS MISSING
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
 
   host_id: {
     type: DataTypes.INTEGER,
