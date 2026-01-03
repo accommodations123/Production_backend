@@ -61,24 +61,23 @@ export const sendOTP = async (req, res) => {
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    let user = await User.findOne({ where: { email } });
-
-    if (!user) {
-      user = await User.create({
-        email,
+    const [user] = await User.findOrCreate({
+      where: { email },
+      defaults: {
         verified: false,
         otp,
-        otpExpires: expiresAt,
-      });
-    } else {
-      user.verified = false;
+        otpExpires: expiresAt
+      }
+    });
+
+    if (!user.isNewRecord) {
       user.otp = otp;
       user.otpExpires = expiresAt;
+      user.verified = false;
       await user.save();
     }
 
-    await setCache(`otp:${email}`, { otp, expiresAt }, 300);
+    // await setCache(`otp:${email}`, { otp, expiresAt }, 300);
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -131,6 +130,7 @@ export const sendOTP = async (req, res) => {
 /* ============================================================
    VERIFY OTP
 ============================================================ */
+
 export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -138,61 +138,42 @@ export const verifyOTP = async (req, res) => {
     if (!email || !otp)
       return res.status(400).json({ message: "Email and OTP required" });
 
-    // Check Redis first
-    const cached = await getCache(`otp:${email}`);
-
-    if (cached) {
-      const { otp: cachedOtp, expiresAt } = cached;
-
-      if (new Date(expiresAt) < new Date())
-        return res.status(400).json({ message: "OTP expired or invalid" });
-
-      if (cachedOtp !== otp)
-        return res.status(400).json({ message: "Invalid OTP" });
-
-      const user = await User.findOne({ where: { email } });
-      user.verified = true;
-      user.otp = null;
-      user.otpExpires = null;
-      await user.save();
-
-      await deleteCache(`otp:${email}`);
-
-      const token = jwt.sign({ id: user.id, role: "user" }, process.env.JWT_SECRET);
-
-      return res.json({
-        message: "OTP Verified",
-        token,
-        user: { id: user.id, email: user.email, verified: true }
-      });
-    }
-
-    // Fallback to DB
     const user = await User.findOne({ where: { email } });
 
-    if (!user || !user.otp || new Date(user.otpExpires) < new Date())
-      return res.status(400).json({ message: "OTP expired or invalid" });
-
-    if (user.otp !== otp)
-      return res.status(400).json({ message: "Invalid OTP" });
+    if (
+      !user ||
+      !user.otp ||
+      new Date(user.otpExpires) < new Date() ||
+      user.otp !== otp
+    ) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
 
     user.verified = true;
     user.otp = null;
     user.otpExpires = null;
     await user.save();
+    await deleteCache(`user:auth:${user.id}`);
 
-    await deleteCache(`otp:${email}`);
+    const token = jwt.sign(
+      { id: user.id, role: "user" },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    const token = jwt.sign({ id: user.id, role: "user" }, process.env.JWT_SECRET);
-
-    return res.json({
-      message: "OTP Verified",
+    res.json({
+      message: "OTP verified",
       token,
-      user: { id: user.id, email: user.email, verified: true }
+      user: {
+        id: user.id,
+        email: user.email,
+        verified: true
+      }
     });
 
   } catch (error) {
-    console.log("VERIFY OTP ERROR:", error);
-    return res.status(500).json({ message: "Server error" });
+    console.error("VERIFY OTP ERROR:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
+
