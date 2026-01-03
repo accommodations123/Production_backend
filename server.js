@@ -43,7 +43,7 @@ import authRoutes from './routes/auth/googleAuthroutes.js'
     app.use("/events",EventsRoutes)
     app.use("/events/reviews", eventReviewRoutes);
     app.use('/buy-sell',buySellRoutes);
-    app.use('/community',communities);
+    app.use('/community',communities)
     app.use('/community',communityContentRoutes)
     app.use('/auth',authRoutes)
     
