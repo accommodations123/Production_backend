@@ -172,7 +172,12 @@ const Event = sequelize.define("Event", {
   online_instructions: {
     type: DataTypes.TEXT,
     allowNull: true
-  }
+  },
+  is_deleted: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false
+}
+
 
 
 }, {

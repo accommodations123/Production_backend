@@ -464,7 +464,7 @@ export const getApprovedEvents = async (req, res) => {
       include: [
         {
           model: Host,
-          attributes: ["id", "full_name", "selfie_photo", "phone", "email", "status"]
+          attributes: ["id", "full_name", "phone", "email", "status"]
         }
       ],
       order: [["created_at", "DESC"]]
@@ -481,63 +481,92 @@ export const getApprovedEvents = async (req, res) => {
 
 
 
+
+
 // ======================================================
 // HOST: GET MY EVENTS
 // ======================================================
 export const getMyEvents = async (req, res) => {
   try {
-    const host = await Host.findOne({ where: { user_id: req.user.id } });
-
-    if (!host) {
-      return res.status(400).json({ success: false, message: "You are not a host." });
-    }
-
-    const cached = await getCache(`host_events:${host.id}`);
-    if (cached) return res.json({ success: true, events: cached });
-
-    const events = await Event.findAll({
-      where: { host_id: host.id }
+    const host = await Host.findOne({
+      where: { user_id: req.user.id }
     });
 
-    await setCache(`host_events:${host.id}`, events, 300);
+    if (!host) {
+      return res.status(400).json({
+        success: false,
+        message: "You are not a host."
+      });
+    }
 
-    return res.json({ success: true, events });
+    const cacheKey = `host_events:${host.id}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({ success: true, events: cached });
+    }
+
+    const events = await Event.findAll({
+      where: { host_id: host.id },
+      order: [["created_at", "DESC"]]
+    });
+
+    const plainEvents = events.map(e => e.toJSON());
+
+    await setCache(cacheKey, plainEvents, 300);
+
+    return res.json({
+      success: true,
+      events: plainEvents
+    });
 
   } catch (err) {
+    console.error("GET MY EVENTS ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+
 
 // ======================================================
 // GET SINGLE EVENT DETAILS
 // ======================================================
 export const getEventById = async (req, res) => {
   try {
-    const cached = await getCache(`event:${req.params.id}`);
+    const cacheKey = `event:${req.params.id}`;
+    const cached = await getCache(cacheKey);
     if (cached) {
       return res.json({ success: true, event: cached });
     }
 
-    const event = await Event.findByPk(req.params.id, {
-      include: [{ model: Host, attributes: ["id", "full_name", "selfie_photo", "phone", "email", "status", "country", "state", "city"] }]
+    const event = await Event.findOne({
+      where: {
+        id: req.params.id,
+        status: "approved",
+        is_deleted: false
+      },
+      include: [
+        {
+          model: Host,
+          attributes: ["id", "full_name", "phone", "country", "state", "city"]
+        }
+      ]
     });
+
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    if (event.status !== "approved") {
-      return res.status(404).json({ message: "Event not found" });
-    }
+    const plainEvent = event.toJSON();
+    await setCache(cacheKey, plainEvent, 300);
 
-
-    await setCache(`event:${req.params.id}`, event, 300);
-
-    return res.json({ success: true, event });
+    return res.json({ success: true, event: plainEvent });
 
   } catch (err) {
-    return res.status(500).json({ success: false, message: "Server error" });
+    console.error("GET EVENT ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ======================================================
 // JOIN EVENT
@@ -691,7 +720,7 @@ export const leaveEvent = async (req, res) => {
 // ======================================================
 export const softDeleteEvent = async (req, res) => {
   try {
-    const event = req.event; // injected by verifyEventOwnership
+    const event = await Event.findByPk(req.params.id);
 
     if (!event) {
       return res.status(404).json({
@@ -700,19 +729,15 @@ export const softDeleteEvent = async (req, res) => {
       });
     }
 
-    // Prevent deleting already deleted events
-    if (event.status === "deleted") {
+    if (event.is_deleted) {
       return res.status(400).json({
         success: false,
         message: "Event already deleted"
       });
     }
 
-    // Soft delete
-    event.status = "deleted";
-    await event.save();
+    await event.update({ is_deleted: true });
 
-    // Cache cleanup (important)
     await deleteCache(`event:${event.id}`);
     await deleteCacheByPrefix("approved_events:");
     await deleteCacheByPrefix("pending_events:");
@@ -725,9 +750,7 @@ export const softDeleteEvent = async (req, res) => {
 
   } catch (err) {
     console.error("DELETE EVENT ERROR:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error"
-    });
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
