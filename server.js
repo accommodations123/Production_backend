@@ -27,15 +27,30 @@ import travelRoutes from './routes/travel/travelRoutes.js'
 (async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync( );
+    await sequelize.sync();
 
     console.log("MySQL connected");
 
     const app = express();
-    app.use(cors());
+    const allowedOrigins = [
+      "https://accomodation.test.nextkinlife.live",
+      "https://accomodation.admin.test.nextkinlife.live",
+      "http://localhost:5000",
+      "http://localhost:5173"
+    ];
+    app.use(
+      cors({
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) return callback(null, true);
+          return callback(new Error("CORS not allowed"));
+        },
+        credentials: true
+      })
+    );
     app.use(cookieParser())
     app.use(express.json());
-    
+
 
     // Routes
     app.use("/otp", otpRoutes);
@@ -44,14 +59,14 @@ import travelRoutes from './routes/travel/travelRoutes.js'
     app.use('/property', propertyRoutes);
     app.use('/adminproperty', adminPropertyRoutes);
     app.use("/admin/approved", adminApprovedRoutes);
-    app.use("/events",EventsRoutes)
+    app.use("/events", EventsRoutes)
     app.use("/events/reviews", eventReviewRoutes);
-    app.use('/buy-sell',buySellRoutes);
-    app.use('/community',communities)
-    app.use('/community',communityContentRoutes)
-    app.use('/auth',authRoutes)
+    app.use('/buy-sell', buySellRoutes);
+    app.use('/community', communities)
+    app.use('/community', communityContentRoutes)
+    app.use('/auth', authRoutes)
     app.use('/travel', travelRoutes)
-    
+
     const server = http.createServer(app)
     initSocket(server)
     const PORT = process.env.PORT || 5000;
