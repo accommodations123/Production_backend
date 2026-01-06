@@ -159,13 +159,11 @@ export const verifyOTP = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-     const isSecureCrossOrigin = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test';
-
     res.cookie("access_token", token, {
       httpOnly: true,
-      secure: isSecureCrossOrigin, // Should be true for your .test. domain
-      sameSite: isSecureCrossOrigin ? "none" : "lax", // Should be "none" for your .test. domain
-      domain: isSecureCrossOrigin ? ".nextkinlife.live" : undefined, // CRITICAL FIX
+      secure: true,       // Required for SameSite=None
+      sameSite: "none",   // Required for cross-origin cookies
+      domain: ".nextkinlife.live", // Required for subdomain sharing
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
