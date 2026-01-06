@@ -7,8 +7,7 @@ let io;
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: ["https://accomodation.test.nextkinlife.live",
-        "http://localhost:5173"] , // ⚠️ NOT *
+      origin: ["https://accomodation.test.nextkinlife.live"] , // ⚠️ NOT *
       credentials: true
     }
   });
