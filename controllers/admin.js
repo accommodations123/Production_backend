@@ -69,7 +69,7 @@ export const adminLogin = async (req, res) => {
         id: admin.id,
         email: admin.email,
         password: admin.password,
-        role:"admin"
+        role: "admin"
       });
     }
 
@@ -81,15 +81,17 @@ export const adminLogin = async (req, res) => {
     const token = jwt.sign(
       { id: admin.id, role: "admin" },
       process.env.JWT_SECRET,
-      {expiresIn: "7d"}
+      { expiresIn: "7d" }
     );
-    res.cookie("access_token",token,{
+    const isProd = process.env.NODE_ENV === "production";
+
+    res.cookie("access_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite:process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
-    })
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
 
     return res.json({
       message: "Admin login successful",

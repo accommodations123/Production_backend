@@ -159,16 +159,18 @@ export const verifyOTP = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-    res.cookie("access_token", token,{
-      httpOnly: true,  //JS cannot read it
-      secure: process.env.NODE_ENV === "production", //HTTPS only in production
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", //CSRF protection
-      maxAge: 7 * 24 * 60 * 60 * 1000 //7 days
-    })
+    const isProd = process.env.NODE_ENV === "production";
+
+    res.cookie("access_token", token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
 
     res.json({
       message: "OTP verified",
-      token,
       user: {
         id: user.id,
         email: user.email,
