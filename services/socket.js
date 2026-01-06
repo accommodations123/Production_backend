@@ -22,7 +22,7 @@ export const initSocket = (server) => {
       }
 
       const cookies = cookie.parse(cookieHeader);
-      const token = cookies.token; // 👈 cookie name
+      const token = cookies.access_token; // 👈 cookie name
 
       if (!token) {
         return next(new Error("Auth token missing"));
