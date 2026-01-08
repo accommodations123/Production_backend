@@ -1,3 +1,4 @@
+
 import dotenv from "dotenv";
 dotenv.config();
 import http from 'http'
@@ -32,14 +33,12 @@ import travelRoutes from './routes/travel/travelRoutes.js'
     console.log("MySQL connected");
 
     const app = express();
-
     const allowedOrigins = [
       "https://accomodation.test.nextkinlife.live",
       "https://accomodation.admin.test.nextkinlife.live",
-      "https://admin.test.nextkinlife.live",
+      "http://localhost:5000",
       "http://localhost:5173"
     ];
-
     app.use(
       cors({
         origin: (origin, callback) => {
@@ -50,10 +49,8 @@ import travelRoutes from './routes/travel/travelRoutes.js'
         credentials: true
       })
     );
-
-    app.use(cookieParser());
+    app.use(cookieParser())
     app.use(express.json());
-
 
 
     // Routes
@@ -80,3 +77,4 @@ import travelRoutes from './routes/travel/travelRoutes.js'
     console.log("DB Error:", err.message);
   }
 })();
+

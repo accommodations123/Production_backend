@@ -4,9 +4,6 @@ import cookie from "cookie";
 
 let io;
 
-/* ============================================================
-   SOCKET INITIALIZATION (COOKIE ONLY)
-============================================================ */
 export const initSocket = (server) => {
   const socketAllowedOrigins = [
     "https://accomodation.test.nextkinlife.live",
@@ -18,13 +15,12 @@ export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
       origin: socketAllowedOrigins,
-      credentials: true
+      credentials: true  // Important: Allow credentials
     }
   });
 
-
-  // 🔐 Authenticate socket using HttpOnly cookie ONLY
-  io.use((socket, next) => {
+  // Authenticate socket using HttpOnly cookie
+  io.use(async (socket, next) => {
     try {
       const cookieHeader = socket.handshake.headers.cookie;
       if (!cookieHeader) {
@@ -40,6 +36,7 @@ export const initSocket = (server) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+      // Add user info to socket
       socket.user = {
         id: decoded.id,
         role: decoded.role
@@ -54,6 +51,8 @@ export const initSocket = (server) => {
 
   io.on("connection", (socket) => {
     console.log("📡 Socket connected:", socket.user.id);
+    
+    // Join user-specific room for notifications
     socket.join(`user:${socket.user.id}`);
 
     socket.on("disconnect", () => {
