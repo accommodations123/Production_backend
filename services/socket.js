@@ -4,63 +4,59 @@ import cookie from "cookie";
 
 let io;
 
-/* ============================================================
-   SOCKET INITIALIZATION (SINGLE INSTANCE – NO REDIS)
-============================================================ */
 export const initSocket = (server) => {
-  const allowedOrigins = [
+  const socketAllowedOrigins = [
     "https://accomodation.test.nextkinlife.live",
     "https://accomodation.admin.test.nextkinlife.live",
+    "https://admin.test.nextkinlife.live",
     "http://localhost:5173"
   ];
 
   io = new Server(server, {
     cors: {
-      origin: allowedOrigins,
-      credentials: true
-    },
-    transports: ["websocket"] // force WS, avoid polling issues
+      origin: socketAllowedOrigins,
+      credentials: true  // Important: Allow credentials
+    }
   });
 
-  /* ================= AUTH MIDDLEWARE ================= */
-  io.use((socket, next) => {
+  // Authenticate socket using HttpOnly cookie
+  io.use(async (socket, next) => {
     try {
       const cookieHeader = socket.handshake.headers.cookie;
-      if (!cookieHeader) return next(new Error("Authentication required"));
+      if (!cookieHeader) {
+        return next(new Error("Authentication required"));
+      }
 
       const cookies = cookie.parse(cookieHeader);
       const token = cookies.access_token;
-      if (!token) return next(new Error("Authentication required"));
+
+      if (!token) {
+        return next(new Error("Authentication required"));
+      }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+      // Add user info to socket
       socket.user = {
         id: decoded.id,
-        role: decoded.role,
-        exp: decoded.exp
+        role: decoded.role
       };
 
-      return next();
+      next();
     } catch (err) {
-      return next(new Error("Invalid or expired session"));
+      console.error("SOCKET AUTH ERROR:", err.message);
+      next(new Error("Invalid or expired session"));
     }
   });
 
-  /* ================= CONNECTION ================= */
   io.on("connection", (socket) => {
     console.log("📡 Socket connected:", socket.user.id);
-
-    // user-specific room
+    
+    // Join user-specific room for notifications
     socket.join(`user:${socket.user.id}`);
 
-    // auto-disconnect on JWT expiry
-    const ttl = socket.user.exp * 1000 - Date.now();
-    if (ttl > 0) {
-      setTimeout(() => socket.disconnect(true), ttl);
-    }
-
-    socket.on("disconnect", (reason) => {
-      console.log("🔌 Socket disconnected:", socket.user.id, reason);
+    socket.on("disconnect", () => {
+      console.log("🔌 Socket disconnected:", socket.user.id);
     });
   });
 

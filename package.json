@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+ "scripts": {
+  "dev": "NODE_ENV=development nodemon your-server-file.js"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
