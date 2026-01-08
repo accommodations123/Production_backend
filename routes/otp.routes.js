@@ -1,5 +1,5 @@
 import express from 'express'
-import { logout, sendOTP,verifyOTP } from '../controllers/otp.controller.js'
+import {sendOTP,verifyOTP,logout } from '../controllers/otp.controller.js'
 import {rateLimit} from '../middleware/rateLimiter.js'
 const router = express.Router()
 router.post('/send-otp',rateLimit,sendOTP)

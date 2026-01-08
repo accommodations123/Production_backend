@@ -164,19 +164,15 @@ export const verifyOTP = async (req, res) => {
     );
 
     // ✅ Set secure cookie (single source of truth)
-   router.post("/logout", (req, res) => {
-  const isProd = process.env.NODE_ENV === "production";
+    const isProd = process.env.NODE_ENV === "production";
 
-  res.clearCookie("access_token", {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
-    domain: isProd ? ".test.nextkinlife.live" : undefined,
-  });
-
-  return res.json({ success: true, message: "Logged out" });
-});
-
+    res.cookie("access_token", token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      domain: isProd ? ".test.nextkinlife.live" : undefined,
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
 
     // ❌ NEVER return token to frontend
@@ -194,19 +190,17 @@ export const verifyOTP = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-// controllers/auth.controller.js
-  export const logout = (req, res) => {
-    const isProd = process.env.NODE_ENV === "production";
-
-    res.clearCookie("access_token", {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      domain: isProd ? ".test.nextkinlife.live" : undefined,
-    });
-
-    return res.json({ success: true, message: "Logged out" });
-  };
 
 
+export const logout = (req, res) => {
+  const isProd = process.env.NODE_ENV === "production";
 
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    domain: isProd ? ".test.nextkinlife.live" : undefined,
+  });
+
+  return res.json({ success: true, message: "Logged out" });
+};
