@@ -8,15 +8,19 @@ let io;
    SOCKET INITIALIZATION (COOKIE ONLY)
 ============================================================ */
 export const initSocket = (server) => {
+  const socketAllowedOrigins = [
+    "https://accomodation.test.nextkinlife.live",
+    "https://admin.test.nextkinlife.live",
+    "http://localhost:5173"
+  ];
+
   io = new Server(server, {
     cors: {
-      origin: [
-        "https://accomodation.test.nextkinlife.live",
-        "https://admin.test.nextkinlife.live"
-      ],
+      origin: socketAllowedOrigins,
       credentials: true
     }
   });
+
 
   // 🔐 Authenticate socket using HttpOnly cookie ONLY
   io.use((socket, next) => {
