@@ -16,7 +16,10 @@ let socket;
 
 export const getSocket = () => {
     if (!socket) {
-        socket = io("/", {
+        const socketUrl = import.meta.env.PROD
+            ? "https://accomodation.api.test.nextkinlife.live"
+            : "/";
+        socket = io(socketUrl, {
             withCredentials: true,
 
             // 🔒 CRITICAL: disable polling completely

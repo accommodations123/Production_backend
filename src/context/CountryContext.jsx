@@ -42,7 +42,10 @@ export const CountryProvider = ({ children }) => {
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          const nominatimUrl = `/nominatim/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`;
+          const baseUrl = import.meta.env.PROD
+            ? "https://nominatim.openstreetmap.org"
+            : "/nominatim";
+          const nominatimUrl = `${baseUrl}/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`;
           const response = await fetch(nominatimUrl);
 
           if (!response.ok) throw new Error("Geolocation failed");

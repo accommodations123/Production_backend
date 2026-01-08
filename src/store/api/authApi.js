@@ -1,7 +1,9 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 
 const rawBase = fetchBaseQuery({
-    baseUrl: "/api",
+    baseUrl: import.meta.env.PROD
+        ? "https://accomodation.api.test.nextkinlife.live"
+        : "/api",
     credentials: 'include',
     prepareHeaders: (headers) => {
         const countryData = localStorage.getItem("selectedCountry");

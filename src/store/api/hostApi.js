@@ -1,6 +1,8 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-const API_BASE_URL = "/api"
+const API_BASE_URL = import.meta.env.PROD
+    ? "https://accomodation.api.test.nextkinlife.live"
+    : "/api";
 
 const rawBase = fetchBaseQuery({
     baseUrl: API_BASE_URL,
