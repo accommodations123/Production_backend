@@ -23,7 +23,8 @@ export const getSocket = () => {
             withCredentials: true,
 
             // 🔒 polling can assist if websockets are blocked in prod
-            transports: ["websocket"],
+            // 🔒 Dev: specific fix for localhost 400s. Prod: Robust fallback.
+            transports: import.meta.env.PROD ? ["polling", "websocket"] : ["websocket"],
 
             // 🔒 prevent race conditions
             autoConnect: false,
