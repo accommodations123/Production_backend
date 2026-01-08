@@ -35,6 +35,7 @@ import travelRoutes from './routes/travel/travelRoutes.js'
 
     const allowedOrigins = [
       "https://accomodation.test.nextkinlife.live",
+      "https://accomodation.admin.test.nextkinlife.live",
       "https://admin.test.nextkinlife.live",
       "http://localhost:5173"
     ];

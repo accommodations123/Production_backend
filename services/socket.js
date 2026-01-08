@@ -10,6 +10,7 @@ let io;
 export const initSocket = (server) => {
   const socketAllowedOrigins = [
     "https://accomodation.test.nextkinlife.live",
+    "https://accomodation.admin.test.nextkinlife.live",
     "https://admin.test.nextkinlife.live",
     "http://localhost:5173"
   ];
