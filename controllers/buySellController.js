@@ -1,4 +1,5 @@
 import BuySellListing from "../model/BuySellListing .js";
+import User from "../model/User.js";
 import { Op } from "sequelize";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 
@@ -7,78 +8,93 @@ import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheServic
    CREATE LISTING
    (User)
 ========================= */
+
 export const createBuySellListing = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const userEmail = req.user.email;
+  try {
+    // 🔒 AUTH GUARD (NON-NEGOTIABLE)
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-        const {
-            title,
-            category,
-            subcategory,
-            price,
-            description,
-            country,
-            state,
-            city,
-            zip_code,
-            street_address,
-            name,
-            phone
-        } = req.body;
+    const userId = req.user.id;
 
-        if (
-            !title ||
-            !category ||
-            !price ||
-            !description ||
-            !country ||
-            !state ||
-            !city ||
-            !street_address ||
-            !name ||
-            !phone
-        ) {
-            return res.status(400).json({
-                message: "Missing required fields"
-            });
-        }
+    // ✅ ALWAYS get email from DB
+    const user = await User.findByPk(userId, {
+      attributes: ["email"]
+    });
 
-        const galleryImages =
-            req.files?.map(file => file.location) || [];
+    if (!user || !user.email) {
+      return res.status(400).json({
+        message: "User email not found"
+      });
+    }
 
-        const listing = await BuySellListing.create({
-            user_id: userId,
-            title,
-            category,
-            subcategory,
-            price,
-            description,
-            country,
-            state,
-            city,
-            zip_code: zip_code || null,
-            street_address,
-            name,
-            email: userEmail,
-            phone,
-            images: galleryImages,
-            status: "pending"
-        });
+    const {
+      title,
+      category,
+      subcategory,
+      price,
+      description,
+      country,
+      state,
+      city,
+      zip_code,
+      street_address,
+      name,
+      phone
+    } = req.body;
 
-        return res.status(201).json({
-            success: true,
-            message: "Listing submitted for approval",
-            listing
-        });
-   } catch (err) {
-  console.error("CREATE BUY SELL ERROR:", err);
-  return res.status(500).json({
-    message: err.message
-  });
-}
+    if (
+      !title ||
+      !category ||
+      !price ||
+      !description ||
+      !country ||
+      !state ||
+      !city ||
+      !street_address ||
+      !name ||
+      !phone
+    ) {
+      return res.status(400).json({
+        message: "Missing required fields"
+      });
+    }
 
+    const galleryImages =
+      req.files?.map(file => file.location) || [];
+
+    const listing = await BuySellListing.create({
+      user_id: userId,
+      title,
+      category,
+      subcategory,
+      price,
+      description,
+      country,
+      state,
+      city,
+      zip_code: zip_code || null,
+      street_address,
+      name,
+      email: user.email,   // ✅ GUARANTEED
+      phone,
+      images: galleryImages,
+      status: "pending"
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Listing submitted for approval",
+      listing
+    });
+
+  } catch (err) {
+    console.error("CREATE BUY SELL ERROR:", err);
+    return res.status(500).json({ message: err.message });
+  }
 };
+
 
 
 /* =========================
