@@ -4,7 +4,7 @@ dotenv.config();
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import User from "../model/User.js";
-import { v4 as uuid } from "uuid";
+
 import redis from "../config/redis.js";
 import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
 import { getCache, setCache, deleteCache } from "../services/cacheService.js";
@@ -131,7 +131,6 @@ export const sendOTP = async (req, res) => {
 /* ============================================================
    VERIFY OTP (PRODUCTION)
 ============================================================ */
-
 export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -140,7 +139,7 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "Email and OTP required" });
     }
 
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({ where: { email } })
 
     if (
       !user ||
@@ -151,59 +150,39 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    // Mark user verified and clear OTP
+    // ✅ Mark user verified
     user.verified = true;
     user.otp = null;
     user.otpExpires = null;
     await user.save();
 
-    const isProd = process.env.NODE_ENV === "production";
-
-    /* =====================================================
-       1️⃣ REST AUTH → JWT (HTTP ONLY)
-    ===================================================== */
-    const jwtToken = jwt.sign(
+    // ✅ Generate JWT (SERVER ONLY)
+    const token = jwt.sign(
       { id: user.id, role: "user" },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    res.cookie("access_token", jwtToken, {
+    // ✅ Set secure cookie (single source of truth)
+    const isProd = process.env.NODE_ENV === "production";
+
+    res.cookie("access_token", token, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
       domain: isProd ? ".test.nextkinlife.live" : undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
+//     const isPostman = req.headers["user-agent"]?.includes("Postman");
 
-    /* =====================================================
-       2️⃣ SOCKET AUTH → SESSION (REDIS)
-    ===================================================== */
-    // const sessionId = uuid();
-
-    // await redis.set(
-    //   `session:${sessionId}`,
-    //   JSON.stringify({
-    //     userId: user.id,
-    //     role: "user"
-    //   }),
-    //   "EX",
-    //   7 * 24 * 60 * 60
-    // );
-
-    res.cookie("session_id", sessionId, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      domain: isProd ? ".test.nextkinlife.live" : undefined,
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    /* =====================================================
-       RESPONSE (NO TOKEN LEAK)
-    ===================================================== */
+// res.cookie("access_token", token, {
+//   httpOnly: true,
+//   secure: !isPostman,
+//   sameSite: isPostman ? "lax" : "none",
+//   domain: isPostman ? undefined : ".test.nextkinlife.live"
+// });
+    // ❌ NEVER return token to frontend
     return res.json({
-      success: true,
       message: "OTP verified successfully",
       user: {
         id: user.id,
@@ -217,7 +196,6 @@ export const verifyOTP = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 
 
 export const logout = (req, res) => {
