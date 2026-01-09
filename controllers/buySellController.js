@@ -329,7 +329,6 @@ export const deleteBuySellListing = async (req, res) => {
    ADMIN CONTROLLERS
 ========================= */
 
-
 export const getPendingBuySellListings = async (req, res) => {
   try {
     const country = req.query.country || null;
@@ -349,6 +348,12 @@ export const getPendingBuySellListings = async (req, res) => {
 
     const listings = await BuySellListing.findAll({
       where,
+      include: [
+        {
+          model: User,
+          attributes: ["id", "email"] // ✅ SOURCE OF TRUTH
+        }
+      ],
       order: [["created_at", "ASC"]]
     });
 
@@ -357,9 +362,11 @@ export const getPendingBuySellListings = async (req, res) => {
     return res.json({ success: true, listings });
 
   } catch (err) {
+    console.error("GET PENDING BUY SELL ERROR:", err);
     return res.status(500).json({ message: "Failed to fetch pending listings" });
   }
 };
+
 
 
 /* =========================
