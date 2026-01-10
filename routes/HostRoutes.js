@@ -18,7 +18,7 @@ const router = express.Router();
 
 
 router.post("/save",userauth,upload.fields([{ name: "idPhoto", maxCount: 1 },{ name: "selfiePhoto", maxCount: 1 }]),multerErrorHandler,saveHost);
-router.put("/update/:id",userauth,upload.fields([{ name: "idPhoto", maxCount: 1 },{ name: "selfiePhoto", maxCount: 1 }]),multerErrorHandler,updateHost);
+router.put("/update/:id",userauth,upload.single("profileImage"),multerErrorHandler,updateHost);
 // Get logged-in user's host verification details
 router.get("/get", userauth, getMyHost);
 router.get("/admin/hosts/pending",adminAuth,getPendingHosts)

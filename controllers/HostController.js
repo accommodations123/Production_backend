@@ -129,13 +129,13 @@ export const saveHost = async (req, res) => {
   }
 };
 
+
 export const updateHost = async (req, res) => {
   try {
     const hostId = req.params.id;
     const userId = req.user.id;
 
     const host = await Host.findByPk(hostId);
-
     if (!host) {
       return res.status(404).json({
         success: false,
@@ -143,7 +143,7 @@ export const updateHost = async (req, res) => {
       });
     }
 
-    // Ownership check (important for security)
+    // Ownership check
     if (host.user_id !== userId) {
       return res.status(403).json({
         success: false,
@@ -151,10 +151,21 @@ export const updateHost = async (req, res) => {
       });
     }
 
-    const updates = {
+    // Fetch user (for profile updates)
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    /* ===============================
+       HOST UPDATES
+    =============================== */
+    const hostUpdates = {
       full_name: req.body.full_name ?? host.full_name,
       phone: req.body.phone ?? host.phone,
-      email: req.body.email ?? host.email,
       country: req.body.country ?? host.country,
       state: req.body.state ?? host.state,
       city: req.body.city ?? host.city,
@@ -162,22 +173,38 @@ export const updateHost = async (req, res) => {
       street_address: req.body.street_address ?? host.street_address,
       whatsapp: req.body.whatsapp ?? host.whatsapp,
       instagram: req.body.instagram ?? host.instagram,
-      facebook: req.body.facebook ?? host.facebook,
+      facebook: req.body.facebook ?? host.facebook
     };
 
+    await host.update(hostUpdates);
 
-    await host.update(updates);
+    /* ===============================
+       USER PROFILE IMAGE UPDATE
+    =============================== */
+    if (req.file?.location) {
+      await user.update({
+        profile_image: req.file.location
+      });
+    }
 
-    // Clear caches
+    /* ===============================
+       CACHE INVALIDATION
+    =============================== */
     await deleteCacheByPrefix(`host:${userId}`);
     await deleteCacheByPrefix("pending_hosts");
     await deleteCacheByPrefix("property:");
-
+    await deleteCacheByPrefix(`user:${userId}`);
 
     return res.json({
       success: true,
-      message: "Host updated successfully",
-      data: host
+      message: "Profile updated successfully",
+      data: {
+        host,
+        user: {
+          id: user.id,
+          profile_image: user.profile_image
+        }
+      }
     });
 
   } catch (error) {
@@ -188,6 +215,7 @@ export const updateHost = async (req, res) => {
     });
   }
 };
+
 
 
 // Get host data for logged-in user
