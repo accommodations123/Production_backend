@@ -7,8 +7,13 @@ import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../service
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
   try {
+    if (!req.host) {
+      return res.status(403).json({
+        message: "Host context missing"
+      });
+    }
+
     const { categoryId, propertyType, privacyType } = req.body;
-    const host = req.host; // 🔥 reuse
 
     if (!categoryId || !propertyType || !privacyType) {
       return res.status(400).json({ message: "Missing required fields." });
@@ -16,26 +21,23 @@ export const createDraft = async (req, res) => {
 
     const property = await Property.create({
       user_id: req.user.id,
-      host_id: host.id,
+      host_id: req.host.id,
       category_id: categoryId,
       property_type: propertyType,
       privacy_type: privacyType,
       status: "draft"
     });
 
-    await deleteCacheByPrefix(`host_listings:${host.id}`);
-
     return res.json({
       success: true,
       propertyId: property.id
     });
+
   } catch (err) {
+    console.error("CREATE DRAFT ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
-
-
-
 
 
 // BASIC INFO
