@@ -1,6 +1,5 @@
 import Host from "../model/Host.js";
 import User from "../model/User.js";
-
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import axios from "axios";
 import geoip from "geoip-lite";
@@ -219,32 +218,63 @@ export const updateHost = async (req, res) => {
 
 
 // Get host data for logged-in user
+
 export const getMyHost = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Check Redis cache
-    const cached = await getCache(`host:${userId}`);
+    const cacheKey = `host:${userId}`;
+    const cached = await getCache(cacheKey);
+
     if (cached) {
-      return res.status(200).json({ success: true, data: cached });
+      return res.json({ success: true, data: cached });
     }
 
-    const data = await Host.findOne({
-      where: { user_id: userId }
+    const host = await Host.findOne({
+      where: { user_id: userId },
+      include: [
+        {
+          model: User,
+          attributes: [
+            "id",
+            "email",
+            "profile_image"
+          ]
+        }
+      ]
     });
 
-    // Save to cache
-    await setCache(`host:${userId}`, data, 300);
+    if (!host) {
+      return res.status(404).json({
+        success: false,
+        message: "Host profile not found"
+      });
+    }
 
-    return res.status(200).json({ success: true, data });
+    // 🔹 Normalize response (frontend-friendly)
+    const response = {
+      ...host.toJSON(),
+      profile_image: host.User?.profile_image || null,
+      email: host.User?.email || null
+    };
+
+    // Cache normalized response
+    await setCache(cacheKey, response, 300);
+
+    return res.json({
+      success: true,
+      data: response
+    });
 
   } catch (error) {
+    console.error("GET HOST ERROR:", error);
     return res.status(500).json({
       success: false,
-      message: "Server error."
+      message: "Server error"
     });
   }
 };
+
 
 // get pending hosts (admin)
 export const getPendingHosts = async (req, res) => {
