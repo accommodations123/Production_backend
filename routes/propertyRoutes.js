@@ -35,8 +35,8 @@ const router = express.Router();
 
 
 // Host Flow
-router.post("/create-draft", userauth,hostOnly, createDraft);
-router.put("/basic-info/:id", userauth, hostOnly,loadProperty, saveBasicInfo);
+router.post("/create-draft", userauth, createDraft);
+router.put("/basic-info/:id", userauth, loadProperty, saveBasicInfo);
 router.put("/address/:id", userauth,hostOnly,loadProperty, saveAddress);
 router.put("/media/:id", userauth,hostOnly,loadProperty, uploadPropertyImages.array("photo" , 10),multerErrorHandler, saveMedia);
 router.put("/media/video/:id", userauth,hostOnly,loadProperty, uploadPropertyVideos.single("video"),multerErrorHandler, saveVideo);
