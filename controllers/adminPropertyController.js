@@ -105,7 +105,7 @@ export const approveProperty = async (req, res) => {
 
     // ✅ WebSocket notification
     const io = getIO();
-    io.to(`user:${property.Host.user_id}`).emit("notification", {
+    io.to(`user:${property.host_id}`).emit("notification", {
       type: "PROPERTY_APPROVED",
       title: "Property Approved",
       message: "Your property has been approved and is now visible",
