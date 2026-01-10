@@ -1,14 +1,20 @@
 import Property from "../model/Property.js";
-
+import Host from "../model/Host.js";
 export const loadProperty = async (req, res, next) => {
   try {
-    const propertyId = req.params.id;
-    const userId = req.user.id;
+    const propertyId = Number(req.params.id);
+    const hostId = req.host.id; // 🔥 from hostOnly
+
+    if (!propertyId) {
+      return res.status(400).json({
+        message: "Invalid property id"
+      });
+    }
 
     const property = await Property.findOne({
       where: {
         id: propertyId,
-        user_id: userId,
+        host_id: hostId,
         is_deleted: false
       }
     });
@@ -21,8 +27,11 @@ export const loadProperty = async (req, res, next) => {
 
     req.property = property;
     next();
+
   } catch (err) {
     console.error("LOAD PROPERTY ERROR:", err);
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      message: "Server error"
+    });
   }
 };

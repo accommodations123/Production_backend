@@ -7,31 +7,15 @@ import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../service
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { categoryId, propertyType, privacyType } = req.body;
+    const host = req.host; // 🔥 reuse
 
     if (!categoryId || !propertyType || !privacyType) {
       return res.status(400).json({ message: "Missing required fields." });
     }
 
-    const host = await Host.findOne({ where: { user_id: userId } });
-
-    if (!host) {
-      return res.status(400).json({
-        message: "You must complete host details before posting a property."
-      });
-    }
-
-    if (!host.whatsapp && !host.instagram && !host.facebook) {
-      return res.status(400).json({
-        success: false,
-        message: "Please add at least one contact method in host profile"
-      });
-    }
-
-
     const property = await Property.create({
-      user_id: userId,        // REQUIRED
+      user_id: req.user.id,
       host_id: host.id,
       category_id: categoryId,
       property_type: propertyType,
@@ -39,22 +23,17 @@ export const createDraft = async (req, res) => {
       status: "draft"
     });
 
-    await deleteCacheByPrefix(`user_listings:${userId}`);
     await deleteCacheByPrefix(`host_listings:${host.id}`);
-    await deleteCacheByPrefix("approved_listings:");
-    await deleteCacheByPrefix("all_properties:");
 
     return res.json({
       success: true,
-      propertyId: property.id,
-      message: "Draft created successfully."
+      propertyId: property.id
     });
-
   } catch (err) {
-    console.error("CREATE DRAFT ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 
@@ -372,15 +351,7 @@ export const submitProperty = async (req, res) => {
 // GET HOST LISTINGS
 export const getMyListings = async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    const host = await Host.findOne({
-      where: { user_id: userId }
-    });
-
-    if (!host) {
-      return res.json({ success: true, properties: [] });
-    }
+    const host = req.host;
 
     const cacheKey = `host_listings:${host.id}`;
     const cached = await getCache(cacheKey);
@@ -396,16 +367,14 @@ export const getMyListings = async (req, res) => {
       order: [["createdAt", "DESC"]]
     });
 
-
     await setCache(cacheKey, properties, 300);
 
     return res.json({ success: true, properties });
-
-  } catch (err) {
-    console.error("GET MY LISTINGS ERROR:", err);
+  } catch {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const softDeleteProperty = async (req, res) => {
