@@ -565,7 +565,10 @@ export const getMyEvents = async (req, res) => {
     }
 
     const events = await Event.findAll({
-      where: { host_id: host.id },
+      where: {
+        host_id: host.id,
+        is_deleted: false
+      },
       order: [["created_at", "DESC"]]
     });
 
@@ -583,6 +586,7 @@ export const getMyEvents = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 

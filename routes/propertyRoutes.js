@@ -20,8 +20,7 @@ import userauth from "../middleware/userAuth.js";
 import {uploadPropertyImages,uploadPropertyDocs,uploadPropertyVideos} from "../middleware/uploads/property.upload.js";
 import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
 import { verifyPropertyOwnership } from "../middleware/verifyPropertyOwnership.js"
-import {loadProperty } from "../middleware/loadProperty.js"
-import { hostOnly } from "../middleware/hostOnly.js";
+
 const router = express.Router();
 
 // router.post(
