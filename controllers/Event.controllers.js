@@ -797,10 +797,10 @@ export const softDeleteEvent = async (req, res) => {
 
     await event.update({ is_deleted: true });
 
-    // await deleteCache(`event:${event.id}`);
-    // await deleteCacheByPrefix("approved_events:");
-    // await deleteCacheByPrefix("pending_events:");
-    // await deleteCacheByPrefix(`host_events:${event.host_id}`);
+    await deleteCache(`event:${event.id}`);
+    await deleteCacheByPrefix("approved_events:");
+    await deleteCacheByPrefix("pending_events:");
+    await deleteCacheByPrefix(`host_events:${event.host_id}`);
 
     return res.json({
       success: true,
