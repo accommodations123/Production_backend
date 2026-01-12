@@ -77,3 +77,34 @@ export const googleCallback = async (req, res) => {
   }
 };
 
+
+export const getMe = (req, res) => {
+  try {
+    // userAuth middleware already validated the cookie
+    // and attached the user to req.user
+
+    if (!req.user) {
+      return res.status(401).json({
+        loggedIn: false
+      });
+    }
+
+    return res.status(200).json({
+      loggedIn: true,
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        profile_image: req.user.profile_image,
+        role: req.user.role || "user"
+      }
+    });
+
+  } catch (err) {
+    console.error("GET ME ERROR:", err);
+    return res.status(500).json({
+      loggedIn: false,
+      message: "Server error"
+    });
+  }
+};
