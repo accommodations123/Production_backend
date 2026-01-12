@@ -61,7 +61,7 @@ export const googleCallback = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.cookie("token", token, {
+    res.cookie("access_token", token, {
       httpOnly: true,
       secure: true,
       sameSite: "None",
