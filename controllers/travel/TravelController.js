@@ -316,10 +316,6 @@ export const travelMatchAction = async (req, res) => {
 };
 
 
-import { Op } from "sequelize";
-import TravelTrip from "../../model/travel/TravelTrip.js";
-import Host from "../../model/Host.js";
-import User from "../../model/User.js";
 
 export const publicBrowseTrips = async (req, res) => {
   try {
