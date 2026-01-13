@@ -4,6 +4,8 @@ import {
   searchTrips,
   myTrips,
   travelMatchAction,
+  publicSearchTrips ,
+  publicTripPreview ,
   adminGetAllTrips,
   adminCancelTrip,
   adminGetAllMatches,
@@ -35,6 +37,8 @@ router.get("/trips/me",userAuth,myTrips);
 
 // Unified match action controller
 router.post("/matches/action",userAuth,travelMatchAction);
+router.get("/public/trips",publicSearchTrips )
+router.get("/punlic/trips/:id",publicTripPreview )
 
 
 //ADMIN ROUTES

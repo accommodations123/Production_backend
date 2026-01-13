@@ -314,6 +314,104 @@ export const travelMatchAction = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+export const publicSearchTrips = async (req, res) => {
+  try {
+    const {
+      from_country,
+      to_country,
+      date,
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    if (!from_country || !to_country || !date) {
+      return res.status(400).json({
+        message: "from_country, to_country, date required"
+      });
+    }
+
+    const safeLimit = Math.min(Number(limit), 20); // HARD CAP
+    const offset = (page - 1) * safeLimit;
+
+    const trips = await TravelTrip.findAll({
+      where: {
+        from_country,
+        to_country,
+        travel_date: date,
+        status: "active"
+      },
+      attributes: [
+        "id",
+        "from_country",
+        "from_city",
+        "to_country",
+        "to_city",
+        "travel_date"
+      ],
+      limit: safeLimit,
+      offset,
+      order: [["travel_date", "ASC"]],
+      include: [
+        {
+          model: Host,
+          as: "host",
+          attributes: ["full_name", "country", "city"]
+        }
+      ]
+    });
+
+    return res.json({
+      success: true,
+      page: Number(page),
+      results: trips
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+export const publicTripPreview = async (req, res) => {
+  try {
+    const { trip_id } = req.params;
+
+    const trip = await TravelTrip.findOne({
+      where: { id: trip_id, status: "active" },
+      attributes: [
+        "id",
+        "from_country",
+        "from_city",
+        "to_country",
+        "to_city",
+        "travel_date",
+        "departure_time",
+        "airline"
+      ],
+      include: [
+        {
+          model: Host,
+          as: "host",
+          attributes: ["full_name", "country", "city"]
+        }
+      ]
+    });
+
+    if (!trip) {
+      return res.status(404).json({ message: "Trip not found" });
+    }
+
+    return res.json({
+      success: true,
+      trip
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
 
 
 //ADMIN CONTROLLERS
