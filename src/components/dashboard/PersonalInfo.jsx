@@ -79,7 +79,9 @@ const InfoField = ({
     </div>
 )
 
-export const PersonalInfo = ({ initialData, verificationState }) => {
+// ... (imports remain the same)
+
+export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdating }) => {
     const [editStates, setEditStates] = useState({
         personal: false,
         location: false,
@@ -90,14 +92,14 @@ export const PersonalInfo = ({ initialData, verificationState }) => {
         full_name: initialData?.full_name || "John Doe",
         email: initialData?.email || "john.doe@example.com",
         phone: initialData?.phone || "+1 234 567 890",
-        country: "United States",
-        state: "New York",
-        city: "New York City",
-        address: "",
-        zip: "",
-        whatsapp: "",
-        facebook: "",
-        instagram: ""
+        country: initialData?.country || "United States",
+        state: initialData?.state || "New York",
+        city: initialData?.city || "New York City",
+        address: initialData?.address || "",
+        zip: initialData?.zip || "",
+        whatsapp: initialData?.whatsapp || "",
+        facebook: initialData?.facebook || "",
+        instagram: initialData?.instagram || ""
     })
 
     const handleChange = (e) => {
@@ -105,9 +107,24 @@ export const PersonalInfo = ({ initialData, verificationState }) => {
         setFormData(prev => ({ ...prev, [name]: value }))
     }
 
-    const toggleEdit = (section) => {
-        setEditStates(prev => ({ ...prev, [section]: !prev[section] }))
-        // Here you would typically save to backend if turning off edit mode
+    const toggleEdit = async (section) => {
+        // If we are currently editing and turning it off, that means SAVE
+        if (editStates[section]) {
+            try {
+                if (onUpdate) {
+                    await onUpdate(formData);
+                }
+                setEditStates(prev => ({ ...prev, [section]: false }))
+            } catch (error) {
+                console.error("Update failed", error);
+                // Optionally show error state here, but for now we just log
+                // Don't close the edit mode if error occurred
+                alert("Failed to update profile. Please try again.")
+            }
+        } else {
+            // Turning on edit mode
+            setEditStates(prev => ({ ...prev, [section]: true }))
+        }
     }
 
     // Auto-fill address based on Pincode
@@ -115,16 +132,19 @@ export const PersonalInfo = ({ initialData, verificationState }) => {
         const fetchPincodeDetails = async () => {
             const pincode = formData.zip;
             if (pincode && pincode.length === 6 && /^\d+$/.test(pincode) && editStates.location) {
-                const { fetchAddressByPincode } = await import('@/lib/pincodeUtils');
-                const addressData = await fetchAddressByPincode(pincode);
-                if (addressData) {
-                    setFormData(prev => ({
-                        ...prev,
-                        city: addressData.city || prev.city,
-                        state: addressData.state || prev.state,
-                        country: addressData.country || prev.country
-                    }));
-                }
+                // ... (import logic remains same, but removing dynamic import for clarity if not needed, assuming it works)
+                try {
+                    const { fetchAddressByPincode } = await import('@/lib/pincodeUtils');
+                    const addressData = await fetchAddressByPincode(pincode);
+                    if (addressData) {
+                        setFormData(prev => ({
+                            ...prev,
+                            city: addressData.city || prev.city,
+                            state: addressData.state || prev.state,
+                            country: addressData.country || prev.country
+                        }));
+                    }
+                } catch (e) { console.error(e) }
             }
         };
 
@@ -135,8 +155,8 @@ export const PersonalInfo = ({ initialData, verificationState }) => {
     // Actions
     const openWhatsApp = (number) => {
         // Remove non-numeric chars for API
-        const cleanNumber = number.replace(/\D/g, '');
-        window.open(`https://wa.me/${cleanNumber}`, '_blank');
+        const cleanNumber = number ? number.replace(/\D/g, '') : '';
+        if (cleanNumber) window.open(`https://wa.me/${cleanNumber}`, '_blank');
     }
 
     const openLink = (url) => {

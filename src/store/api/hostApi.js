@@ -70,6 +70,32 @@ export const hostApi = createApi({
             }),
             invalidatesTags: ["Host"],
         }),
+      updateHost: builder.mutation({
+    query: ({ hostId, data }) => {
+        const isFormData =
+            typeof FormData !== "undefined" && data instanceof FormData;
+
+        return {
+            url: `host/update/${hostId}`,
+            method: "PUT",
+            body: data,
+           credentials:"include"
+        };
+    },
+    // Force refetch after successful update
+    async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        try {
+            await queryFulfilled;
+            // Refetch the host profile
+            dispatch(hostApi.util.invalidateTags(['Host']));
+        } catch (error) {
+            console.error('Update failed:', error);
+        }
+    },
+    invalidatesTags: ["Host"],
+}),
+
+
 
         getHostProfile: builder.query({
             query: () => "host/get",
@@ -393,4 +419,5 @@ export const {
     useUpdateCommunityMutation,
     useGetMyEventsQuery,
     useDeleteEventMutation,
+    useUpdateHostMutation,
 } = hostApi;

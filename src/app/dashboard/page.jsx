@@ -10,9 +10,8 @@ import { MyListings } from "@/components/dashboard/MyListings"
 import { Notifications } from "@/components/dashboard/Notifications"
 import { Settings } from "@/components/dashboard/Settings"
 import { Support } from "@/components/dashboard/Support"
-import { ProfileOverview } from "@/components/dashboard/ProfileOverview" // Added ProfileOverview
-
-import { useGetHostProfileQuery } from "@/store/api/hostApi"
+import { ProfileOverview } from "@/components/dashboard/ProfileOverview"
+import { useGetHostProfileQuery, useUpdateHostMutation } from "@/store/api/hostApi"
 
 import { User, Home, Bell, Settings as SettingsIcon, LifeBuoy, LayoutDashboard, Briefcase, Heart, Calendar, CreditCard } from "lucide-react" // Added LayoutDashboard, Briefcase, Heart, Calendar, CreditCard
 import { cn } from "@/lib/utils"
@@ -56,7 +55,26 @@ export default function DashboardPage() {
         }
     }, [])
 
-    const { data: hostProfile } = useGetHostProfileQuery(undefined, { skip: !userData })
+    const { data: hostProfile, refetch } = useGetHostProfileQuery(undefined, { skip: !userData })
+    const [updateHost, { isLoading: isUpdating }] = useUpdateHostMutation()
+
+    const handleUpdateHost = async (data) => {
+        if (!hostProfile?.id) return
+
+        try {
+            const result = await updateHost({
+                hostId: hostProfile.id,
+                data: data // Can be FormData or object
+            }).unwrap()
+
+            // Refetch after successful update to ensure fresh data
+            refetch()
+            return result
+        } catch (error) {
+            console.error("Failed to update profile:", error)
+            throw error // Re-throw to let components handle specific UI feedback if needed
+        }
+    }
 
     // Sync initial verification status
     useEffect(() => {
@@ -90,6 +108,8 @@ export default function DashboardPage() {
                     verificationState={verificationState}
                     onVerifyChange={setVerificationState}
                     onToggleRole={() => setUserRoleOverride(isHost ? "Guest Member" : "Host")}
+                    onUpdate={handleUpdateHost}
+                    isUpdating={isUpdating}
                 />
             case 'personal':
                 return <PersonalInfo
@@ -97,6 +117,8 @@ export default function DashboardPage() {
                     userRole={userRole}
                     verificationState={verificationState}
                     onVerify={() => setActive("overview")}
+                    onUpdate={handleUpdateHost}
+                    isUpdating={isUpdating}
                 />
             case 'listings':
                 return <MyListings />

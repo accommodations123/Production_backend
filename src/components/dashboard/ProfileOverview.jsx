@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export const ProfileOverview = ({ initialData, onEditProfile, userRole, verificationState, onVerifyChange }) => {
+export const ProfileOverview = ({ initialData, onEditProfile, userRole, verificationState, onVerifyChange, onUpdate, isUpdating }) => {
     const fileInputRef = useRef(null)
     const [avatarPreview, setAvatarPreview] = useState(null)
     const [isVerifyingPhone, setIsVerifyingPhone] = useState(false)
@@ -41,12 +41,22 @@ export const ProfileOverview = ({ initialData, onEditProfile, userRole, verifica
 
     const handleAvatarClick = () => fileInputRef.current?.click()
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files?.[0]
         if (file) {
+            // Preview immediately
             const reader = new FileReader()
             reader.onloadend = () => setAvatarPreview(reader.result)
             reader.readAsDataURL(file)
+
+            // Upload immediately
+            if (onEditProfile) { // reusing prop name for simplicity, or should double check passed props
+                const fd = new FormData()
+                fd.append("profile_image", file)
+                if (onUpdate) {
+                    await onUpdate(fd)
+                }
+            }
         }
     }
 

@@ -39,7 +39,7 @@ const baseQueryWithLogger = async (args, api, extraOptions) => {
             const url = args.url || args;
 
             if (status === 401) {
-                console.warn(`🔐 Auth: Unauthorized (401) on ${url}`);
+                // console.log(`🔐 Auth: Unauthorized (401) on ${url} - User might not be logged in.`);
             } else if (status === 403) {
                 console.warn(`🚫 Auth: Forbidden (403) on ${url}`);
             } else {
@@ -66,9 +66,8 @@ export const authApi = createApi({
             }),
         }),
         getMe: builder.query({
-            query: () => 'host/get',
-            providesTags: ['User'],
-            transformResponse: (response) => response?.host?.User || response?.user || response,
+            query: () => "auth/me",
+            providesTags: ["User"],
         }),
         logout: builder.mutation({
             query: () => ({
@@ -99,4 +98,4 @@ export const authApi = createApi({
     }),
 })
 
-export const { useLoginMutation, useGetMeQuery, useLogoutMutation, useSendOtpMutation, useVerifyOtpMutation } = authApi
+export const { useLoginMutation, useGetMeQuery, useLazyGetMeQuery, useLogoutMutation, useSendOtpMutation, useVerifyOtpMutation } = authApi

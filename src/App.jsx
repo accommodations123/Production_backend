@@ -79,7 +79,7 @@ export default function App() {
                             {/* <Route path="/onboarding" element={<OnboardingPage />} /> */}
                             {/* <Route path="/resources/accommodation" element={<AccommodationPage />} /> */}
                             {/* <Route path="/resources/jobs" element={<Navigate to="/resources/mentorship" replace />} /> */}
-                            <Route path="/resources/travel" element={<TravelPage />} />
+                            <Route path="/travel" element={<TravelPage />} />
                             <Route path="/resources/community" element={<CommunityPage />} />
                             <Route path="/resources/legal" element={<LegalPage />} />
                             <Route path="/marketplace" element={<MarketplacePage />} />

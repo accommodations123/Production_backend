@@ -12,7 +12,7 @@
 
 import { io } from "socket.io-client";
 
-let socket;
+let socket = null;
 
 export const getSocket = () => {
     if (!socket) {
@@ -21,21 +21,21 @@ export const getSocket = () => {
             : "/";
         socket = io(socketUrl, {
             withCredentials: true,
+            // 🔒 polling fails on Prod due to missing sticky sessions. Force websocket.
+            transports: ["websocket"],
 
-            // 🔒 polling can assist if websockets are blocked in prod
-            // 🔒 Dev: specific fix for localhost 400s. Prod: Robust fallback.
-            transports: import.meta.env.PROD ? ["polling", "websocket"] : ["websocket"],
-
-            // 🔒 prevent race conditions
-            autoConnect: false,
-
-            // stability tuning
-            timeout: 20000,
+            // Allow auto-connect for singleton pattern
             reconnection: true,
             reconnectionAttempts: Infinity,
             reconnectionDelay: 2000,
         });
     }
-
     return socket;
+};
+
+export const disconnectSocket = () => {
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
 };

@@ -46,7 +46,10 @@ export function Footer() {
                             <li><Link to="/safety" className="hover:text-white transition-colors">Safety Information</Link></li>
                             <li><Link to="/cancellation" className="hover:text-white transition-colors">Cancellation Options</Link></li>
                             <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
+                            <li><Link to="/Career" className="hover:text-white transition-colors">Career</Link></li>
+                            <li><Link to="/Support" className="hover:text-white transition-colors">Support</Link></li>
                         </ul>
+                        
                     </div>
 
                     {/* Newsletter */}

@@ -10,7 +10,7 @@ import { getHostPath } from "@/lib/navigationUtils"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useCountry } from "@/context/CountryContext"
 import { useClickOutside } from "@/hooks/useClickOutside"
-import { getSocket } from "@/lib/socket"
+import { getSocket, disconnectSocket } from "@/lib/socket"
 import { useDispatch, useSelector } from "react-redux"
 import { useGetMeQuery, useLogoutMutation, authApi } from "@/store/api/authApi"
 import { useGetHostProfileQuery, hostApi } from "@/store/api/hostApi"
@@ -47,6 +47,27 @@ export function Navbar({ minimal = false, onMenuClick }) {
     const { data: hostProfile } = useGetHostProfileQuery(undefined, {
         skip: !isAuthenticated,
     })
+    const resolvedUser = React.useMemo(() => {
+        return {
+            ...(userData || {}),
+            ...(hostProfile || {}),
+            profile_image:
+                userData?.profile_image ||
+                hostProfile?.profile_image ||
+                null
+        };
+    }, [userData, hostProfile]);
+
+    const displayName = React.useMemo(() => {
+        return (
+            hostProfile?.full_name ||
+            userData?.full_name ||
+            userData?.name ||
+            userData?.email?.split("@")[0] ||
+            "User"
+        );
+    }, [hostProfile, userData]);
+
 
     // Auto-scroll listener
     React.useEffect(() => {
@@ -59,52 +80,46 @@ export function Navbar({ minimal = false, onMenuClick }) {
 
     // ================= WEBSOCKET LOGIC =================
     React.useEffect(() => {
-        // If not authenticated, or if the socket is already set up, do nothing.
-        if (!isAuthenticated || isSocketInitialized.current) {
-            return;
-        }
+        // If not authenticated, do nothing.
+        if (!isAuthenticated) return;
 
-
-
-        // const token = localStorage.getItem("access_token");
-        // if (!token) {
-        //     console.error("❌ Cannot connect to socket: No token found in localStorage.");
-        //     return;
-        // }
-
+        // Use the singleton socket
         const socket = getSocket();
-
         socketRef.current = socket;
 
-        socket.on("connect", () => {
+        // Define listeners
+        const onConnect = () => {
             console.log("✅ Connected to Socket.IO Server:", socket.id);
-        });
+        };
 
-        socket.on("connect_error", (err) => {
+        const onConnectError = (err) => {
             console.error("❌ Socket Connection Error:", err.message);
-        });
+        };
 
-        // Explicitly connect!
-        socket.connect();
-
-        socket.on("notification", (data) => {
+        const onNotification = (data) => {
             console.log("📩 Received Notification:", data);
             if (data) {
                 dispatch(addNotification(data));
             }
-        });
+        };
 
-        // Mark the socket as initialized
+        // Attach listeners
+        socket.on("connect", onConnect);
+        socket.on("connect_error", onConnectError);
+        socket.on("notification", onNotification);
+
+        // Mark as initialized for this component instance
         isSocketInitialized.current = true;
 
-        // Cleanup function
+        // Cleanup: REMOVE LISTENERS ONLY. DO NOT DISCONNECT.
         return () => {
+            // We do NOT call socket.disconnect() here.
+            // This prevents the StrictMode "Connect -> Disconnect -> Connect" loop.
             if (socketRef.current) {
-                console.log("🔌 Disconnecting socket...");
-                socketRef.current.disconnect();
+                socketRef.current.off("connect", onConnect);
+                socketRef.current.off("connect_error", onConnectError);
+                socketRef.current.off("notification", onNotification);
                 socketRef.current = null;
-                // Reset the flag on cleanup so it can be re-initialized if the user logs out and back in
-                isSocketInitialized.current = false;
             }
         };
     }, [isAuthenticated, dispatch]);
@@ -186,12 +201,11 @@ export function Navbar({ minimal = false, onMenuClick }) {
     // Navigation items in the specified order (without icons)
     const navItems = [
         { name: "Home", path: "/" },
-        { name: "Events", path: "/events" },
-        // { name: "Accommodation", path: "/resources/accommodation" },
+        { name: "Accommodations", path: "/search" },
         { name: "Buy/Sell", path: "/marketplace" },
-        { name: "Groups", path: "/groups" },
-        { name: "Resources", path: "/resources", hasDropdown: true },
-        { name: "Rooms", path: "/search" },
+        { name: "Community", path: "/groups" },
+        { name: "Events", path: "/events" },
+        { name: "Travel Partners", path: "/travel" },
     ]
 
     // Resources dropdown items
@@ -255,27 +269,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                     )}
 
                                     {/* Mega Menu for Resources */}
-                                    {item.hasDropdown && (
-                                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-[600px] bg-white rounded-xl shadow-xl p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-40">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                {resourceItems.map((resource) => (
-                                                    <Link
-                                                        key={resource.name}
-                                                        to={resource.path}
-                                                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group/item"
-                                                    >
-                                                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover/item:bg-indigo-100 transition-colors">
-                                                            <resource.icon className="h-5 w-5" />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-semibold text-gray-900 text-sm group-hover/item:text-indigo-700">{resource.name}</h4>
-                                                            <p className="text-xs text-gray-500 mt-0.5">{resource.desc}</p>
-                                                        </div>
-                                                    </Link>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+
                                 </div>
                             ))}
                         </nav>
@@ -460,13 +454,24 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                     className="rounded-full border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white gap-2 pl-3 pr-4 cursor-pointer"
                                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                                 >
-                                    <div className="bg-gray-500 rounded-full p-1">
-                                        <User className="h-4 w-4 text-white" />
+                                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200">
+                                        {resolvedUser?.profile_image ? (
+                                            <img
+                                                src={`${resolvedUser.profile_image}?v=${Date.now()}`}
+                                                alt="Profile"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-500">
+                                                <User className="h-4 w-4 text-white" />
+                                            </div>
+                                        )}
                                     </div>
+
                                 </Button>
 
                                 {isProfileOpen && (() => {
-                                    const userName = userData?.full_name || userData?.name || userData?.email || "User";
+
                                     const isHost = hostProfile && (hostProfile.id || hostProfile._id);
                                     const hostStatus = hostProfile?.status || "pending";
 
@@ -474,16 +479,30 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                         <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
                                             {/* User Info with Role Badge */}
                                             <div className="px-4 py-3 border-b">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-700">
-                                                        {userName.split(" ").map(s => s[0]).slice(0, 2).join("").toUpperCase() || "U"}
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-200">
+                                                        {resolvedUser?.profile_image ? (
+                                                            <img
+                                                                src={`${resolvedUser.profile_image}?v=${Date.now()}`}
+                                                                alt={displayName}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-gray-500 text-white font-semibold text-sm">
+                                                                {displayName.slice(0, 2).toUpperCase()}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
-                                                        {/* <p className="text-xs text-gray-400 mt-0.5">{user?.email || "Account Member"}</p> */}
+
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-semibold text-gray-900 truncate">
+                                                            {displayName}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
+
+
 
                                             {/* Menu Items - Reordered by frequency */}
                                             <div className="py-1">
@@ -510,6 +529,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                                         } catch (e) {
                                                             console.warn("Backend logout failed, proceeding with local cleanup", e);
                                                         }
+                                                        disconnectSocket(); // 🔌 Explicitly close socket on logout
                                                         dispatch(authApi.util.resetApiState());
                                                         dispatch(hostApi.util.resetApiState());
                                                         localStorage.removeItem("user");
