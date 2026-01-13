@@ -6,6 +6,7 @@ import RootLayout from "@/app/layout";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 // import PropertiesListPage from "@/app/properties/page";
 import HostOnboardingForm from "./components/host/Host";
+import { TravelCommunity } from "./components/dashboard/TravelCommunity";
 // import HostVerification from './components/host/wizard/HostVerification'
 // Lazy load pages
 const Home = lazy(() => import("@/app/page"));

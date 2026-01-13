@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -18,132 +19,200 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa";
-
-/* ===================== INITIAL DATA ===================== */
-const INITIAL_PLANS = [
-  {
-    id: 1,
-    user: {
-      fullName: "Rahul Sharma",
-      age: 28,
-      gender: "Male",
-      country: "India",
-      state: "Delhi",
-      city: "New Delhi",
-      languages: ["Hindi", "English"],
-      phone: "+919876543210",
-      email: "rahul.sharma@gmail.com",
-      whatsapp: "+919876543210",
-      image:
-        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80",
-    },
-    destination: "Paris, France",
-    date: "2025-02-20",
-    time: "01:30 AM",
-    flight: {
-      airline: "Air France",
-      flightName: "AF 226",
-      flightNumber: "AF226",
-      from: "Delhi (DEL)",
-      to: "Paris (CDG)",
-    },
-  },
-];
+import {
+  useGetPublicTripsQuery,
+  useGetPublicTripQuery,
+  useLazyGetPublicSearchTripsQuery,
+  useGetMyTripsQuery,
+  useTravelMatchActionMutation,
+  useCreateTripMutation
+} from "@/store/api/authApi";
 
 /* ===================== POST TRIP MODAL ===================== */
 function PostTripModal({ onClose, onAdd }) {
-  const [form, setForm] = useState({
-    fullName: "",
-    age: "",
-    gender: "",
-    country: "",
-    state: "",
-    city: "",
-    languages: "",
+  const [createTrip, { isLoading }] = useCreateTripMutation();
+  const [formData, setFormData] = useState({
+    from_country: "",
+    from_state: "",
+    from_city: "",
+    to_country: "",
+    to_city: "",
+    travel_date: "",
+    departure_time: "",
+    arrival_date: "",
+    arrival_time: "",
     airline: "",
-    flightName: "",
-    flightNumber: "",
-    origin: "",
-    destination: "",
-    departureDate: "",
-    departureTime: "",
-    arrivalDate: "",
-    arrivalTime: "",
-    stops: [], // Array of {location: "", arrivalTime: "", departureTime: ""}
+    flight_number: ""
   });
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
-
-  const addStop = () => {
-    setForm({
-      ...form,
-      stops: [...form.stops, { location: "", arrivalTime: "", departureTime: "" }]
-    });
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (errorMsg) setErrorMsg("");
   };
 
-  const updateStop = (index, field, value) => {
-    const updatedStops = [...form.stops];
-    updatedStops[index][field] = value;
-    setForm({ ...form, stops: updatedStops });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await createTrip(formData).unwrap();
+      if (res.success) {
+        alert("Trip posted successfully!");
+        onAdd && onAdd(res.trip);
+        onClose();
+      }
+    } catch (err) {
+      console.error("Failed to create trip", err);
+      // Backend returns 403 or 400 with a message
+      setErrorMsg(err?.data?.message || "Error posting trip. Please try again.");
+    }
   };
 
-  const removeStop = (index) => {
-    setForm({
-      ...form,
-      stops: form.stops.filter((_, i) => i !== index)
-    });
-  };
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4 backdrop-blur-sm" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden"
+      >
+        <div className="bg-[#07182A] p-6 text-white flex justify-between items-center">
+          <h2 className="text-xl font-bold">Post a Trip</h2>
+          <button onClick={onClose}><X size={24} /></button>
+        </div>
 
-  const handleSubmit = () => {
-    // Basic validation
-    if (!form.fullName || !form.age || !form.gender || !form.country || !form.state || !form.city || !form.languages || !form.airline || !form.origin || !form.destination || !form.departureDate || !form.departureTime) {
-      alert("Please fill all required fields");
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          {errorMsg && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Origin */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900 border-b pb-1">Origin</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Country *</label>
+                <input name="from_country" required placeholder="e.g. India" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">City *</label>
+                <input name="from_city" required placeholder="e.g. Bangalore" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase">State (Optional)</label>
+              <input name="from_state" placeholder="e.g. Karnataka" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+            </div>
+          </div>
+
+          {/* Destination */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900 border-b pb-1">Destination</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Country *</label>
+                <input name="to_country" required placeholder="e.g. USA" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">City *</label>
+                <input name="to_city" required placeholder="e.g. New York" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+            </div>
+          </div>
+
+          {/* Schedule */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900 border-b pb-1">Schedule</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Departure Date *</label>
+                <input type="date" name="travel_date" required className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Departure Time *</label>
+                <input type="time" name="departure_time" required className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Arrival Date</label>
+                <input type="date" name="arrival_date" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Arrival Time</label>
+                <input type="time" name="arrival_time" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+            </div>
+          </div>
+
+          {/* Flight Info */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900 border-b pb-1">Flight Details</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Airline</label>
+                <input name="airline" placeholder="e.g. Delta" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase">Flight Number</label>
+                <input name="flight_number" placeholder="e.g. DL123" className="w-full border p-2 rounded-lg" onChange={handleChange} />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" disabled={isLoading} className="w-full bg-[#C93A30] text-white py-3 rounded-lg font-bold hover:bg-[#a82f26] transition-colors mt-4">
+            {isLoading ? "Posting..." : "Post Trip"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ===================== TRIP DETAILS MODAL ===================== */
+function TripDetailsModal({ tripId, onClose }) {
+  const { data: tripData, isLoading, error } = useGetPublicTripQuery(tripId, {
+    skip: !tripId
+  });
+  const { data: myTripsData } = useGetMyTripsQuery();
+  const [sendAction, { isLoading: isActionLoading }] = useTravelMatchActionMutation();
+  const [selectedMyTripId, setSelectedMyTripId] = useState("");
+
+  const myActiveTrips = myTripsData?.trips?.filter(t => t.status === 'active') || [];
+
+  // Auto-select first trip if available and not set
+  useEffect(() => {
+    if (myActiveTrips.length > 0 && !selectedMyTripId) {
+      setSelectedMyTripId(myActiveTrips[0].id);
+    }
+  }, [myActiveTrips, selectedMyTripId]);
+
+  const handleRequest = async () => {
+    if (!selectedMyTripId) {
+      alert("You need an active trip to send a request.");
       return;
     }
 
-    // Validate stops
-    for (let i = 0; i < form.stops.length; i++) {
-      if (!form.stops[i].location || !form.stops[i].arrivalTime || !form.stops[i].departureTime) {
-        alert(`Please fill all details for stop ${i + 1}`);
-        return;
-      }
-    }
+    try {
+      const res = await sendAction({
+        trip_id: selectedMyTripId,
+        matched_trip_id: tripId,
+        action: 'request'
+      }).unwrap();
 
-    onAdd({
-      id: Date.now(),
-      user: {
-        fullName: form.fullName,
-        age: Number(form.age),
-        gender: form.gender,
-        country: form.country,
-        state: form.state,
-        city: form.city,
-        languages: form.languages.split(",").map((l) => l.trim()),
-        phone: "",
-        email: "",
-        whatsapp: "",
-        image:
-          "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80",
-      },
-      destination: `${form.destination}`,
-      date: form.departureDate,
-      time: form.departureTime,
-      flight: {
-        airline: form.airline,
-        flightName: form.flightName,
-        flightNumber: form.flightNumber,
-        from: form.origin,
-        to: form.destination,
-        stops: form.stops,
-        departureDate: form.departureDate,
-        departureTime: form.departureTime,
-        arrivalDate: form.arrivalDate,
-        arrivalTime: form.arrivalTime,
-      },
-    });
-    onClose();
+      if (res.success) {
+        alert("Request sent successfully!");
+        onClose();
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err?.data?.message || "Failed to send request.");
+    }
   };
+
+  if (!tripId) return null;
 
   return (
     <AnimatePresence>
@@ -152,375 +221,132 @@ function PostTripModal({ onClose, onAdd }) {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4 backdrop-blur-sm"
+        onClick={onClose}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
         >
-          <div className="bg-linear-to-r from-[#07182A] to-[#0a2540] p-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Plane size={18} /> Post Travel Plan
-              </h2>
-              <motion.button
-                whileHover={{ rotate: 90 }}
-                transition={{ duration: 0.2 }}
-                className="text-white"
-                onClick={onClose}
-              >
-                <X className="cursor-pointer" />
-              </motion.button>
+          {isLoading ? (
+            <div className="p-10 flex justify-center text-primary">
+              <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
             </div>
-          </div>
-
-          {/* BODY */}
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-            {/* Person Details */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="space-y-5"
-            >
-              <h3 className="text-lg font-semibold text-[#07182A] border-b pb-2 flex items-center gap-2">
-                <User size={18} /> Person Details
-              </h3>
-
-              <div className="grid grid-cols-1 text-gray-950 sm:grid-cols-2 gap-5">
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="fullName"
-                    placeholder="Full Name"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.fullName}
-                  />
-                </motion.div>
-
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="age"
-                    type="number"
-                    placeholder="Age"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.age}
-                  />
-                </motion.div>
-
-                {/* GENDER FIELD */}
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <select
-                    name="gender"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.gender}
-                  >
-                    <option value="" disabled>
-                      Select Gender
-                    </option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                </motion.div>
-
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="country"
-                    placeholder="Country"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.country}
-                  />
-                </motion.div>
-
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="state"
-                    placeholder="State"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.state}
-                  />
-                </motion.div>
-
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="city"
-                    placeholder="City"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.city}
-                  />
-                </motion.div>
-
-                <motion.div
-                  whileFocus={{ scale: 1.02 }}
-                  transition={{ type: "spring", stiffness: 400 }}
-                  className="sm:col-span-2"
-                >
-                  <input
-                    name="languages"
-                    placeholder="Languages (English, Hindi)"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.languages}
-                  />
-                </motion.div>
-              </div>
-            </motion.div>
-
-            {/* Trip Details */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="space-y-5"
-            >
-              <h3 className="text-lg font-semibold text-[#07182A] border-b pb-2 flex items-center gap-2">
-                <Plane size={18} /> Trip Details
-              </h3>
-
-              <div className="grid grid-cols-1 text-gray-950 sm:grid-cols-2 gap-5">
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="airline"
-                    placeholder="Airline Name"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.airline}
-                  />
-                </motion.div>
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="flightName"
-                    placeholder="Flight Name"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.flightName}
-                  />
-                </motion.div>
-                <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                  <input
-                    name="flightNumber"
-                    placeholder="Flight Number"
-                    className="form-input"
-                    onChange={handleChange}
-                    value={form.flightNumber}
-                  />
-                </motion.div>
-              </div>
-
-              {/* Origin and Destination */}
-              <div className="space-y-4">
-                <h4 className="text-md font-medium text-primary flex items-center gap-2">
-                  <MapPin size={16} className="text-accent" /> Route
-                </h4>
-                <div className="grid grid-cols-1  text-[#07182A] sm:grid-cols-2 gap-4">
-                  <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                    <label className="block text-sm font-medium text-primary mb-1 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-accent rounded-full"></span>
-                      From (Origin)
-                    </label>
-                    <input
-                      name="origin"
-                      placeholder="e.g., New Delhi (DEL)"
-                      className="form-input border-accent focus:border-accent focus:ring-accent"
-                      onChange={handleChange}
-                      value={form.origin}
-                    />
-                  </motion.div>
-                  <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                    <label className="block text-sm font-medium text-primary mb-1 flex items-center gap-1">
-                      <span className="w-2 h-2 text-[#07182A] bg-accent rounded-full"></span>
-                      To (Destination)
-                    </label>
-                    <input
-                      name="destination"
-                      placeholder="e.g., Paris (CDG)"
-                      className="form-input border-accent focus:border-accent focus:ring-accent"
-                      onChange={handleChange}
-                      value={form.destination}
-                    />
-                  </motion.div>
+          ) : error ? (
+            <div className="p-10 text-center text-red-500">
+              <p>Failed to load trip details.</p>
+              <button onClick={onClose} className="mt-4 text-primary underline">Close</button>
+            </div>
+          ) : tripData?.trip ? (
+            <div>
+              <div className="bg-linear-to-r from-[#07182A] to-[#0a2540] p-6 text-white flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    {tripData.trip.to_city}, {tripData.trip.to_country}
+                  </h2>
+                  <p className="text-gray-300 text-sm mt-1">
+                    From {tripData.trip.from_city}, {tripData.trip.from_country}
+                  </p>
                 </div>
+                <button onClick={onClose} className="text-white/80 hover:text-white">
+                  <X size={24} />
+                </button>
               </div>
 
-              {/* Departure Details */}
-              <div className="space-y-4">
-                <h4 className="text-md font-medium text-primary flex items-center gap-2">
-                  <Clock size={16} className="text-accent" /> Departure
-                </h4>
-                <div className="grid grid-cols-1 text-[#07182A] sm:grid-cols-2 gap-4">
-                  <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                    <label className="block text-sm font-medium text-primary mb-1 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-accent  rounded-full"></span>
-                      Departure Date
-                    </label>
-                    <input
-                      name="departureDate"
-                      type="date"
-                      className="form-input"
-                      onChange={handleChange}
-                      value={form.departureDate}
-                    />
-                  </motion.div>
-                  <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                    <label className="block text-sm font-medium text-primary mb-1 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-accent rounded-full"></span>
-                      Departure Time
-                    </label>
-                    <input
-                      name="departureTime"
-                      type="time"
-                      className="form-input"
-                      onChange={handleChange}
-                      value={form.departureTime}
-                    />
-                  </motion.div>
-                </div>
-              </div>
-
-              {/* Arrival Details */}
-              <div className="space-y-4">
-                <h4 className="text-md font-medium text-primary flex items-center gap-2">
-                  <Clock size={16} className="text-accent" /> Arrival
-                </h4>
-                <div className="grid grid-cols-1 text-[#07182A] sm:grid-cols-2 gap-4">
-                  <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                    <label className="block text-sm font-medium text-primary mb-1 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-accent rounded-full"></span>
-                      Arrival Date
-                    </label>
-                    <input
-                      name="arrivalDate"
-                      type="date"
-                      className="form-input"
-                      onChange={handleChange}
-                      value={form.arrivalDate}
-                    />
-                  </motion.div>
-                  <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                    <label className="block text-sm font-medium text-primary mb-1 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-accent rounded-full"></span>
-                      Arrival Time
-                    </label>
-                    <input
-                      name="arrivalTime"
-                      type="time"
-                      className="form-input"
-                      onChange={handleChange}
-                      value={form.arrivalTime}
-                    />
-                  </motion.div>
-                </div>
-              </div>
-
-              {/* Layover Stops */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-md font-medium text-primary flex items-center gap-2">
-                    <MapPin size={16} className="text-accent" /> Layover Stops
-                  </h4>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={addStop}
-                    className="bg-primary text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-accent transition-colors"
-                  >
-                    + Add Stop
-                  </motion.button>
-                </div>
-
-                {form.stops.map((stop, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="border border-accent/20 rounded-lg p-4 bg-gray-50"
-                  >
-                    <div className="flex items-center  justify-between mb-3">
-                      <h5 className="font-medium text-primary flex items-center gap-2">
-                        <span className="w-2 h-2 bg-accent rounded-full"></span>
-                        Stop {index + 1}
-                      </h5>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => removeStop(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X size={16} />
-                      </motion.button>
-                    </div>
-                    <div className="grid grid-cols-1 text-[#07182A] sm:grid-cols-3 gap-3">
-                      <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                        <label className="block text-sm font-medium text-primary mb-1">Location</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., Dubai (DXB)"
-                          className="form-input border-accent focus:border-accent focus:ring-accent"
-                          value={stop.location}
-                          onChange={(e) => updateStop(index, 'location', e.target.value)}
-                        />
-                      </motion.div>
-                      <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                        <label className="block text-sm font-medium text-primary mb-1">Arrival Time</label>
-                        <input
-                          type="time"
-                          className="form-input border-accent focus:border-accent focus:ring-accent"
-                          value={stop.arrivalTime}
-                          onChange={(e) => updateStop(index, 'arrivalTime', e.target.value)}
-                        />
-                      </motion.div>
-                      <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400 }}>
-                        <label className="block text-sm font-medium text-primary mb-1">Departure Time</label>
-                        <input
-                          type="time"
-                          className="form-input border-accent focus:border-accent focus:ring-accent"
-                          value={stop.departureTime}
-                          onChange={(e) => updateStop(index, 'departureTime', e.target.value)}
-                        />
-                      </motion.div>
-                    </div>
-                  </motion.div>
-                ))}
-
-                {form.stops.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <MapPin size={32} className="mx-auto mb-2 opacity-50 text-accent" />
-                    <p>No layover stops added yet</p>
-                    <p className="text-sm">Click "Add Stop" to include layover locations</p>
+              <div className="p-6 space-y-6">
+                {/* Host Info */}
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-2xl">
+                    {/* Placeholder generic avatar if no image returning from details API yet */}
+                    {tripData.trip.host?.profile_image ? (
+                      <img
+                        src={tripData.trip.host.profile_image}
+                        alt={tripData.trip.host.full_name}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : "👤"}
                   </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#07182A]">{tripData.trip.host?.full_name || "Traveler"}</h3>
+                    <p className="text-sm text-gray-500">{tripData.trip.host?.city}, {tripData.trip.host?.country}</p>
+                  </div>
+                </div>
 
-          <div className="flex justify-end gap-3 text-accent p-6 border-t bg-gray-50">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-800 rounded-lg font-medium"
-            >
-              Cancel
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleSubmit}
-              className="bg-linear-to-r from-[#07182A] to-[#0a2540] text-white px-6 py-2 rounded-lg font-medium shadow-lg"
-            >
-              Post Trip
-            </motion.button>
-          </div>
+                {/* Flight Details */}
+                <div>
+                  <h3 className="text-lg font-bold text-[#07182A] mb-3 flex items-center gap-2">
+                    <Plane size={18} /> Flight Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="p-3 border rounded-lg">
+                      <span className="block text-gray-500 text-xs">Airline</span>
+                      <span className="font-medium text-[#07182A]">{tripData.trip.airline || "N/A"}</span>
+                    </div>
+                    <div className="p-3 border rounded-lg">
+                      <span className="block text-gray-500 text-xs">Flight No</span>
+                      <span className="font-medium text-[#07182A]">{tripData.trip.flight_number || "N/A"}</span>
+                    </div>
+                    <div className="p-3 border rounded-lg">
+                      <span className="block text-gray-500 text-xs">Departure</span>
+                      <span className="font-medium text-[#07182A]">
+                        {new Date(tripData.trip.travel_date).toLocaleDateString()} at {tripData.trip.departure_time?.slice(0, 5)}
+                      </span>
+                    </div>
+                    {tripData.trip.arrival_date && (
+                      <div className="p-3 border rounded-lg">
+                        <span className="block text-gray-500 text-xs">Arrival</span>
+                        <span className="font-medium text-[#07182A]">
+                          {new Date(tripData.trip.arrival_date).toLocaleDateString()} {tripData.trip.arrival_time ? `at ${tripData.trip.arrival_time?.slice(0, 5)}` : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Section */}
+                <div className="pt-4 border-t">
+                  {myActiveTrips.length > 0 ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Connect via your trip:</label>
+                        <select
+                          className="w-full p-2 border rounded-lg text-sm bg-white"
+                          value={selectedMyTripId}
+                          onChange={(e) => setSelectedMyTripId(e.target.value)}
+                        >
+                          {myActiveTrips.map(trip => (
+                            <option key={trip.id} value={trip.id}>
+                              {trip.to_city} ({new Date(trip.travel_date).toLocaleDateString()})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={handleRequest}
+                        disabled={isActionLoading}
+                        className="w-full bg-[#07182A] text-white py-3 rounded-lg font-medium hover:bg-[#0a2540] transition-colors flex justify-center items-center gap-2"
+                      >
+                        {isActionLoading ? <div className="animate-spin w-4 h-4 border-2 border-white/50 border-t-white rounded-full"></div> : null}
+                        Request
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 text-sm">
+                      <p className="mb-2">You need an active trip to send requests.</p>
+                      <button
+                        onClick={() => { onClose(); /* Logic to open Create Modal could go here */ }}
+                        className="text-[#07182A] font-medium underline"
+                      >
+                        Close & Create a Trip
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -529,56 +355,95 @@ function PostTripModal({ onClose, onAdd }) {
 
 /* ===================== PAGE ===================== */
 export default function TravelPage() {
+  const { data: publicTrips, isLoading: isPublicLoading } = useGetPublicTripsQuery({});
+  const [triggerSearch, { data: searchResults, isLoading: isSearchLoading }] = useLazyGetPublicSearchTripsQuery();
+
   const [plans, setPlans] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [selectedTripId, setSelectedTripId] = useState(null);
 
-  // Load data from localStorage on component mount
-  useEffect(() => {
-    const storedPlans = localStorage.getItem("travelPlans");
-    if (storedPlans) {
-      setPlans(JSON.parse(storedPlans));
-    } else {
-      // If no data in localStorage, use initial plans
-      setPlans(INITIAL_PLANS);
-      localStorage.setItem("travelPlans", JSON.stringify(INITIAL_PLANS));
-    }
-  }, []);
-
-  // Save plans to localStorage whenever they change
-  useEffect(() => {
-    if (plans.length > 0) {
-      localStorage.setItem("travelPlans", JSON.stringify(plans));
-    }
-  }, [plans]);
-
-  // Filter plans based on search term
-  const filteredPlans = plans.filter((plan) => {
-    const matchesSearch =
-      plan.user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plan.destination.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plan.flight.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plan.flight.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (plan.flight.stops && plan.flight.stops.some(stop =>
-        stop.location.toLowerCase().includes(searchTerm.toLowerCase())
-      ));
-
-    return matchesSearch;
+  // Search State
+  const [searchParams, setSearchParams] = useState({
+    from_country: "",
+    to_country: "",
+    date: ""
   });
+
+  const isLoading = isPublicLoading || isSearchLoading;
+
+  // Helper to map API trip data to UI plan format
+  const mapTripToPlan = (trip) => ({
+    id: trip.id,
+    user: {
+      fullName: trip.host?.full_name || "Traveler",
+      age: trip.host?.age || "N/A",
+      gender: trip.host?.gender || "N/A",
+      country: trip.host?.country || "",
+      state: "",
+      city: trip.host?.city || "",
+      languages: [],
+      phone: "",
+      email: "",
+      whatsapp: "",
+      image: trip.host?.profile_image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${trip.host?.full_name || "Traveler"}`,
+    },
+    destination: `${trip.to_city}, ${trip.to_country}`,
+    date: trip.travel_date,
+    time: trip.departure_time || "00:00",
+    flight: {
+      airline: trip.airline || "Airline",
+      flightName: "",
+      flightNumber: trip.flight_number || "",
+      from: `${trip.from_city} (${trip.from_country})`,
+      to: `${trip.to_city} (${trip.to_country})`,
+      departureDate: trip.travel_date,
+      departureTime: trip.departure_time,
+      arrivalDate: trip.arrival_date || "",
+      arrivalTime: trip.arrival_time || "",
+      stops: [],
+    },
+  });
+
+  // Determine which data to show
+  useEffect(() => {
+    // If we have search results, use them. Otherwise use public trips.
+    const sourceData = searchResults?.results || publicTrips?.results;
+
+    if (sourceData) {
+      const mappedPlans = sourceData.map(mapTripToPlan);
+      setPlans(mappedPlans);
+    }
+  }, [publicTrips, searchResults]);
+
+  const handleSearch = () => {
+    if (searchParams.from_country && searchParams.to_country && searchParams.date) {
+      triggerSearch(searchParams);
+    } else {
+      // Ideally show a toast or error, but for now we rely on required inputs
+      alert("Please fill in all search fields: From Country, To Country, and Date.");
+    }
+  };
+
+  const handleAddTrip = (newTrip) => {
+    // We attempt to map the new trip. 
+    // Note: newTrip from createTrip response might lack the 'host' object initially, 
+    // so properties will fall back to defaults until a fresh fetch occurs.
+    const mappedTrip = mapTripToPlan(newTrip);
+    setPlans((prev) => [mappedTrip, ...prev]);
+  };
 
   return (
     <main className="min-h-screen bg-gray-50">
       {/* ================= HERO SECTION ================= */}
       <section
-        className="relative min-h-[80vh] flex items-center bg-cover bg-center overflow-hidden"
+        className="relative min-h-[50vh] flex items-center bg-cover bg-center overflow-hidden"
         style={{
           backgroundImage:
             "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1600&q=80')",
         }}
       >
         <div className="absolute inset-0 bg-linear-to-r from-black/80 to-black/40"></div>
-        
+
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
           <motion.div
@@ -607,14 +472,14 @@ export default function TravelPage() {
           />
         </div>
 
-        <div className="relative z-10 container mx-auto px-6">
+        <div className="relative z-10 container mx-auto px-6 pt-20">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="max-w-2xl text-white"
           >
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
               Find Your <span className="text-[#C93A30]">Travel Buddy</span>
             </h1>
 
@@ -622,7 +487,7 @@ export default function TravelPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3, duration: 0.8 }}
-              className="text-lg text-gray-200 mb-8"
+              className="text-lg text-gray-200 mb-6"
             >
               Share flight details, connect with travelers, and explore the
               world together with confidence.
@@ -655,38 +520,60 @@ export default function TravelPage() {
       {/* ================= SEARCH AND FILTER SECTION ================= */}
       <section className="sticky top-0 z-40 bg-white text-gray-900 shadow-md py-4 px-4">
         <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full md:w-1/2">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-800" size={20} />
-              <input
-                type="text"
-                placeholder="Search by destination, name, or airports..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#07182A]/50"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex gap-2 items-center">
-              <Filter size={20} className="text-gray-600" />
-              <div className="flex gap-2">
-                {["all", "upcoming", "past"].map((option) => (
-                  <motion.button
-                    key={option}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setFilter(option)}
-                    className={`px-4 py-2 rounded-lg font-medium ${
-                      filter === option
-                        ? "bg-[#07182A] text-white"
-                        : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
-                  </motion.button>
-                ))}
+          <div className="flex flex-col lg:flex-row gap-4 items-end bg-white p-2 rounded-xl">
+            {/* From Country */}
+            <div className="w-full">
+              <label className="text-xs font-semibold text-gray-500 mb-1 ml-1 block">From Country</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="e.g. India"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#07182A]/50 text-gray-800"
+                  value={searchParams.from_country}
+                  onChange={(e) => setSearchParams({ ...searchParams, from_country: e.target.value })}
+                />
               </div>
             </div>
+
+            {/* To Country */}
+            <div className="w-full">
+              <label className="text-xs font-semibold text-gray-500 mb-1 ml-1 block">To Country</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="e.g. USA"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#07182A]/50 text-gray-800"
+                  value={searchParams.to_country}
+                  onChange={(e) => setSearchParams({ ...searchParams, to_country: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Date */}
+            <div className="w-full">
+              <label className="text-xs font-semibold text-gray-500 mb-1 ml-1 block">Travel Date</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="date"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#07182A]/50 text-gray-800"
+                  value={searchParams.date}
+                  onChange={(e) => setSearchParams({ ...searchParams, date: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleSearch}
+              className="w-full lg:w-auto px-6 py-2.5 bg-[#07182A] text-white font-medium rounded-lg hover:bg-[#0a2540] transition-colors flex items-center justify-center gap-2"
+            >
+              <Search size={18} />
+              Search
+            </motion.button>
           </div>
         </div>
       </section>
@@ -694,7 +581,9 @@ export default function TravelPage() {
       {/* ================= CONTENT ================= */}
       <section className="px-4 py-10" id="travel-cards">
         <div className="container mx-auto">
-          {filteredPlans.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-20">Loading trips...</div>
+          ) : plans.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -714,14 +603,15 @@ export default function TravelPage() {
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredPlans.map((plan, index) => (
+              {plans.map((plan, index) => (
                 <motion.div
                   key={plan.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1, duration: 0.5 }}
                   whileHover={{ y: -5 }}
-                  className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300"
+                  onClick={() => setSelectedTripId(plan.id)}
+                  className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
                 >
                   {/* Card Header with Image */}
                   <div className="relative h-48 bg-linear-to-br from-[#07182A] to-[#0a2540]">
@@ -730,17 +620,14 @@ export default function TravelPage() {
                       <h3 className="text-xl font-bold text-white">{plan.destination}</h3>
                       <p className="text-gray-200 text-sm">{plan.flight.from} → {plan.flight.to}</p>
                     </div>
-                    <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm rounded-full p-2">
-                      <Star className="text-yellow-400" size={18} />
-                    </div>
                   </div>
 
                   {/* User Info */}
                   <div className="p-6">
                     <div className="flex items-center text-career-primary gap-4 mb-4">
-                      <img 
-                        src={plan.user.image} 
-                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" 
+                      <img
+                        src={plan.user.image}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
                         alt={plan.user.fullName}
                       />
                       <div>
@@ -758,14 +645,9 @@ export default function TravelPage() {
                     <div className="space-y-3 text-gray-900 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar size={16} className="text-[#C93A30]" />
-                        <span>Departure: {plan.flight.departureDate || plan.date} at {plan.flight.departureTime || plan.time}</span>
+                        <span>Departure: {new Date(plan.date).toLocaleDateString()} at {plan.time?.slice(0, 5)}</span>
                       </div>
-                      {plan.flight.arrivalDate && plan.flight.arrivalTime && (
-                        <div className="flex items-center gap-2">
-                          <Clock size={16} className="text-[#C93A30]" />
-                          <span>Arrival: {plan.flight.arrivalDate} at {plan.flight.arrivalTime}</span>
-                        </div>
-                      )}
+
                       <div className="flex items-center gap-2">
                         <Plane size={16} className="text-[#C93A30]" />
                         <span>{plan.flight.airline} ({plan.flight.flightNumber})</span>
@@ -774,67 +656,15 @@ export default function TravelPage() {
                         <MapPin size={16} className="text-[#C93A30]" />
                         <span>{plan.flight.from} → {plan.flight.to}</span>
                       </div>
+                    </div>
 
-                      {/* Display Stops */}
-                      {plan.flight.stops && plan.flight.stops.length > 0 && (
-                        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin size={14} className="text-[#C93A30]" />
-                            <span className="font-medium text-xs text-gray-700">LAYOVER STOPS ({plan.flight.stops.length})</span>
-                          </div>
-                          <div className="space-y-1">
-                            {plan.flight.stops.map((stop, idx) => (
-                              <div key={idx} className="text-xs text-gray-600 flex items-center justify-between">
-                                <span className="font-medium">{stop.location}</span>
-                                <span>Arr: {stop.arrivalTime} | Dep: {stop.departureTime}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <Globe size={16} className="text-[#C93A30]" />
-                        <span>{plan.user.languages.join(", ")}</span>
+                    {/* Action Buttons */}
+                    <div className="mt-6 pt-4 border-t flex justify-between gap-2">
+                      <div className="text-center w-full text-sm text-gray-500 font-medium">
+                        Click to view details
                       </div>
                     </div>
 
-                    {/* Contact Buttons */}
-                    <div className="flex justify-between mt-6 pt-4 border-t">
-                      <motion.a
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        href={`https://wa.me/${plan.user.whatsapp}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-green-600"
-                      >
-                        <FaWhatsapp size={22} />
-                      </motion.a>
-                      <motion.a
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        href={`tel:${plan.user.phone}`}
-                        className="text-blue-600"
-                      >
-                        <Phone size={22} />
-                      </motion.a>
-                      <motion.a
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        href={`mailto:${plan.user.email}`}
-                        className="text-red-600"
-                      >
-                        <Mail size={22} />
-                      </motion.a>
-                      <motion.button
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="text-purple-600"
-                      >
-                        <MessageCircle size={22} />
-                      </motion.button>
-                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -843,14 +673,15 @@ export default function TravelPage() {
         </div>
       </section>
 
+      {/* MODAL - POST TRIP */}
       <AnimatePresence>
         {showModal && (
-          <PostTripModal
-            onClose={() => setShowModal(false)}
-            onAdd={(trip) => setPlans((prev) => [...prev, trip])}
-          />
+          <PostTripModal onClose={() => setShowModal(false)} onAdd={handleAddTrip} />
         )}
       </AnimatePresence>
+
+      {/* MODAL - TRIP DETAILS */}
+      <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
     </main>
   );
 }

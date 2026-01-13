@@ -24,10 +24,10 @@ export const InfoCard = ({ user }) => {
                     <span className="text-gray-900 font-medium">{user?.full_name || user?.name || "Not specified"}</span>
                 </div>
 
-                <div className="flex">
+                {/* <div className="flex">
                     <span className="w-32 text-gray-500 flex-shrink-0">Email:</span>
                     <span className="text-gray-900">{user?.email || "Not specified"}</span>
-                </div>
+                </div> */}
 
                 <div className="flex">
                     <span className="w-32 text-gray-500 flex-shrink-0">Phone:</span>

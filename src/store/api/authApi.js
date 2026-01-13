@@ -55,7 +55,7 @@ const baseQueryWithLogger = async (args, api, extraOptions) => {
 
 export const authApi = createApi({
     reducerPath: 'authApi',
-    tagTypes: ['User'],
+    tagTypes: ['User', 'Trips'],
     baseQuery: baseQueryWithLogger,
     endpoints: (builder) => ({
         login: builder.mutation({
@@ -68,6 +68,47 @@ export const authApi = createApi({
         getMe: builder.query({
             query: () => "auth/me",
             providesTags: ["User"],
+        }),
+        getMyTrips: builder.query({
+            query: () => "travel/trips/me",
+            providesTags: ["Trips"],
+        }),
+        createTrip: builder.mutation({
+            query: (data) => ({
+                url: "travel/trips",
+                method: "POST",
+                body: data
+            }),
+            invalidatesTags: ["Trips"]
+        }),
+        searchTrips: builder.query({
+            query: (params) => ({
+                url: "travel/trips/search",
+                params
+            }),
+        }),
+        travelMatchAction: builder.mutation({
+            query: (data) => ({
+                url: "travel/matches/action",
+                method: "POST",
+                body: data
+            }),
+            invalidatesTags: ["Trips"]
+        }),
+        getPublicTrips: builder.query({
+            query: (params) => ({
+                url: "travel/trips",
+                params
+            }),
+        }),
+        getPublicSearchTrips: builder.query({
+            query: (params) => ({
+                url: "travel/trips/search",
+                params
+            }),
+        }),
+        getPublicTrip: builder.query({
+            query: (tripId) => `travel/trips/${tripId}`,
         }),
         logout: builder.mutation({
             query: () => ({
@@ -98,4 +139,21 @@ export const authApi = createApi({
     }),
 })
 
-export const { useLoginMutation, useGetMeQuery, useLazyGetMeQuery, useLogoutMutation, useSendOtpMutation, useVerifyOtpMutation } = authApi
+export const {
+    useLoginMutation,
+    useGetMeQuery,
+    useLazyGetMeQuery,
+    useLogoutMutation,
+    useSendOtpMutation,
+    useVerifyOtpMutation,
+    useGetMyTripsQuery,
+    useCreateTripMutation,
+    useSearchTripsQuery,
+    useLazySearchTripsQuery,
+    useTravelMatchActionMutation,
+    useGetPublicTripsQuery,
+    useGetPublicSearchTripsQuery,
+    useLazyGetPublicSearchTripsQuery,
+    useGetPublicTripQuery,
+    useLazyGetPublicTripQuery
+} = authApi

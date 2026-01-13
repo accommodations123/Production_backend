@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import {
     User, Phone, Mail, Globe,
     MapPin, Edit2, Share2, ExternalLink
@@ -102,6 +102,25 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
         instagram: initialData?.instagram || ""
     })
 
+    useEffect(() => {
+        if (initialData) {
+            setFormData(prev => ({
+                ...prev,
+                full_name: initialData.full_name || prev.full_name,
+                email: initialData.email || prev.email,
+                phone: initialData.phone || prev.phone,
+                country: initialData.country || prev.country,
+                state: initialData.state || prev.state,
+                city: initialData.city || prev.city,
+                address: initialData.address || prev.address,
+                zip: initialData.zip || prev.zip,
+                whatsapp: initialData.whatsapp || prev.whatsapp,
+                facebook: initialData.facebook || prev.facebook,
+                instagram: initialData.instagram || prev.instagram,
+            }))
+        }
+    }, [initialData])
+
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData(prev => ({ ...prev, [name]: value }))
@@ -186,7 +205,7 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
                 <div className="md:col-span-2">
                     <InfoField label="Full Name" name="full_name" value={formData.full_name} isEditing={editStates.personal} onChange={handleChange} />
                 </div>
-                <InfoField label="Email Address" name="email" type="email" value={formData.email} isEditing={editStates.personal} onChange={handleChange} />
+                {/* <InfoField label="Email Address" name="email" type="email" value={formData.email} isEditing={editStates.personal} onChange={handleChange} /> */}
                 <InfoField label="Phone Number" name="phone" type="tel" value={formData.phone} isEditing={editStates.personal} onChange={handleChange} />
             </DetailCard>
 

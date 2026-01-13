@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Navbar } from "../../components/layout/Navbar";
 import { useGetHostProfileQuery, useUpdateHostMutation } from "@/store/api/hostApi";
 import { Sidebar } from "@/components/account-v2/Sidebar";
@@ -11,11 +11,13 @@ import { FeedInput } from "@/components/account-v2/FeedInput";
 import { MyListings } from "@/components/dashboard/MyListings";
 import { Settings } from "@/components/dashboard/Settings";
 import { PersonalInfo } from "@/components/dashboard/PersonalInfo";
+import { Trips } from "@/components/dashboard/Trips";
 
 export default function NewDashboard() {
   const [userData, setUserData] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [updateMessage, setUpdateMessage] = useState("");
+  const [refreshKey, setRefreshKey] = useState(Date.now());
 
   const [updateHost, { isLoading }] = useUpdateHostMutation();
 
@@ -41,53 +43,72 @@ export default function NewDashboard() {
   /* =========================
      Fetch host profile
   ========================= */
-  const { data: hostProfile } = useGetHostProfileQuery(undefined, {
+  const { data: hostProfile, refetch } = useGetHostProfileQuery(undefined, {
     skip: !userData
   });
 
-  const currentUser = {
-    ...userData,
-    ...hostProfile,
-    profile_image: hostProfile?.profile_image
-      ? `${hostProfile.profile_image}?v=${Date.now()}` // ✅ cache-bust
-      : userData?.profile_image
-  };
+  const currentUser = useMemo(() => {
+    // Debugging: Check if backend is returning stale data
+    if (hostProfile && userData) {
+      console.log("🔍 Data Check:", {
+        Local: userData.full_name,
+        Backend: hostProfile.full_name,
+        LocalImg: userData.profile_image,
+        BackendImg: hostProfile.profile_image
+      });
+    }
+
+    return {
+      ...userData,
+      ...hostProfile,
+      profile_image: hostProfile?.profile_image
+        ? `${hostProfile.profile_image}?v=${refreshKey}`
+        : userData?.profile_image
+    }
+  }, [userData, hostProfile, refreshKey]);
 
   /* =========================
      Update handler
   ========================= */
-const handleUpdatePersonalInfo = async (payload) => {
-  try {
-    if (!hostProfile?.id) return;
+  const handleUpdatePersonalInfo = async (payload) => {
+    try {
+      if (!hostProfile?.id) return;
 
-    const fd = new FormData();
-    Object.entries(payload).forEach(([k, v]) => v && fd.append(k, v));
+      let fd;
+      if (payload instanceof FormData) {
+        fd = payload;
+      } else {
+        fd = new FormData();
+        Object.entries(payload).forEach(([k, v]) => v && fd.append(k, v));
+      }
 
-    const res = await updateHost({
-      hostId: hostProfile.id,
-      data: fd
-    }).unwrap();
+      const res = await updateHost({
+        hostId: hostProfile.id,
+        data: fd
+      }).unwrap();
 
-    if (!res?.success) return;
+      if (!res?.success) return;
 
-    const { host, user } = res.data;
+      const { host, user } = res.data;
 
-    const updatedUser = {
-      ...userData,
-      ...host,
-      profile_image: `${user.profile_image}?v=${Date.now()}`,
-      name: host.full_name || userData.name,
-    };
+      setRefreshKey(Date.now()); // Update image cache
 
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-    setUserData(updatedUser);
+      const updatedUser = {
+        ...userData,
+        ...host,
+        profile_image: user?.profile_image ? `${user.profile_image}?v=${Date.now()}` : userData.profile_image,
+        name: host.full_name || userData.name,
+      };
 
-    await refetch(); // ✅ THIS FIXES IT
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      setUserData(updatedUser);
 
-  } catch (e) {
-    console.error(e);
-  }
-};
+      await refetch(); // ✅ THIS FIXES IT
+
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
 
   /* =========================
@@ -124,7 +145,7 @@ const handleUpdatePersonalInfo = async (payload) => {
               </div>
             )}
             <PersonalInfo
-              user={currentUser}
+              initialData={currentUser}
               onUpdate={handleUpdatePersonalInfo}
               isLoading={isLoading}
             />
@@ -133,6 +154,9 @@ const handleUpdatePersonalInfo = async (payload) => {
 
       case "listings":
         return <MyListings />;
+
+      case "trips":
+        return <Trips />;
 
       case "settings":
         return <Settings />;

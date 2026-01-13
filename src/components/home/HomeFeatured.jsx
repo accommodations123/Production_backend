@@ -27,6 +27,7 @@ import { TravelPlanCard } from './featured/TravelPlanCard.jsx';
 import { EventCard } from './featured/EventCard.jsx';
 import { CommunityGroupCard } from './featured/CommunityGroupCard.jsx';
 import { ProductCard } from '../marketplace/ProductCard.jsx';
+import { TravelCommunity } from '../dashboard/TravelCommunity';
 import {
   TRAVEL_PLANS, SAFETY_TIPS, FEATURE_CARDS, QUICK_STATS, COMMUNITY_SHARES
 } from './featured/HomeFeaturedConstants.jsx';
@@ -104,15 +105,8 @@ const HomeFeatured = () => {
 
         {/* Travel Community Section */}
         <section className="mt-16">
-          <SectionHeader
-            title="Find Travel Community"
-            subtitle="Connect with fellow Indian travelers and explore the world together"
-            linkText="View All Trips"
-            linkTo="/travel"
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTravelPlans.map(plan => <TravelPlanCard key={plan.id} plan={plan} />)}
-          </div>
+          {/* Using the modular TravelCommunity component as requested */}
+          <TravelCommunity onConnect={() => window.location.href = '/search'} />
         </section>
 
         {/* Community Groups Section */}
