@@ -198,8 +198,16 @@ export const verifyOTP = async (req, res) => {
 };
 
 
-export const logout = (req, res) => {
+export const logout = async (req, res) => {
   const isProd = process.env.NODE_ENV === "production";
+
+  const token = req.cookies?.access_token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      await deleteCache(`user:${decoded.id}`);
+    } catch {}
+  }
 
   res.clearCookie("access_token", {
     httpOnly: true,
@@ -208,5 +216,6 @@ export const logout = (req, res) => {
     domain: isProd ? ".test.nextkinlife.live" : undefined,
   });
 
-  return res.json({ success: true, message: "Logged out" });
+  return res.json({ success: true });
 };
+
