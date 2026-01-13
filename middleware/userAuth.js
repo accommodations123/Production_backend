@@ -2,38 +2,53 @@ import jwt from "jsonwebtoken";
 import User from "../model/User.js";
 import { getCache, setCache } from "../services/cacheService.js";
 
+/* ============================================================
+   USER AUTH MIDDLEWARE (COOKIE ONLY)
+============================================================ */
 export default async function userAuth(req, res, next) {
   try {
     const token = req.cookies?.access_token;
-    if (!token) return res.status(401).json({ message: "Unauthorized" });
+
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded || decoded.role !== "user")
+
+    if (!decoded || decoded.role !== "user") {
       return res.status(403).json({ message: "Access denied" });
+    }
 
     const userId = Number(decoded.id);
 
-    // 1️⃣ Cache
-    const cached = await getCache(`user:${userId}`);
-    if (cached?.verified === true) {
-      req.user = cached;     // contains role + email + image
+    // ✅ Cache first
+    const cachedUser = await getCache(`user:${userId}`);
+    if (cachedUser) {
+      req.user = cachedUser;
       return next();
     }
 
-    // 2️⃣ DB
+    // 🔥 DB validation
     const dbUser = await User.findByPk(userId, {
-      attributes: ["id", "email", "name", "profile_image", "verified", "role"]
+      attributes: ["id", "verified"]
     });
 
-    if (!dbUser) return res.status(401).json({ message: "User not found" });
-    if (!dbUser.verified) return res.status(401).json({ message: "Verify OTP first" });
+    if (!dbUser) {
+      return res.status(401).json({ message: "User not found" });
+    }
 
-    const userJson = dbUser.toJSON();
+    if (!dbUser.verified) {
+      return res.status(401).json({ message: "Verify OTP first" });
+    }
 
-    // 3️⃣ Cache FULL user (including role)
-    await setCache(`user:${userId}`, userJson, 600);
+    const safeUser = {
+      id: userId,
+      role: "user"
+    };
 
-    req.user = userJson;
+    await setCache(`user:${userId}`, safeUser, 600);
+    req.user = safeUser;
+
     next();
   } catch (err) {
     console.error("AUTH ERROR:", err);
