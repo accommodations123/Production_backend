@@ -316,10 +316,12 @@ export const travelMatchAction = async (req, res) => {
 };
 
 
-
 export const publicBrowseTrips = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const {
+      page = 1,
+      limit = 10
+    } = req.query;
 
     const safeLimit = Math.min(Number(limit), 10);
     const offset = (page - 1) * safeLimit;
@@ -349,48 +351,23 @@ export const publicBrowseTrips = async (req, res) => {
       order: [["travel_date", "ASC"]],
       limit: safeLimit,
       offset,
-     include: [
-  {
-    model: Host,
-    as: "host",
-    attributes: ["full_name", "country", "city"],
-    include: [
-      {
-        model: User,
-        as: "user",                 // 🔥 THIS WAS MISSING
-        attributes: ["profile_image"]
-      }
-    ]
-  }
-]
-
+      include: [
+        {
+          model: Host,
+          as: "host",
+          attributes: [
+            "full_name",
+            "country",
+            "city"
+          ]
+        }
+      ]
     });
-
-    // 🔁 Shape response (clean + stable)
-    const results = trips.map(trip => {
-  const t = trip.toJSON();
-
-  return {
-    id: t.id,
-    from_country: t.from_country,
-    from_city: t.from_city,
-    to_country: t.to_country,
-    to_city: t.to_city,
-    travel_date: t.travel_date,
-    host: {
-      full_name: t.host.full_name,
-      country: t.host.country,
-      city: t.host.city,
-      profile_image: t.host.user?.profile_image || null
-    }
-  };
-});
-
 
     return res.json({
       success: true,
       page: Number(page),
-      results
+      results: trips
     });
 
   } catch (err) {
@@ -398,7 +375,6 @@ export const publicBrowseTrips = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 
 
 
