@@ -314,6 +314,70 @@ export const travelMatchAction = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+
+export const publicBrowseTrips = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    const safeLimit = Math.min(Number(limit), 10);
+    const offset = (page - 1) * safeLimit;
+
+    const today = new Date();
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + 30);
+
+    const trips = await TravelTrip.findAll({
+      where: {
+        status: "active",
+        travel_date: {
+          [Op.between]: [
+            today.toISOString().slice(0, 10),
+            maxDate.toISOString().slice(0, 10)
+          ]
+        }
+      },
+      attributes: [
+        "id",
+        "from_country",
+        "from_city",
+        "to_country",
+        "to_city",
+        "travel_date"
+      ],
+      order: [["travel_date", "ASC"]],
+      limit: safeLimit,
+      offset,
+      include: [
+        {
+          model: Host,
+          as: "host",
+          attributes: [
+            "full_name",
+            "country",
+            "city"
+          ]
+        }
+      ]
+    });
+
+    return res.json({
+      success: true,
+      page: Number(page),
+      results: trips
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+
 export const publicSearchTrips = async (req, res) => {
   try {
     const {
