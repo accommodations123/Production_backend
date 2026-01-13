@@ -81,7 +81,7 @@ const Host = sequelize.define('Host', {
 });
 
 // Relationship
-Host.belongsTo(User, { foreignKey: 'user_id',as:"user" });
-User.hasOne(Host, { foreignKey: 'user_id',as:"host" });
+Host.belongsTo(User, { foreignKey: 'user_id' });
+User.hasOne(Host, { foreignKey: 'user_id' });
 
 export default Host;
