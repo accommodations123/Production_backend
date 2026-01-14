@@ -1,5 +1,6 @@
-const API_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-// Updated based on user logs
+const API_URL = import.meta.env.PROD
+    ? "https://accomodation.api.test.nextkinlife.live"
+    : "/api";
 
 const getHeaders = (isMultipart = false) => {
     const headers = {};
