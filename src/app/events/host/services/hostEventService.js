@@ -1,4 +1,6 @@
-const API_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const API_URL = import.meta.env.PROD
+    ? "https://accomodation.api.test.nextkinlife.live"
+    : "/api";
 
 // Helper function for API calls
 export const apiCall = async (endpoint, method = "GET", data = null, isFormData = false) => {
