@@ -28,7 +28,7 @@ export function Hero() {
             </div>
 
             {/* Headline */}
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 leading-[1.1] tracking-tight">
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-[#00142E] leading-[1.1] tracking-tight">
               Feels Like <br />
               <span className="text-[#C93A30] relative inline-block">
                 Home
@@ -41,8 +41,8 @@ export function Hero() {
             </h1>
 
             {/* Subtext */}
-            <p className="text-lg md:text-xl text-slate-600 font-medium leading-relaxed">
-              Join 50,000+ Indians abroad. Find verified accommodations, events, and a family away from home.
+            <p className="text-lg md:text-xl text-[#00142E]/70 font-medium leading-relaxed">
+              Join Indians abroad. Find verified accommodations, events, and a family away from home.
             </p>
 
             {/* Actions */}
@@ -50,22 +50,14 @@ export function Hero() {
               <Button size="lg" className="h-12 md:h-14 px-8 md:px-10 rounded-full bg-[#C93A30] hover:bg-[#b02e25] text-white text-base md:text-lg font-bold shadow-lg transition-all hover:-translate-y-1 w-full sm:w-auto">
                 Join Community
               </Button>
-              <Button size="lg" variant="ghost" className="h-12 md:h-14 px-6 md:px-8 rounded-full text-slate-700 hover:text-[#C93A30] hover:bg-[#C93A30]/5 text-base md:text-lg font-semibold w-full sm:w-auto">
-                Watch Video <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
+
             </div>
 
             {/* Trust Footer */}
             <div className="pt-4 md:pt-8 flex flex-wrap items-center gap-4 md:gap-6 text-sm font-medium text-slate-500">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-green-500" />
-                <span>Verified</span>
-              </div>
-              <div className="hidden md:block w-1.5 h-1.5 rounded-full bg-slate-200" />
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                <span>4.9/5 Rating</span>
-              </div>
+
+
+
             </div>
           </div>
 

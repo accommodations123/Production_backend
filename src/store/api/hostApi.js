@@ -70,30 +70,30 @@ export const hostApi = createApi({
             }),
             invalidatesTags: ["Host"],
         }),
-      updateHost: builder.mutation({
-    query: ({ hostId, data }) => {
-        const isFormData =
-            typeof FormData !== "undefined" && data instanceof FormData;
+        updateHost: builder.mutation({
+            query: ({ hostId, data }) => {
+                const isFormData =
+                    typeof FormData !== "undefined" && data instanceof FormData;
 
-        return {
-            url: `host/update/${hostId}`,
-            method: "PUT",
-            body: data,
-           credentials:"include"
-        };
-    },
-    // Force refetch after successful update
-    async onQueryStarted(arg, { dispatch, queryFulfilled }) {
-        try {
-            await queryFulfilled;
-            // Refetch the host profile
-            dispatch(hostApi.util.invalidateTags(['Host']));
-        } catch (error) {
-            console.error('Update failed:', error);
-        }
-    },
-    invalidatesTags: ["Host"],
-}),
+                return {
+                    url: `host/update/${hostId}`,
+                    method: "PUT",
+                    body: data,
+                    credentials: "include"
+                };
+            },
+            // Force refetch after successful update
+            async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+                try {
+                    await queryFulfilled;
+                    // Refetch the host profile
+                    dispatch(hostApi.util.invalidateTags(['Host']));
+                } catch (error) {
+                    console.error('Update failed:', error);
+                }
+            },
+            invalidatesTags: ["Host"],
+        }),
 
 
 
@@ -378,6 +378,53 @@ export const hostApi = createApi({
             }),
             invalidatesTags: ["Event"],
         }),
+
+        // Community Feed & Resources
+        createCommunityPost: builder.mutation({
+            query: ({ id, data }) => ({
+                url: `community/communities/${id}/posts`,
+                method: "POST",
+                body: data,
+            }),
+            invalidatesTags: (result, error, { id }) => [{ type: "Community", id: `FEED-${id}` }],
+        }),
+
+        getCommunityFeed: builder.query({
+            query: ({ id, page = 1 }) => `community/communities/${id}/posts?page=${page}`,
+            providesTags: (result, error, { id }) => [{ type: "Community", id: `FEED-${id}` }],
+            transformResponse: (response) => response?.posts || [],
+        }),
+
+        deleteCommunityPost: builder.mutation({
+            query: (postId) => ({
+                url: `community/communities/posts/${postId}`,
+                method: "DELETE",
+            }),
+            invalidatesTags: (result, error, arg) => ["Community"], // Broad invalidation or specific if we knew community ID
+        }),
+
+        addCommunityResource: builder.mutation({
+            query: ({ id, data }) => ({
+                url: `community/communities/${id}/resources`,
+                method: "POST",
+                body: data,
+            }),
+            invalidatesTags: (result, error, { id }) => [{ type: "Community", id: `RESOURCES-${id}` }],
+        }),
+
+        getCommunityResources: builder.query({
+            query: (id) => `community/communities/${id}/resources`,
+            providesTags: (result, error, id) => [{ type: "Community", id: `RESOURCES-${id}` }],
+            transformResponse: (response) => response?.resources || [],
+        }),
+
+        deleteCommunityResource: builder.mutation({
+            query: (resourceId) => ({
+                url: `community/communities/resources/${resourceId}`,
+                method: "DELETE",
+            }),
+            invalidatesTags: ["Community"],
+        }),
     }),
 });
 
@@ -420,4 +467,10 @@ export const {
     useGetMyEventsQuery,
     useDeleteEventMutation,
     useUpdateHostMutation,
+    useCreateCommunityPostMutation,
+    useGetCommunityFeedQuery,
+    useDeleteCommunityPostMutation,
+    useAddCommunityResourceMutation,
+    useGetCommunityResourcesQuery,
+    useDeleteCommunityResourceMutation,
 } = hostApi;

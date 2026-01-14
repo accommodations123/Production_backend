@@ -4,7 +4,7 @@ import { FilterSidebar } from '@/components/search/FilterSidebar';
 import { Navbar } from '@/components/layout/Navbar';
 import { PropertyCard } from '@/components/home/featured/PropertyCard';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, MapPin, Globe, AlignLeft } from 'lucide-react';
+import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, MapPin, Globe, AlignLeft, Filter, X } from 'lucide-react';
 import { MobileSidebar } from '@/components/layout/MobileSidebar';
 import { useCountry } from "@/context/CountryContext";
 import { COUNTRIES } from "@/lib/mock-data";
@@ -155,6 +155,21 @@ export default function SearchPage() {
             </div> */}
 
             <div className="container mx-auto pt-4 md:pt-24 px-4 md:px-4">
+                {/* Mobile Header & Filter Toggle */}
+                <div className="md:hidden flex items-center justify-between mb-4">
+                    <h1 className="text-xl font-bold text-gray-900">
+                        {total > 0 ? `${total} Stays` : 'Access Stays'}
+                    </h1>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSidebarOpen(true)}
+                        className="gap-2 border-gray-300"
+                    >
+                        <Filter size={16} /> Filters
+                    </Button>
+                </div>
+
                 <div className="flex flex-col md:flex-row gap-8">
                     {/* Desktop Sidebar */}
                     <aside className="w-full md:w-80 hidden md:block shrink-0">
@@ -234,6 +249,50 @@ export default function SearchPage() {
                     </main>
                 </div>
             </div>
+
+            {/* Mobile Filter Sheet */}
+            <AnimatePresence>
+                {isSidebarOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
+                            onClick={() => setSidebarOpen(false)}
+                        />
+                        <motion.div
+                            initial={{ x: "100%" }}
+                            animate={{ x: 0 }}
+                            exit={{ x: "100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className="fixed inset-y-0 right-0 w-[85vw] max-w-sm bg-white z-50 shadow-2xl flex flex-col"
+                        >
+                            <div className="p-4 border-b flex items-center justify-between bg-white shrink-0">
+                                <h2 className="font-bold text-lg">Filters</h2>
+                                <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
+                                <FilterSidebar
+                                    filters={filters}
+                                    onFilterChange={handleFilterChange}
+                                    className="block w-full h-auto static border-none p-4 shadow-none"
+                                />
+                            </div>
+                            <div className="p-4 border-t bg-gray-50 flex gap-3 shrink-0">
+                                <Button variant="outline" className="flex-1" onClick={() => handleFilterChange({})}>
+                                    Clear
+                                </Button>
+                                <Button className="flex-1 bg-[#C93A30] hover:bg-[#b02e25]" onClick={() => setSidebarOpen(false)}>
+                                    Show {total} Results
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

@@ -8,7 +8,7 @@ export function MarketplaceLayout({ children, activeTab, onTabChange }) {
         <div className="min-h-screen bg-gray-50 font-sans">
             {/* Fixed Top Bar */}
             <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+                <div className="container mx-auto px-4 py-3 md:py-0 md:h-16 flex flex-col md:flex-row items-center justify-between gap-4">
                     {/* Location Selector */}
                     <div className="flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded-full cursor-pointer transition-colors border border-transparent hover:border-gray-200">
                         <MapPin className="h-4 w-4 text-primary" />

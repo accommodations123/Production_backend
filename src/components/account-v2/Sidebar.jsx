@@ -3,8 +3,11 @@ import { User, Home, MapPin, Heart, Bell, LifeBuoy, Settings, HelpCircle } from 
 
 export const Sidebar = ({ activeTab, onTabChange }) => {
     const menuItems = [
-        { id: 'overview', label: 'Overview', icon: User },
-        { id: 'personal', label: 'Personal Info', icon: User },
+        { id: 'profile', label: 'Profile', icon: User },
+        // { id: 'listings', label: 'My Listings', icon: Home }, // Optional: User might want these hidden from sidebar if they are in Profile? But request said "integrate... when i click profile". Keeping separate tabs might be redundant if they are in profile.
+        // Let's keep them accessible via sidebar too as shortcuts, but Profile is the main one.
+        // Actually user said "when i click on my profile [get these sections]".
+        // Let's keep them in sidebar for now as "shortcuts" but make Profile the main view.
         { id: 'listings', label: 'My Listings', icon: Home },
         { id: 'trips', label: 'Trips', icon: MapPin },
         { id: 'wishlists', label: 'Wishlists', icon: Heart },

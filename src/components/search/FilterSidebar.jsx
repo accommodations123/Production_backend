@@ -3,7 +3,9 @@ import { Slider } from '@/components/ui/slider';
 // If no slider component, I'll use standard range input for now to be safe.
 import { Check, MapPin } from 'lucide-react';
 
-export function FilterSidebar({ filters, onFilterChange, distinctValues = {} }) {
+import { cn } from "@/lib/utils";
+
+export function FilterSidebar({ filters, onFilterChange, distinctValues = {}, className }) {
 
     const handleChange = (key, value) => {
         onFilterChange({ ...filters, [key]: value });
@@ -18,7 +20,7 @@ export function FilterSidebar({ filters, onFilterChange, distinctValues = {} }) 
     };
 
     return (
-        <div className="w-64 flex-shrink-0 bg-white border-r border-gray-200 h-[calc(100vh-80px)] overflow-y-auto sticky top-20 p-6 hidden lg:block">
+        <div className={cn("w-64 flex-shrink-0 bg-white border-r border-gray-200 h-[calc(100vh-80px)] overflow-y-auto sticky top-20 p-6 hidden lg:block", className)}>
             <h2 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-2">
                 Filters
                 {(Object.keys(filters).length > 0) && (

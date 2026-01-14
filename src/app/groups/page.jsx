@@ -146,7 +146,7 @@ export default function GroupsPage() {
               onJoin={() => handleJoinFromList(group.id)}
               onLeave={() => handleLeaveFromList(group.id)}
               isJoining={joiningId === group.id}
-              onCardClick={() => setSelectedGroupId(group.id)}
+              onCardClick={() => navigate(`/groups/${group.id}`)}
             />
           ))
         ) : <div className="w-full text-center py-8 text-gray-500">No topic-based groups found</div>}
@@ -162,7 +162,7 @@ export default function GroupsPage() {
               onJoin={() => handleJoinFromList(group.id)}
               onLeave={() => handleLeaveFromList(group.id)}
               isJoining={joiningId === group.id}
-              onCardClick={() => setSelectedGroupId(group.id)}
+              onCardClick={() => navigate(`/groups/${group.id}`)}
             />
           ))
         ) : <div className="w-full text-center py-8 text-gray-500">No trending groups found</div>}
@@ -178,7 +178,7 @@ export default function GroupsPage() {
               onJoin={() => handleJoinFromList(group.id)}
               onLeave={() => handleLeaveFromList(group.id)}
               isJoining={joiningId === group.id}
-              onCardClick={() => setSelectedGroupId(group.id)}
+              onCardClick={() => navigate(`/groups/${group.id}`)}
             />
           ))
         ) : <div className="w-full text-center py-8 text-gray-500">No recommended groups found</div>}

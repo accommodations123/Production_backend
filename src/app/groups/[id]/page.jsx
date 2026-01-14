@@ -4,10 +4,24 @@ import * as React from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { Navbar } from "@/components/layout/Navbar"
 import { Footer } from "@/components/layout/Footer"
-import { useGetCommunityByIdQuery, useJoinCommunityMutation, useLeaveCommunityMutation } from "@/store/api/hostApi"
+import {
+    useGetCommunityByIdQuery,
+    useJoinCommunityMutation,
+    useLeaveCommunityMutation,
+    useGetCommunityFeedQuery,
+    useCreateCommunityPostMutation,
+    useGetCommunityResourcesQuery,
+    useAddCommunityResourceMutation,
+    useDeleteCommunityPostMutation,
+    useDeleteCommunityResourceMutation,
+    useGetHostProfileQuery
+} from "@/store/api/hostApi"
 import { toast } from "sonner"
-import { Heart, MessageCircle, Share2, X, Users, Star, Zap, Bell, Search, Filter, Home, UserCheck, CalendarDays, Image, FileText, Hash, MessageSquare, Clock, MapPin, Calendar, Camera, FolderOpen, Download, Play, Eye, Briefcase, BookOpen, Database, HelpCircle, UserPlus, UserMinus, Settings, ChevronRight, ArrowLeft, ThumbsUp, Bookmark, TrendingUp, Award, BarChart3, Target, Trophy, Gift, Sparkles, Info, Code, Globe, Link2, Mail, Phone, Shield, Pin, Upload, MoreVertical, Layers, Palette, Loader2 } from "lucide-react"
+import {
+    Heart, MessageCircle, Share2, X, Users, Star, Zap, Bell, Search, Filter, Home, UserCheck, CalendarDays, Image, FileText, Hash, MessageSquare, Clock, MapPin, Calendar, Camera, FolderOpen, Download, Play, Eye, Briefcase, BookOpen, Database, HelpCircle, UserPlus, UserMinus, Settings, ChevronRight, ArrowLeft, ThumbsUp, Bookmark, TrendingUp, Award, BarChart3, Target, Trophy, Gift, Sparkles, Info, Code, Globe, Link2, Mail, Phone, Shield, Pin, Upload, MoreVertical, Layers, Palette, Loader2, Trash2, Plus
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 function ErrorBoundary({ children }) {
     const [hasError, setHasError] = React.useState(false)
@@ -53,10 +67,37 @@ export default function GroupDetailsPage() {
     const [selectedMember, setSelectedMember] = React.useState(null)
     const [isJoining, setIsJoining] = React.useState(false)
 
+    // --- Feed State ---
+    const [postContent, setPostContent] = React.useState("");
+    const [postMedia, setPostMedia] = React.useState([]);
+    const [isPosting, setIsPosting] = React.useState(false);
+
+    // --- Resources State ---
+    const [showResourceForm, setShowResourceForm] = React.useState(false);
+    const [resourceForm, setResourceForm] = React.useState({
+        title: "",
+        description: "",
+        resource_type: "link", // link, file
+        resource_value: "", // url
+        file: null
+    });
+
     // API hooks
     const { data: communityData, isLoading, error } = useGetCommunityByIdQuery(id)
     const [joinCommunity] = useJoinCommunityMutation()
     const [leaveCommunity] = useLeaveCommunityMutation()
+
+    // Feed & Resources Hooks
+    const { data: feedPosts, isLoading: isFeedLoading } = useGetCommunityFeedQuery({ id }, { skip: !id });
+    const { data: resources, isLoading: isResourcesLoading } = useGetCommunityResourcesQuery(id, { skip: !id });
+
+    const [createPost] = useCreateCommunityPostMutation();
+    const [deletePost] = useDeleteCommunityPostMutation();
+    const [addResource] = useAddCommunityResourceMutation();
+    const [deleteResource] = useDeleteCommunityResourceMutation();
+
+    // Get current user profile for robust membership check
+    const { data: userProfile } = useGetHostProfileQuery();
 
     // Key fix: Unwrap community data
     const community = React.useMemo(() => {
@@ -66,138 +107,397 @@ export default function GroupDetailsPage() {
         return communityData;
     }, [communityData]);
 
+    const isMember = React.useMemo(() => {
+        if (!community) return false;
+        // Check explicit flag first, then fallback to members list scan
+        if (typeof community.isJoined === 'boolean') return community.isJoined;
+        if (userProfile && community.members && Array.isArray(community.members)) {
+            return community.members.some(m => m.user_id === userProfile.id);
+        }
+        return false;
+    }, [community, userProfile]);
 
     const handleJoinLeave = async () => {
         if (!community) return;
         setIsJoining(true);
         try {
-            if (community.isJoined) {
+            if (isMember) {
                 await leaveCommunity(community.id).unwrap();
                 toast.success("Successfully left the community!");
             } else {
                 await joinCommunity(community.id).unwrap();
                 toast.success("Successfully joined the community!");
             }
-            // In a real app, invalidate tags or refetch would handle UI update.
-            // For now, depending on API slice providing tags, it might auto-update.
         } catch (err) {
-            toast.error(err.data?.message || "An error occurred");
+            toast.error(err.data?.message || err.error || "An error occurred");
         } finally {
             setIsJoining(false);
         }
     };
 
-    // --- Mock Data (Reused from Modal) ---
-    const channels = [
-        { id: "general", name: "General", icon: Hash, count: 245 },
-        { id: "random", name: "Random", icon: Hash, count: 89 },
-        { id: "resources", name: "Resources", icon: FileText, count: 134 },
-    ]
+    // --- Feed Actions ---
+    const handleCreatePost = async () => {
+        if (!postContent.trim() && postMedia.length === 0) {
+            toast.error("Please add some content or media");
+            return;
+        }
 
-    const members = [
-        { id: 1, name: "Smith Row", posts: 11, avatar: "SR", avatarColor: "from-blue-500 to-indigo-600", profilePic: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face", status: "online", },
-        { id: 2, name: "Shakil Ahmed", posts: 10, avatar: "SA", avatarColor: "from-purple-500 to-pink-600", profilePic: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face", status: "online", },
-        { id: 3, name: "John Doe", posts: 8, avatar: "JD", avatarColor: "from-green-500 to-teal-600", profilePic: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&crop=face", status: "offline", },
-        { id: 4, name: "Jane Smith", posts: 7, avatar: "JS", avatarColor: "from-orange-500 to-red-600", profilePic: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400&h=400&fit=crop&crop=face", status: "online", },
-    ]
+        setIsPosting(true);
+        try {
+            const formData = new FormData();
+            formData.append("content", postContent);
 
-    const posts = [
-        { id: 1, author: "Smith Row", avatar: "SR", avatarColor: "from-blue-500 to-indigo-600", time: "2 hours ago", content: "Just deployed a new Laravel package for handling API authentication! 🚀 Check it out on GitHub.", likes: 24, comments: 8, shares: 3, },
-        { id: 2, author: "Shakil Ahmed", avatar: "SA", avatarColor: "from-purple-500 to-pink-600", time: "5 hours ago", content: "Working on a Laravel-based e-commerce platform with Vue.js frontend.", likes: 18, comments: 12, shares: 5, },
-    ]
+            // Append files
+            if (postMedia.length > 0) {
+                Array.from(postMedia).forEach(file => {
+                    formData.append("media", file);
+                });
+            }
 
+            await createPost({ id, data: formData }).unwrap();
+            toast.success("Post created successfully!");
+            setPostContent("");
+            setPostMedia([]);
+        } catch (err) {
+            console.error(err);
+            toast.error(err.data?.message || "Failed to create post");
+        } finally {
+            setIsPosting(false);
+        }
+    };
+
+    const handleDeletePost = async (postId) => {
+        if (!window.confirm("Are you sure you want to delete this post?")) return;
+        try {
+            await deletePost(postId).unwrap();
+            toast.success("Post deleted");
+        } catch (err) {
+            toast.error("Failed to delete post");
+        }
+    };
+
+    // --- Resource Actions ---
+    const handleAddResource = async (e) => {
+        e.preventDefault();
+        try {
+            const formData = new FormData();
+            formData.append("title", resourceForm.title);
+            formData.append("description", resourceForm.description);
+            formData.append("resource_type", resourceForm.resource_type);
+
+            if (resourceForm.resource_type === 'link') {
+                formData.append("resource_value", resourceForm.resource_value);
+            } else if (resourceForm.file) {
+                formData.append("file", resourceForm.file);
+            }
+
+            await addResource({ id, data: formData }).unwrap();
+            toast.success("Resource added successfully");
+            setShowResourceForm(false);
+            setResourceForm({ title: "", description: "", resource_type: "link", resource_value: "", file: null });
+        } catch (err) {
+            console.error(err);
+            toast.error(err.data?.message || "Failed to add resource");
+        }
+    };
+
+    const handleDeleteResource = async (resourceId) => {
+        if (!window.confirm("Delete this resource?")) return;
+        try {
+            await deleteResource(resourceId).unwrap();
+            toast.success("Resource deleted");
+        } catch (err) {
+            toast.error("Failed to delete resource");
+        }
+    };
 
     const renderTabContent = () => {
         switch (activeTab) {
             case "feed":
                 return (
                     <div className="flex h-full min-h-[600px] bg-gray-50 flex-col md:flex-row">
-                        {/* Left Sidebar - Channels */}
-                        <div className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col">
-                            <div className="p-4 border-b border-gray-200">
-                                <h3 className="font-semibold text-gray-900 mb-2">Channels</h3>
-                            </div>
-                            <div className="md:flex-1 overflow-y-auto max-h-[300px] md:max-h-none">
-                                {channels.map((channel) => (
-                                    <button key={channel.id} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100">
-                                        <channel.icon className="h-5 w-5 text-gray-500" />
-                                        <div className="flex-1 text-left">
-                                            <p className="font-medium text-gray-900 text-sm">{channel.name}</p>
-                                            <p className="text-xs text-gray-500">{channel.count} posts</p>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
                         {/* Main Content */}
                         <div className="flex-1 flex flex-col h-full border-r border-gray-200">
                             {/* Create Post */}
                             <div className="p-4 bg-white border-b border-gray-200">
                                 <div className="bg-gray-50 rounded-lg p-3">
                                     <div className="flex gap-3">
-                                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm">ME</div>
+                                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                                            ME
+                                        </div>
                                         <div className="flex-1">
-                                            <textarea placeholder="Share your thoughts with the community..." className="w-full bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200 resize-none" rows={2} />
-                                            <div className="flex items-center justify-between mt-3">
-                                                <div className="flex gap-2">
-                                                    <Button size="sm" variant="ghost" className="text-gray-600 h-8 px-3"><Image className="h-4 w-4 mr-1" /> Photo</Button>
+                                            <textarea
+                                                value={postContent}
+                                                onChange={(e) => setPostContent(e.target.value)}
+                                                placeholder="Share your thoughts with the community..."
+                                                className="w-full bg-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-200 resize-none"
+                                                rows={2}
+                                            />
+
+                                            {/* File Preview */}
+                                            {postMedia.length > 0 && (
+                                                <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+                                                    {Array.from(postMedia).map((file, idx) => (
+                                                        <div key={idx} className="relative w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border">
+                                                            <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="preview" />
+                                                            <button
+                                                                onClick={() => {
+                                                                    const dt = new DataTransfer();
+                                                                    Array.from(postMedia).forEach((f, i) => {
+                                                                        if (i !== idx) dt.items.add(f);
+                                                                    });
+                                                                    setPostMedia(dt.files);
+                                                                }}
+                                                                className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                <Button className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-4 text-sm">Post</Button>
+                                            )}
+
+                                            <div className="flex items-center justify-between mt-3">
+                                                <div className="flex gap-2 relative">
+                                                    <input
+                                                        type="file"
+                                                        id="post-media"
+                                                        multiple
+                                                        accept="image/*,video/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            if (e.target.files?.length) {
+                                                                const dt = new DataTransfer();
+                                                                Array.from(postMedia || []).forEach(f => dt.items.add(f));
+                                                                Array.from(e.target.files).forEach(f => dt.items.add(f));
+
+                                                                if (dt.files.length > 5) {
+                                                                    toast.error("You can only upload up to 5 media files");
+                                                                    return;
+                                                                }
+                                                                setPostMedia(dt.files);
+                                                            }
+                                                        }}
+                                                    />
+                                                    <label htmlFor="post-media" className="cursor-pointer inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-3 text-gray-600">
+                                                        <Image className="h-4 w-4 mr-1" /> Media
+                                                    </label>
+                                                </div>
+                                                <Button
+                                                    onClick={handleCreatePost}
+                                                    disabled={isPosting}
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-4 text-sm"
+                                                >
+                                                    {isPosting ? <Loader2 className="animate-spin h-4 w-4" /> : "Post"}
+                                                </Button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Posts */}
-                            <div className="flex-1 overflow-y-auto p-4">
-                                <div className="space-y-4">
-                                    {posts.map((post) => (
-                                        <div key={post.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                                            <div className="flex items-start gap-3 mb-3">
-                                                <div className={`w-10 h-10 bg-gradient-to-br ${post.avatarColor} text-white rounded-full flex items-center justify-center font-bold text-sm`}>{post.avatar}</div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <h4 className="font-semibold text-gray-900">{post.author}</h4>
-                                                        <span className="text-xs text-gray-500">{post.time}</span>
+                            {/* Posts Feed */}
+                            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                                {isFeedLoading ? (
+                                    <div className="flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+                                ) : feedPosts && feedPosts.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {feedPosts.map((post) => {
+                                            // Debug log to inspect post structure
+                                            console.log("Rendering Post:", post.id, post.author);
+                                            const authorName = post.author?.name || post.author?.username || (post.author?.id ? `User ${post.author.id}` : "Unknown User");
+
+                                            return (
+                                                <div key={post.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                                                    <div className="flex items-start gap-3 mb-3">
+                                                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden text-gray-500">
+                                                            {post.author?.profile_image ? (
+                                                                <img src={post.author.profile_image} alt={authorName} className="w-full h-full object-cover" />
+                                                            ) : (authorName[0] || "U")}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <h4 className="font-semibold text-gray-900">{authorName}</h4>
+                                                                <span className="text-xs text-gray-500">{new Date(post.createdAt || post.created_at).toLocaleString()}</span>
+                                                            </div>
+                                                            <p className="text-gray-700 text-sm whitespace-pre-wrap">{post.content}</p>
+
+                                                            {/* Media Display */}
+                                                            {post.media_urls && post.media_urls.length > 0 && (
+                                                                <div className={`mt-3 grid gap-2 ${post.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                                                    {post.media_urls.map((url, idx) => (
+                                                                        <div key={idx} className="rounded-lg overflow-hidden border">
+                                                                            <img src={url} alt="post media" className="w-full h-auto object-cover max-h-[300px]" />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {/* Delete Option (simple check) */}
+                                                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-red-500 h-8 w-8 p-0" onClick={() => handleDeletePost(post.id)}>
+                                                            <Trash2 size={14} />
+                                                        </Button>
                                                     </div>
-                                                    <p className="text-gray-700 text-sm">{post.content}</p>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <MessageSquare className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+                                        <p>No posts yet. Be the first to share something!</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Right Sidebar - Members (Hidden on small screens) */}
-                        <div className="hidden md:flex w-80 bg-white flex-col h-full">
+                        {/* Right Sidebar - Members */}
+                        <div className="hidden md:flex w-80 bg-white flex-col h-full border-l border-gray-200">
                             <div className="p-4 border-b border-gray-200 bg-red-50">
                                 <div className="flex items-center justify-between">
                                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                                         <Users className="h-5 w-5 text-red-600" /> Members
                                     </h3>
                                     <span className="text-sm font-medium text-red-600 bg-red-100 px-2 py-1 rounded">
-                                        {community?.members_count || members.length}
+                                        {community?.members_count || 0}
                                     </span>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto">
-                                {members.map((member) => (
-                                    <div key={member.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100" onClick={() => setSelectedMember(member)}>
-                                        <div className="relative">
-                                            <img src={member.profilePic} alt={member.name} className="w-10 h-10 rounded-full object-cover" onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=4F46E5&color=fff` }} />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h4 className="font-medium text-gray-900 text-sm">{member.name}</h4>
-                                        </div>
-                                    </div>
-                                ))}
+                            {/* We don't have a getMembers API in snippet, so placeholders or community.members if available */}
+                            <div className="flex-1 p-4 text-center text-gray-500 text-sm">
+                                <p>Member list not fully integrated yet.</p>
                             </div>
                         </div>
                     </div>
-                )
+                );
+
+            case "resources":
+                return (
+                    <div className="p-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900">Community Resources</h2>
+                            <Button onClick={() => setShowResourceForm(!showResourceForm)} className="bg-blue-600 text-white">
+                                {showResourceForm ? "Cancel" : <><Plus className="w-4 h-4 mr-2" /> Add Resource</>}
+                            </Button>
+                        </div>
+
+                        {/* Add Resource Form */}
+                        {showResourceForm && (
+                            <div className="bg-white p-6 rounded-xl border mb-6 shadow-sm max-w-2xl">
+                                <h3 className="font-bold mb-4">Add New Resource</h3>
+                                <form onSubmit={handleAddResource} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Title</label>
+                                        <input
+                                            required
+                                            className="w-full border rounded-lg p-2 text-sm"
+                                            value={resourceForm.title}
+                                            onChange={e => setResourceForm({ ...resourceForm, title: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Description</label>
+                                        <textarea
+                                            required
+                                            className="w-full border rounded-lg p-2 text-sm"
+                                            rows={2}
+                                            value={resourceForm.description}
+                                            onChange={e => setResourceForm({ ...resourceForm, description: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Type</label>
+                                        <select
+                                            className="w-full border rounded-lg p-2 text-sm"
+                                            value={resourceForm.resource_type}
+                                            onChange={e => setResourceForm({ ...resourceForm, resource_type: e.target.value })}
+                                        >
+                                            <option value="link">External Link</option>
+                                            <option value="file">File Upload</option>
+                                        </select>
+                                    </div>
+
+                                    {resourceForm.resource_type === 'link' ? (
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Link URL</label>
+                                            <input
+                                                type="url"
+                                                required
+                                                placeholder="https://example.com"
+                                                className="w-full border rounded-lg p-2 text-sm"
+                                                value={resourceForm.resource_value}
+                                                onChange={e => setResourceForm({ ...resourceForm, resource_value: e.target.value })}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">File</label>
+                                            <input
+                                                type="file"
+                                                required
+                                                className="w-full border rounded-lg p-2 text-sm"
+                                                onChange={e => setResourceForm({ ...resourceForm, file: e.target.files[0] })}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-end gap-2">
+                                        <Button type="submit" disabled={isLoading} className="bg-green-600 text-white">Save Resource</Button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        <div className="space-y-4">
+                            {isResourcesLoading ? (
+                                [1, 2, 3].map(n => <div key={n} className="h-24 bg-gray-200 animate-pulse rounded-lg" />)
+                            ) : resources && resources.length > 0 ? (
+                                resources.map(resource => (
+                                    <div key={resource.id} className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex items-start gap-4">
+                                        <div className="bg-blue-50 p-3 rounded-lg text-blue-600">
+                                            {resource.resource_type === 'link' ? <Link2 size={24} /> : <FileText size={24} />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <h4 className="font-bold text-gray-900">{resource.title}</h4>
+                                                <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 h-6 w-6 p-0" onClick={() => handleDeleteResource(resource.id)}>
+                                                    <X size={14} />
+                                                </Button>
+                                            </div>
+                                            <p className="text-gray-600 text-sm my-1">{resource.description}</p>
+
+                                            <div className="mt-3">
+                                                {resource.resource_type === 'link' ? (
+                                                    <a
+                                                        href={resource.resource_value}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:underline text-sm font-medium flex items-center gap-1"
+                                                    >
+                                                        Visit Link <ExternalLinkIcon className="h-3 w-3" />
+                                                    </a>
+                                                ) : (
+                                                    <a
+                                                        href={resource.resource_value}
+                                                        download
+                                                        className="text-blue-600 hover:underline text-sm font-medium flex items-center gap-1"
+                                                    >
+                                                        Download File <Download className="h-3 w-3" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-12 text-gray-500 bg-gray-50 border border-dashed rounded-xl">
+                                    <FolderOpen className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+                                    <p>No resources shared yet.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
 
             case "members":
                 return (
@@ -205,28 +505,39 @@ export default function GroupDetailsPage() {
                         <div className="mb-6">
                             <h2 className="text-2xl font-bold text-gray-900">Community Members</h2>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {members.map((member) => (
-                                <div key={member.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <img src={member.profilePic} alt={member.name} className="w-12 h-12 rounded-lg object-cover" onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=4F46E5&color=fff&size=100` }} />
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900 text-sm">{member.name}</h3>
-                                            <p className="text-xs text-gray-500">{member.posts} posts</p>
+                        {/* 
+                           Since original mock/API didn't explicitly return a full member list with profiles in the `getCommunity` call (it usually just returns count or top few), 
+                           displaying a full member list might require a separate `getCommunityMembers` endpoint if the current one doesn't supply 'members' array effectively.
+                           We'll render a placeholder or community.members if available.
+                        */}
+                        {community?.members && Array.isArray(community.members) && community.members.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {community.members.map((member) => (
+                                    <div key={member.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center font-bold text-gray-500">
+                                                {(member.name || "U")[0]}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-gray-900 text-sm">{member.name}</h3>
+                                                <p className="text-xs text-gray-500">{member.role}</p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-20 text-gray-500">List of members will appear here.</div>
+                        )}
                     </div>
-                )
+                );
 
             default:
                 return (
                     <div className="flex items-center justify-center min-h-[400px]">
                         <p className="text-gray-500">Coming soon...</p>
                     </div>
-                )
+                );
         }
     }
 
@@ -297,7 +608,7 @@ export default function GroupDetailsPage() {
                                     </div>
                                     <div className="mb-2">
                                         <Button onClick={handleJoinLeave} disabled={isJoining} className="font-semibold bg-white text-blue-600 hover:bg-gray-100 border-none shadow-md px-6 py-6 text-lg h-auto">
-                                            {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : community?.isJoined ? 'Leave Group' : 'Join Group'}
+                                            {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : isMember ? 'Leave Group' : 'Join Group'}
                                         </Button>
                                     </div>
                                 </div>
@@ -309,7 +620,7 @@ export default function GroupDetailsPage() {
                             <div className="flex items-center px-4 md:px-8 space-x-1 overflow-x-auto no-scrollbar">
                                 {[
                                     { id: "feed", label: "Feed", icon: Home },
-                                    { id: "myfeed", label: "My Feed", icon: UserCheck },
+                                    { id: "resources", label: "Resources", icon: FileText },
                                     { id: "members", label: "Members", icon: Users },
                                     { id: "events", label: "Events", icon: CalendarDays },
                                 ].map((tab) => (
@@ -317,8 +628,8 @@ export default function GroupDetailsPage() {
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
                                         className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${activeTab === tab.id
-                                                ? "text-blue-600 border-blue-600"
-                                                : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-200"
+                                            ? "text-blue-600 border-blue-600"
+                                            : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-200"
                                             }`}
                                     >
                                         <tab.icon className="h-4 w-4" />
@@ -339,3 +650,8 @@ export default function GroupDetailsPage() {
         </main>
     )
 }
+
+// Simple icon for external link if not imported
+const ExternalLinkIcon = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+)

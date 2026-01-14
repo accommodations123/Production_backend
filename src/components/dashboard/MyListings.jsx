@@ -1,5 +1,7 @@
+"use client"
+
 import React, { useState } from "react"
-import { Home, AlertCircle, ShieldCheck, Calendar, Sparkles } from "lucide-react"
+import { Home, AlertCircle, ShieldCheck, Calendar, Sparkles, Plus, TrendingUp, Eye, Star, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PropertyCard } from "@/components/account/PropertyCard"
 import { EventCard } from "@/components/account/EventCard"
@@ -10,28 +12,26 @@ import { cn } from "@/lib/utils"
 
 export const MyListings = () => {
     const navigate = useNavigate()
-    const userStr = localStorage.getItem("user")
-    const [activeTab, setActiveTab] = useState("spaces") // "spaces" or "experiences"
+    const [activeTab, setActiveTab] = useState("spaces")
 
-    // Property Listings
     const {
         data: propertyListings = [],
         isLoading: isPropertiesLoading,
         isError: isPropertiesError,
         error: propertiesError,
-    } = useGetMyListingsQuery(undefined, { skip: !userStr })
+        refetch: refetchProperties,
+    } = useGetMyListingsQuery(undefined, { refetchOnMountOrArgChange: true })
 
-    // Event Listings
     const {
         data: eventListings = [],
         isLoading: isEventsLoading,
         isError: isEventsError,
         error: eventsError,
-    } = useGetMyEventsQuery(undefined, { skip: !userStr })
+        refetch: refetchEvents,
+    } = useGetMyEventsQuery(undefined, { refetchOnMountOrArgChange: true })
 
     const [deleteProperty] = useDeletePropertyMutation()
     const [deleteEvent] = useDeleteEventMutation()
-
     const [deletingIds, setDeletingIds] = useState(new Set())
 
     const visibleProperties = (propertyListings || []).filter(p => {
@@ -44,7 +44,7 @@ export const MyListings = () => {
     const visibleEvents = (eventListings || []).filter(e => {
         const id = e._id || e.id
         if (deletingIds.has(id)) return false
-        return true // Add more filtering if events have an is_deleted flag or status
+        return true
     })
 
     const handlePropertyDelete = async (id) => {
@@ -84,115 +84,195 @@ export const MyListings = () => {
     const currentListings = activeTab === "spaces" ? visibleProperties : visibleEvents
 
     return (
-        <div className="p-4 md:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-2">
-                <div>
-                    <h2 className="text-3xl font-black text-primary mb-2">My Listings Portfolio</h2>
-                    <p className="text-[#00142E]/50 font-medium">Manage your active spaces and community bookings.</p>
-                </div>
-                <div className="flex gap-3">
-                    <Button
-                        variant="outline"
-                        className="rounded-2xl h-12 px-6 font-bold border-neutral/20 text-primary hover:bg-neutral/5"
-                        onClick={() => navigate(activeTab === "spaces" ? "/host/create" : "/events/host")}
-                    >
-                        + Create New {activeTab === "spaces" ? "Space" : "Experience"}
-                    </Button>
-                </div>
+        <div className="relative min-h-screen">
+            {/* Background Decorations */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary/5 to-accent/10 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-neutral/10 to-accent/5 rounded-full blur-3xl"></div>
             </div>
 
-            {/* Quick Stats & Tabs */}
-            <div className="flex flex-col lg:flex-row gap-6">
-                <div className="flex-1 bg-white rounded-3xl p-4 border border-neutral/10 shadow-sm flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent shrink-0">
-                            <ShieldCheck className="w-5 h-5" />
-                        </div>
+            <div className="relative z-10 p-4 md:p-8 space-y-8">
+                {/* Header Section */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-secondary to-navy-dark p-8 text-white">
+                    <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 40%)' }}></div>
+
+                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#00142E]/40 leading-tight">Verified Status</p>
-                            <p className="text-sm font-bold text-primary">NextKin Verified Host</p>
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-full text-xs font-medium text-white/80 mb-4">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                NextKin Verified Host
+                            </div>
+                            <h1 className="text-3xl md:text-4xl font-bold mb-2">My Listings Portfolio</h1>
+                            <p className="text-white/60 max-w-md">Manage your spaces and experiences. Track performance and grow your hosting business.</p>
                         </div>
+
+                        <Button
+                            onClick={() => navigate(activeTab === "spaces" ? "/host/create" : "/events/host")}
+                            className="bg-white text-primary hover:bg-neutral/20 rounded-xl h-12 px-6 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5"
+                        >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create New {activeTab === "spaces" ? "Space" : "Experience"}
+                        </Button>
                     </div>
-                    <div className="h-10 w-px bg-neutral/10 hidden sm:block" />
-                    <div className="flex gap-8 px-4">
-                        <div className="text-center">
-                            <p className="text-xl font-black text-primary leading-none">{visibleProperties.length}</p>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#00142E]/40 mt-1">Spaces</p>
+
+                    {/* Stats Row */}
+                    <div className="relative z-10 mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-neutral/20 rounded-lg">
+                                    <Home className="w-5 h-5 text-neutral" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{visibleProperties.length}</p>
+                                    <p className="text-xs text-white/60">Active Spaces</p>
+                                </div>
+                            </div>
                         </div>
-                        <div className="text-center">
-                            <p className="text-xl font-black text-primary leading-none">{visibleEvents.length}</p>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#00142E]/40 mt-1">Events</p>
+                        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-accent/20 rounded-lg">
+                                    <Sparkles className="w-5 h-5 text-accent" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{visibleEvents.length}</p>
+                                    <p className="text-xs text-white/60">Experiences</p>
+                                </div>
+                            </div>
                         </div>
+                        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-500/20 rounded-lg">
+                                    <TrendingUp className="w-5 h-5 text-green-300" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{visibleProperties.length + visibleEvents.length}</p>
+                                    <p className="text-xs text-white/60">Total Listings</p>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
-                {/* Tabs Switcher */}
-                <div className="bg-[#F1F3F5] p-1.5 rounded-[24px] flex items-center gap-1 w-fit">
-                    <button
-                        onClick={() => setActiveTab("spaces")}
-                        className={cn(
-                            "flex items-center gap-2 px-6 py-2.5 rounded-[20px] text-sm font-bold transition-all",
-                            activeTab === "spaces"
-                                ? "bg-primary text-white shadow-md transform scale-105"
-                                : "text-gray-500 hover:text-gray-900"
-                        )}
-                    >
-                        <Home className="w-4 h-4" />
-                        Spaces
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("experiences")}
-                        className={cn(
-                            "flex items-center gap-2 px-6 py-2.5 rounded-[20px] text-sm font-bold transition-all",
-                            activeTab === "experiences"
-                                ? "bg-primary text-white shadow-md transform scale-105"
-                                : "text-gray-500 hover:text-gray-900"
-                        )}
-                    >
-                        <Sparkles className="w-4 h-4" />
-                        Experiences
-                    </button>
+                {/* Tabs Section */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="bg-white p-1.5 rounded-2xl shadow-lg border border-gray-100 flex items-center gap-1 w-fit">
+                        <button
+                            onClick={() => setActiveTab("spaces")}
+                            className={cn(
+                                "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
+                                activeTab === "spaces"
+                                    ? "bg-accent text-white shadow-md"
+                                    : "text-primary/50 hover:text-primary hover:bg-neutral/10"
+                            )}
+                        >
+                            <Home className="w-4 h-4" />
+                            Spaces
+                            <span className={cn(
+                                "px-2 py-0.5 rounded-full text-xs font-bold",
+                                activeTab === "spaces" ? "bg-white/20 text-white" : "bg-neutral/20 text-primary/60"
+                            )}>
+                                {visibleProperties.length}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("experiences")}
+                            className={cn(
+                                "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
+                                activeTab === "experiences"
+                                    ? "bg-accent text-white shadow-md"
+                                    : "text-primary/50 hover:text-primary hover:bg-neutral/10"
+                            )}
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Experiences
+                            <span className={cn(
+                                "px-2 py-0.5 rounded-full text-xs font-bold",
+                                activeTab === "experiences" ? "bg-white/20 text-white" : "bg-neutral/20 text-primary/60"
+                            )}>
+                                {visibleEvents.length}
+                            </span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-primary/50">
+                        <Eye className="w-4 h-4" />
+                        Showing {currentListings.length} {activeTab}
+                    </div>
                 </div>
+
+                {/* Content Section */}
+                {isError ? (
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-50 to-red-50 border border-rose-100 p-12 text-center">
+                        <div className="absolute inset-0 bg-gradient-to-br from-rose-400/5 to-red-400/10"></div>
+                        <div className="relative z-10">
+                            <div className="w-20 h-20 mx-auto bg-gradient-to-br from-rose-100 to-rose-200 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                                <AlertCircle className="w-10 h-10 text-rose-500" />
+                            </div>
+                            <h4 className="text-2xl font-bold mb-3 text-rose-700">Failed to load {activeTab}</h4>
+                            <p className="text-rose-600/70 max-w-md mx-auto mb-6">{error?.message || "An unexpected error occurred. Please try again."}</p>
+                            <Button
+                                onClick={() => window.location.reload()}
+                                className="bg-rose-500 hover:bg-rose-600 text-white rounded-xl px-6 py-3"
+                            >
+                                Try Again
+                            </Button>
+                        </div>
+                    </div>
+                ) : isLoading ? (
+                    <div className="flex flex-col items-center justify-center py-24 text-center">
+                        <div className="relative">
+                            <div className="w-20 h-20 border-4 border-neutral/30 rounded-full"></div>
+                            <div className="absolute inset-0 w-20 h-20 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                        <p className="mt-6 text-primary/70 font-medium">Fetching your {activeTab}...</p>
+                        <p className="text-sm text-primary/40">This won't take long</p>
+                    </div>
+                ) : currentListings.length === 0 ? (
+                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neutral/10 via-white to-neutral/20 border border-neutral/30 p-12 text-center shadow-xl">
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent"></div>
+                        <div className="relative z-10">
+                            <div className="w-24 h-24 mx-auto bg-gradient-to-br from-neutral/30 to-neutral/50 rounded-3xl flex items-center justify-center mb-6 shadow-lg">
+                                {activeTab === "spaces" ? (
+                                    <Home className="w-12 h-12 text-primary" />
+                                ) : (
+                                    <Calendar className="w-12 h-12 text-accent" />
+                                )}
+                            </div>
+                            <h4 className="text-2xl font-bold mb-3 text-primary">No {activeTab} yet</h4>
+                            <p className="text-primary/50 max-w-md mx-auto mb-8">
+                                {activeTab === "spaces"
+                                    ? "Start your hosting journey. Share your space with the NextKin community and earn."
+                                    : "Create memorable experiences for travelers and locals. Share your passion with the world."}
+                            </p>
+                            <Button
+                                onClick={() => navigate(activeTab === "spaces" ? "/host/create" : "/events/host")}
+                                className="bg-accent hover:bg-accent/90 text-white rounded-xl px-8 py-4 h-auto font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5"
+                            >
+                                <Plus className="w-5 h-5 mr-2" />
+                                Create Your First {activeTab === "spaces" ? "Space" : "Experience"}
+                                <ChevronRight className="w-4 h-4 ml-2" />
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {activeTab === "spaces" ? (
+                            currentListings.map(p => (
+                                <div key={p._id || p.id} className="transform hover:-translate-y-1 transition-all duration-200">
+                                    <PropertyCard property={p} onDelete={handlePropertyDelete} />
+                                </div>
+                            ))
+                        ) : (
+                            currentListings.map(e => (
+                                <div key={e._id || e.id} className="transform hover:-translate-y-1 transition-all duration-200">
+                                    <EventCard event={e} onDelete={handleEventDelete} />
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
             </div>
-
-            {isError ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-[40px] border border-neutral/5">
-                    <div className="w-20 h-20 bg-rose-50 rounded-[32px] flex items-center justify-center mb-6">
-                        <AlertCircle className="w-10 h-10 text-rose-500" />
-                    </div>
-                    <h4 className="text-xl font-bold mb-2 text-rose-600">Failed to load {activeTab}</h4>
-                    <p className="text-rose-600/60 max-w-sm mb-8">{error?.message || "An unexpected error occurred."}</p>
-                </div>
-            ) : isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-[#00142E]/50 font-medium">Fetching your {activeTab}...</p>
-                </div>
-            ) : currentListings.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-[40px] border border-neutral/5">
-                    <div className="w-24 h-24 bg-[#F8F9FA] rounded-[32px] flex items-center justify-center mb-6">
-                        {activeTab === "spaces" ? <Home className="w-10 h-10 text-neutral" /> : <Calendar className="w-10 h-10 text-neutral" />}
-                    </div>
-                    <h4 className="text-xl font-bold mb-2">No {activeTab} found</h4>
-                    <p className="text-[#00142E]/50 max-w-sm mb-8">
-                        {activeTab === "spaces"
-                            ? "Start sharing your sanctuary with the community."
-                            : "Create memorable experiences for the community."}
-                    </p>
-                </div>
-            ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {activeTab === "spaces" ? (
-                        currentListings.map(p => (
-                            <PropertyCard key={p._id || p.id} property={p} onDelete={handlePropertyDelete} />
-                        ))
-                    ) : (
-                        currentListings.map(e => (
-                            <EventCard key={e._id || e.id} event={e} onDelete={handleEventDelete} />
-                        ))
-                    )}
-                </div>
-            )}
-        </div>
+        </div >
     )
 }

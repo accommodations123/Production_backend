@@ -18,6 +18,7 @@ const EventsPage = lazy(() => import("@/app/events/page"));
 const EventDetailsPage = lazy(() => import("@/app/events/[id]/page"))
 const HostEventPage = lazy(() => import("@/app/events/host/page"));
 const Groups = lazy(() => import("@/app/groups/page"));
+const CreateGroupPage = lazy(() => import("@/app/groups/create/page"));
 const GroupDetailsPage = lazy(() => import("@/app/groups/[id]/page"));
 const AddResource = lazy(() => import("@/app/groups/add-resource/page"));
 // const HostOnboardingPage = lazy(() => import("@/app/host/onboarding/page"));
@@ -62,6 +63,7 @@ export default function App() {
                             <Route path="/events/host" element={<HostEventPage />} />
                             <Route path="/events/:id" element={<EventDetailsPage />} />
                             <Route path="/groups" element={<Groups />} />
+                            <Route path="/groups/create" element={<CreateGroupPage />} />
                             <Route path="/groups/:id" element={<GroupDetailsPage />} />
                             <Route path="/groups/add-resource" element={<AddResource />} />
                             <Route path="/support" element={<SupportPage />} />
@@ -87,6 +89,7 @@ export default function App() {
                             <Route path="/marketplace/:id" element={<ProductDetailsPage />} />
                             <Route path="/signup" element={<Signup />} />
                             <Route path="/signin" element={<Signin />} />
+                            <Route path="/resources/travel" element={<TravelCommunity />} />
                         </Routes>
                     </Suspense>
                 </RootLayout>

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Menu, Globe, User, ChevronDown, X, Search, Users, Briefcase, Home, Calendar, Building, Plane, BookOpen, ShoppingBag, HomeIcon, Bell, Check } from "lucide-react"
+import { Menu, Globe, User, ChevronDown, X, Search, Users, Briefcase, Home, Calendar, Building, Plane, BookOpen, ShoppingBag, HomeIcon, Bell, Check, Sparkles, Settings as SettingsIcon } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -22,8 +22,6 @@ export function Navbar({ minimal = false, onMenuClick }) {
 
     const socketRef = React.useRef(null);
     const isSocketInitialized = React.useRef(false);
-
-    // const socket = React.useMemo(() => getSocket(), []); // Removed to avoid conflict with manual management
 
     const [logout] = useLogoutMutation()
     const [isScrolled, setIsScrolled] = React.useState(false)
@@ -80,14 +78,11 @@ export function Navbar({ minimal = false, onMenuClick }) {
 
     // ================= WEBSOCKET LOGIC =================
     React.useEffect(() => {
-        // If not authenticated, do nothing.
         if (!isAuthenticated) return;
 
-        // Use the singleton socket
         const socket = getSocket();
         socketRef.current = socket;
 
-        // Define listeners
         const onConnect = () => {
             console.log("✅ Connected to Socket.IO Server:", socket.id);
         };
@@ -103,18 +98,13 @@ export function Navbar({ minimal = false, onMenuClick }) {
             }
         };
 
-        // Attach listeners
         socket.on("connect", onConnect);
         socket.on("connect_error", onConnectError);
         socket.on("notification", onNotification);
 
-        // Mark as initialized for this component instance
         isSocketInitialized.current = true;
 
-        // Cleanup: REMOVE LISTENERS ONLY. DO NOT DISCONNECT.
         return () => {
-            // We do NOT call socket.disconnect() here.
-            // This prevents the StrictMode "Connect -> Disconnect -> Connect" loop.
             if (socketRef.current) {
                 socketRef.current.off("connect", onConnect);
                 socketRef.current.off("connect_error", onConnectError);
@@ -138,11 +128,6 @@ export function Navbar({ minimal = false, onMenuClick }) {
     // Define Explore section paths
     const explorePaths = ["/", "/events", "/search"]
     const isExploreActive = explorePaths.includes(location.pathname) || location.pathname.startsWith("/rooms")
-    const isGroupsPage = location.pathname === "/groups"
-    const isHostEventPage = location.pathname === "/events/host"
-    const isMarketplacePage = location.pathname.startsWith("/marketplace")
-    const isRoomDetailsPage = location.pathname.startsWith("/rooms/")
-    const isEventDetailsPage = location.pathname.startsWith("/events/") && location.pathname !== "/events" && location.pathname !== "/events/host"
 
     React.useEffect(() => {
         const handleScroll = () => {
@@ -164,8 +149,6 @@ export function Navbar({ minimal = false, onMenuClick }) {
     const mobileCountryRef = useClickOutside(() => setIsMobileCountryOpen(false))
     const hostDropdownRef = useClickOutside(() => setIsHostDropdownOpen(false))
 
-    // Dynamic Host Path
-
 
     // Host options for dropdown
     const hostOptions = [
@@ -174,8 +157,6 @@ export function Navbar({ minimal = false, onMenuClick }) {
             title: 'Share Your Space',
             description: 'List your property for stays',
             icon: <Home className="h-5 w-5" />,
-            color: 'text-blue-600',
-            bgColor: 'bg-blue-50',
             path: getHostPath('property', isAuthenticated)
         },
         {
@@ -183,8 +164,6 @@ export function Navbar({ minimal = false, onMenuClick }) {
             title: 'Host an Event',
             description: 'Organize workshops, meetups or festivals.',
             icon: <Calendar className="h-5 w-5" />,
-            color: 'text-purple-600',
-            bgColor: 'bg-purple-50',
             path: getHostPath('event', isAuthenticated)
         },
         {
@@ -192,29 +171,17 @@ export function Navbar({ minimal = false, onMenuClick }) {
             title: 'Start a Group',
             description: 'Build a community of like-minded people.',
             icon: <Users className="h-5 w-5" />,
-            color: 'text-green-600',
-            bgColor: 'bg-green-50',
             path: getHostPath('group', isAuthenticated)
         },
     ]
 
-    // Navigation items in the specified order (without icons)
+    // Navigation items
     const navItems = [
         { name: "Home", path: "/" },
         { name: "Accommodations", path: "/search" },
         { name: "Buy/Sell", path: "/marketplace" },
         { name: "Community", path: "/groups" },
-        { name: "Events", path: "/events" },
         { name: "Travel Partners", path: "/travel" },
-    ]
-
-    // Resources dropdown items
-    const resourceItems = [
-        { name: "Travel Partners", path: "/resources/travel", icon: Plane, desc: "Find travel buddies" },
-        { name: "Community & Daily Life", path: "/resources/community", icon: Users, desc: "Local groups & living guides" },
-        { name: "Legal & Documentation", path: "/resources/legal", icon: BookOpen, desc: "Visa guides & legal aid" },
-        { name: "Career", path: "/career", icon: Briefcase, desc: "Job opportunities & career advice" },
-        { name: "Support", path: "/support", icon: User, desc: "Get help & support" },
     ]
 
     // Safely get country code with fallback
@@ -230,231 +197,284 @@ export function Navbar({ minimal = false, onMenuClick }) {
             {/* ================= DESKTOP NAVBAR ================= */}
             <header
                 className={cn(
-                    "fixed top-0 left-0 right-0 z-50 transition-all duration-300 hidden md:block",
-                    isScrolled ? "bg-primary shadow-md py-2" : "bg-primary"
+                    "fixed top-0 left-0 right-0 z-50 transition-all duration-500 hidden md:block",
+                    isScrolled
+                        ? "bg-[#0A1A2F]/80 backdrop-blur-2xl border-b border-white/5 py-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+                        : "bg-gradient-to-b from-[#0A1A2F]/90 to-transparent py-5"
                 )}
             >
-                <div className="container mx-auto px-4 flex items-center justify-between">
-                    {/* Logo */}
-                    <Link to="/" className="flex items-center gap-2 z-50">
-                        <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                <div className="container mx-auto px-6 flex items-center justify-between">
+                    {/* Logo - Glass Effect */}
+                    <Link to="/" className="flex items-center gap-3 group relative items-center">
+                        <div className="relative w-12 h-12 rounded-2xl overflow-hidden ring-1 ring-white/10 group-hover:ring-accent/50 transition-all shadow-2xl shadow-black/20">
+                            <div className="absolute inset-0 bg-gradient-to-tr from-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                             <img
                                 src="/logo.jpeg"
                                 alt="NextKinLife Logo"
-                                className="object-cover w-full h-full"
+                                className="object-cover w-full h-full transform group-hover:scale-110 transition-transform duration-700 ease-out"
                             />
+                        </div>
+                        <div className="hidden lg:block relative">
+                            <div className="flex flex-col leading-none">
+                                <span className={cn(
+                                    "text-white font-bold text-lg tracking-tight transition-all duration-300",
+                                    isScrolled ? "text-white" : "text-white drop-shadow-md"
+                                )}>NextKin</span>
+                                <span className="text-accent font-black text-lg tracking-wide uppercase text-[10px]">Life</span>
+                            </div>
                         </div>
                     </Link>
 
-                    {/* Desktop Navigation */}
+                    {/* Desktop Navigation - Pill Design */}
                     {!minimal && (
-                        <nav className="flex items-center gap-8">
-                            {navItems.map((item) => (
-                                <div key={item.name} className="relative group">
-                                    {item.hasDropdown ? (
-                                        <button
-                                            type="button"
-                                            className="text-white/90 hover:text-accent font-medium transition-colors flex items-center gap-1 py-4 cursor-default"
-                                        >
-                                            {item.name}
-                                            <ChevronDown className="h-4 w-4 transition-transform group-hover:rotate-180" />
-                                        </button>
-                                    ) : (
-                                        <Link
-                                            to={item.path}
-                                            className="text-white/90 hover:text-accent font-medium transition-colors flex items-center gap-1 py-4"
-                                        >
-                                            {item.name}
-                                        </Link>
-                                    )}
-
-                                    {/* Mega Menu for Resources */}
-
-                                </div>
-                            ))}
+                        <nav className="flex items-center gap-1 p-1.5 rounded-full bg-white/5 border border-white/5 backdrop-blur-md shadow-inner shadow-black/20">
+                            {navItems.map((item) => {
+                                const isActive = location.pathname === item.path;
+                                return (
+                                    <Link
+                                        key={item.name}
+                                        to={item.path}
+                                        className={cn(
+                                            "relative px-5 py-2 rounded-full text-sm font-medium transition-all duration-300",
+                                            isActive
+                                                ? "text-white"
+                                                : "text-white/60 hover:text-white hover:bg-white/5"
+                                        )}
+                                    >
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="navbar-pill"
+                                                className="absolute inset-0 bg-accent rounded-full shadow-[0_0_20px_rgba(203,42,37,0.3)]"
+                                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                            />
+                                        )}
+                                        <span className="relative z-10">{item.name}</span>
+                                    </Link>
+                                );
+                            })}
                         </nav>
                     )}
 
                     {/* Desktop Right Actions */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {/* Country Selector */}
                         <div className="relative" ref={countryRef}>
-                            <Button
-                                variant="ghost"
-                                className="text-white hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-white/10"
+                            <button
+                                className={cn(
+                                    "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all border group",
+                                    isCountryOpen
+                                        ? "bg-white/10 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                                        : "bg-transparent border-transparent hover:bg-white/5 text-white/80 hover:text-white"
+                                )}
                                 onClick={() => setIsCountryOpen(!isCountryOpen)}
                             >
                                 {!isSelected ? (
                                     <>
-                                        <Globe className="h-5 w-5" />
-                                        <span className="text-sm font-medium">Select Country</span>
+                                        <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                                            <Globe className="h-4 w-4" />
+                                        </div>
+                                        <span className="hidden xl:inline">Select Country</span>
                                     </>
                                 ) : (
                                     <>
                                         {activeCountry && activeCountry.flag && (
                                             activeCountry.flag.startsWith('/') ? (
-                                                <img src={activeCountry.flag} alt={activeCountry.name} className="w-6 h-4 object-cover rounded-sm" />
+                                                <img src={activeCountry.flag} alt={activeCountry.name} className="w-8 h-6 object-cover rounded-md shadow-md bg-white/10" />
                                             ) : (
-                                                <span className="text-lg">{activeCountry.flag}</span>
+                                                <span className="text-2xl filter drop-shadow-sm">{activeCountry.flag}</span>
                                             )
                                         )}
-                                        <span className="text-sm font-medium">{getCountryCode()}</span>
                                     </>
                                 )}
-                                <ChevronDown className={cn("h-4 w-4 transition-transform", isCountryOpen && "rotate-180")} />
-                            </Button>
-
-                            {isCountryOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="px-4 py-2 border-b mb-2">
-                                        <p className="text-xs font-bold text-gray-500 uppercase">Select Country</p>
-                                    </div>
-                                    {COUNTRIES.map((country) => (
-                                        <button
-                                            key={country.code}
-                                            className={cn(
-                                                "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ",
-                                                getCountryCode() === country.code ? "text-accent font-bold" : "text-gray-700"
-                                            )}
-                                            onClick={() => {
-                                                setCountry(country)
-                                                setIsCountryOpen(false)
-                                            }}
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                {country.flag.startsWith('/') ? (
-                                                    <img src={country.flag} alt={country.name} className="w-6 h-4 object-cover rounded-sm" />
-                                                ) : (
-                                                    <span className="text-lg">{country.flag}</span>
-                                                )}
-                                                {country.name}
-                                            </span>
-                                            {getCountryCode() === country.code && <div className="h-1.5 w-1.5 rounded-full bg-accent" />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Become Host Dropdown */}
-                        <div className="relative" ref={hostDropdownRef}>
-                            <button
-                                onClick={() => setIsHostDropdownOpen(!isHostDropdownOpen)}
-                                className="bg-accent hover:bg-accent/90 text-white cursor-pointer rounded-full px-6 py-2 font-medium transition-colors flex items-center gap-2"
-                            >
-                                Become Host
+                                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-300 opacity-50 group-hover:opacity-100", isCountryOpen && "rotate-180")} />
                             </button>
 
-                            {isHostDropdownOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="px-4 py-2 border-b mb-2">
-                                        <p className="text-xs font-bold text-gray-500 uppercase">Choose Host Type</p>
-                                    </div>
-                                    <div className="px-2">
-                                        {hostOptions.map((option) => (
-                                            <button
-                                                key={option.id}
-                                                onClick={() => {
-                                                    navigate(option.path)
-                                                    setIsHostDropdownOpen(false)
-                                                }}
-                                                className="w-full text-left p-3 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-3 cursor-pointer"
-                                            >
-                                                <div className={`p-2 rounded-lg ${option.bgColor} ${option.color}`}>
-                                                    {option.icon}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="font-semibold text-gray-900 text-sm">{option.title}</div>
-                                                    <div className="text-xs text-gray-500">{option.description}</div>
-                                                </div>
-                                                <ChevronDown className="h-4 w-4 text-gray-400 rotate-90" />
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="px-4 py-3 border-t mt-2">
-                                        <p className="text-xs text-gray-500">All hosts are verified for community safety</p>
-                                    </div>
-                                </div>
-                            )}
+                            <AnimatePresence>
+                                {isCountryOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="absolute top-full right-0 mt-3 w-72 bg-[#0F2238]/95 backdrop-blur-xl rounded-3xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.5)] py-2 z-50 border border-white/10 overflow-hidden"
+                                    >
+                                        <div className="px-5 py-3 border-b border-white/5 bg-white/5">
+                                            <p className="text-[10px] font-black text-accent uppercase tracking-widest">Select Region</p>
+                                        </div>
+                                        <div className="max-h-64 overflow-y-auto py-2 px-2 scrollbar-hide">
+                                            {COUNTRIES.map((country) => (
+                                                <button
+                                                    key={country.code}
+                                                    className={cn(
+                                                        "w-full text-left px-4 py-3 text-sm rounded-xl flex items-center justify-between transition-all group",
+                                                        getCountryCode() === country.code
+                                                            ? "bg-accent text-white shadow-lg shadow-accent/20"
+                                                            : "text-white/70 hover:bg-white/5 hover:text-white"
+                                                    )}
+                                                    onClick={() => {
+                                                        setCountry(country)
+                                                        setIsCountryOpen(false)
+                                                    }}
+                                                >
+                                                    <span className="flex items-center gap-4">
+                                                        {country.flag.startsWith('/') ? (
+                                                            <img src={country.flag} alt={country.name} className="w-6 h-4 object-cover rounded shadow-sm" />
+                                                        ) : (
+                                                            <span className="text-lg">{country.flag}</span>
+                                                        )}
+                                                        <span className="font-medium">{country.name}</span>
+                                                    </span>
+                                                    {getCountryCode() === country.code && <Check className="w-4 h-4" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
-                        {/* ================= NOTIFICATION DROPDOWN (DESKTOP) ================= */}
-                        <div className="relative" ref={notificationRef}>
-                            <Button
-                                variant="ghost"
+                        {/* Become Host Button - Glowing Effect */}
+                        <div className="relative" ref={hostDropdownRef}>
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setIsHostDropdownOpen(!isHostDropdownOpen)}
                                 className={cn(
-                                    "text-white hover:text-white hover:bg-white/10 rounded-full p-2 relative transition-colors",
-                                    unreadCount > 0 && "bg-white/5"
+                                    "relative overflow-hidden cursor-pointer rounded-xl px-5 py-2.5 font-bold text-sm transition-all flex items-center gap-2",
+                                    "bg-gradient-to-r from-accent to-[#E04642] text-white shadow-lg shadow-accent/25 hover:shadow-accent/40"
+                                )}
+                            >
+                                <div className="absolute inset-0 bg-white/20 opacity-0 hover:opacity-100 transition-opacity" />
+                                <Sparkles className="w-4 h-4 fill-white/20" />
+                                Become Host
+                            </motion.button>
+
+                            <AnimatePresence>
+                                {isHostDropdownOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        className="absolute top-full right-0 mt-3 w-80 bg-[#0F2238]/95 backdrop-blur-xl rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] z-50 border border-white/10 overflow-hidden"
+                                    >
+                                        <div className="px-5 py-4 border-b border-white/5 bg-gradient-to-r from-accent/10 to-transparent">
+                                            <p className="text-[10px] font-black text-accent uppercase tracking-widest">Start Hosting</p>
+                                        </div>
+                                        <div className="p-2 space-y-1">
+                                            {hostOptions.map((option) => (
+                                                <button
+                                                    key={option.id}
+                                                    onClick={() => {
+                                                        navigate(option.path)
+                                                        setIsHostDropdownOpen(false)
+                                                    }}
+                                                    className="w-full text-left p-3 hover:bg-white/5 rounded-2xl transition-all flex items-center gap-4 cursor-pointer group border border-transparent hover:border-white/5"
+                                                >
+                                                    <div className="p-3 rounded-xl bg-gradient-to-br from-white/10 to-transparent ring-1 ring-white/5 text-white group-hover:bg-accent group-hover:text-white transition-all shadow-inner">
+                                                        {option.icon}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="font-bold text-white text-sm group-hover:text-accent transition-colors">{option.title}</div>
+                                                        <div className="text-xs text-white/50 group-hover:text-white/70">{option.description}</div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Notification Bell */}
+                        <div className="relative" ref={notificationRef}>
+                            <button
+                                className={cn(
+                                    "relative p-2.5 rounded-xl transition-all border group",
+                                    isNotificationOpen
+                                        ? "bg-white/10 border-white/20 text-white"
+                                        : "bg-transparent border-transparent hover:bg-white/5 text-white/70 hover:text-white"
                                 )}
                                 onClick={() => {
                                     setIsNotificationOpen(!isNotificationOpen)
                                     if (isNotificationOpen) markAllAsRead()
                                 }}
                             >
-                                <Bell className="h-6 w-6" />
+                                <Bell className="h-5 w-5 group-hover:scale-110 transition-transform" />
                                 {unreadCount > 0 && (
-                                    <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse border-2 border-primary" />
+                                    <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-accent rounded-full animate-pulse ring-2 ring-[#0A1A2F]" />
                                 )}
-                            </Button>
+                            </button>
 
-                            {isNotificationOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200 max-h-[400px] overflow-y-auto">
-                                    <div className="px-4 py-2 border-b flex justify-between items-center">
-                                        <p className="text-sm font-bold text-gray-900">Notifications</p>
-                                        {unreadCount > 0 && (
-                                            <button
-                                                onClick={handleMarkAllAsRead}
-                                                className="text-xs font-medium text-accent hover:text-accent/80"
-                                            >
-                                                Mark all read
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="py-1">
-                                        {notifications.length === 0 ? (
-                                            <p className="text-center text-sm text-gray-500 py-4">No new notifications</p>
-                                        ) : (
-                                            notifications.map((notif) => (
-                                                <div
-                                                    key={notif.id}
-                                                    className={cn(
-                                                        "px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors",
-                                                        !notif.read && "bg-blue-50/50"
-                                                    )}
+                            <AnimatePresence>
+                                {isNotificationOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        className="absolute top-full right-0 mt-3 w-96 bg-[#0F2238]/95 backdrop-blur-xl rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] z-50 border border-white/10 overflow-hidden"
+                                    >
+                                        <div className="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+                                            <p className="text-sm font-bold text-white">Notifications</p>
+                                            {unreadCount > 0 && (
+                                                <button
+                                                    onClick={handleMarkAllAsRead}
+                                                    className="text-[10px] font-bold text-accent hover:text-white transition-colors bg-accent/10 px-2 py-1 rounded-lg uppercase tracking-wider"
                                                 >
-                                                    <div className="flex gap-3">
-                                                        <div className={cn(
-                                                            "mt-0.5 h-2 w-2 rounded-full shrink-0",
-                                                            notif.read ? "bg-transparent" : "bg-blue-600"
-                                                        )} />
-                                                        <div>
-                                                            <p className="text-sm text-gray-800 font-medium">{notif.message}</p>
-                                                            <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
+                                                    Mark Read
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
+                                            {notifications.length === 0 ? (
+                                                <div className="text-center py-12 text-white/30">
+                                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                        <Bell className="w-8 h-8 opacity-50" />
+                                                    </div>
+                                                    <p className="text-sm font-medium">No new notifications</p>
+                                                </div>
+                                            ) : (
+                                                notifications.map((notif) => (
+                                                    <div
+                                                        key={notif.id}
+                                                        className={cn(
+                                                            "px-5 py-4 border-b border-white/5 last:border-0 hover:bg-white/5 cursor-pointer transition-colors group",
+                                                            !notif.read && "bg-accent/5 hover:bg-accent/10"
+                                                        )}
+                                                    >
+                                                        <div className="flex gap-4">
+                                                            <div className={cn(
+                                                                "mt-2 h-2 w-2 rounded-full shrink-0 shadow-[0_0_10px_currentColor]",
+                                                                notif.read ? "bg-transparent shadow-none" : "bg-accent text-accent"
+                                                            )} />
+                                                            <div>
+                                                                <p className="text-sm text-white/90 font-medium group-hover:text-white transition-colors">{notif.message}</p>
+                                                                <p className="text-xs text-white/40 mt-1.5 font-medium">{notif.time}</p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                                                ))
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
+                        {/* Profile / Sign In */}
                         {!isAuthenticated ? (
                             <Button
-                                variant="outline"
-                                className="rounded-full border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white px-6 font-medium cursor-pointer"
                                 onClick={() => navigate("/signin")}
+                                className="rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white hover:text-[#0A1A2F] px-6 font-bold tracking-wide transition-all shadow-lg hover:shadow-white/20"
                             >
                                 Sign In
                             </Button>
                         ) : (
                             <div className="relative" ref={profileRef}>
-                                <Button
-                                    variant="outline"
-                                    className="rounded-full border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white gap-2 pl-3 pr-4 cursor-pointer"
+                                <button
+                                    className="flex items-center gap-3 p-1.5 pr-4 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all cursor-pointer group"
                                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                                 >
-                                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200">
+                                    <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-white/10 group-hover:ring-accent transition-all shadow-lg">
                                         {resolvedUser?.profile_image ? (
                                             <img
                                                 src={`${resolvedUser.profile_image}?v=${Date.now()}`}
@@ -462,66 +482,73 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-500">
-                                                <User className="h-4 w-4 text-white" />
+                                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-accent to-[#E04642] text-white font-bold text-xs">
+                                                {displayName.slice(0, 2).toUpperCase()}
                                             </div>
                                         )}
                                     </div>
+                                    <ChevronDown className={cn("h-4 w-4 text-white/50 transition-transform group-hover:text-white", isProfileOpen && "rotate-180")} />
+                                </button>
 
-                                </Button>
-
-                                {isProfileOpen && (() => {
-
-                                    const isHost = hostProfile && (hostProfile.id || hostProfile._id);
-                                    const hostStatus = hostProfile?.status || "pending";
-
-                                    return (
-                                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                                            {/* User Info with Role Badge */}
-                                            <div className="px-4 py-3 border-b">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-200">
-                                                        {resolvedUser?.profile_image ? (
-                                                            <img
-                                                                src={`${resolvedUser.profile_image}?v=${Date.now()}`}
-                                                                alt={displayName}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center bg-gray-500 text-white font-semibold text-sm">
-                                                                {displayName.slice(0, 2).toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-semibold text-gray-900 truncate">
-                                                            {displayName}
-                                                        </p>
-                                                    </div>
-                                                </div>
+                                <AnimatePresence>
+                                    {isProfileOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute top-full right-0 mt-3 w-64 bg-[#0F2238] rounded-2xl shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden z-50 py-2"
+                                        >
+                                            <div className="px-4 py-3 border-b border-white/5 mb-2">
+                                                <p className="text-white font-bold truncate">{displayName}</p>
+                                                <Link to="/account-v2?tab=personal" className="text-xs text-white/50 hover:text-accent transition-colors flex items-center gap-1 mt-0.5" onClick={() => setIsProfileOpen(false)}>
+                                                    View Profile
+                                                </Link>
                                             </div>
 
-
-
-                                            {/* Menu Items - Reordered by frequency */}
-                                            <div className="py-1">
-                                                {[
-                                                    { label: "Messages", href: "/messages" },
-                                                    { label: "Account", href: "/account-v2" },
-                                                ].map((item) => (
-                                                    <Link
-                                                        key={item.label}
-                                                        to={item.href}
-                                                        onClick={() => setIsProfileOpen(false)}
-                                                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
-                                                    >
-                                                        {item.label}
-                                                    </Link>
-                                                ))}
+                                            <div className="space-y-1 px-2">
+                                                <Link
+                                                    to="/account-v2?tab=overview"
+                                                    className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                                    onClick={() => setIsProfileOpen(false)}
+                                                >
+                                                    <Home className="h-4 w-4 opacity-70" />
+                                                    Overview
+                                                </Link>
+                                                <Link
+                                                    to="/account-v2?tab=personal"
+                                                    className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                                    onClick={() => setIsProfileOpen(false)}
+                                                >
+                                                    <User className="h-4 w-4 opacity-70" />
+                                                    Personal Info
+                                                </Link>
+                                                <Link
+                                                    to="/account-v2?tab=listings"
+                                                    className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                                    onClick={() => setIsProfileOpen(false)}
+                                                >
+                                                    <Building className="h-4 w-4 opacity-70" />
+                                                    My Listings
+                                                </Link>
+                                                <Link
+                                                    to="/account-v2?tab=trips"
+                                                    className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                                    onClick={() => setIsProfileOpen(false)}
+                                                >
+                                                    <Plane className="h-4 w-4 opacity-70" />
+                                                    My Trips
+                                                </Link>
+                                                <Link
+                                                    to="/account-v2?tab=settings"
+                                                    className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                                    onClick={() => setIsProfileOpen(false)}
+                                                >
+                                                    <SettingsIcon className="h-4 w-4 opacity-70" />
+                                                    Settings
+                                                </Link>
                                             </div>
-                                            <div className="border-t my-1" />
-                                            <div className="py-1">
+
+                                            <div className="mt-2 pt-2 border-t border-white/5 px-2">
                                                 <button
                                                     onClick={async () => {
                                                         try {
@@ -529,36 +556,30 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                                         } catch (e) {
                                                             console.warn("Backend logout failed, proceeding with local cleanup", e);
                                                         }
-                                                        disconnectSocket(); // 🔌 Explicitly close socket on logout
+                                                        disconnectSocket();
                                                         dispatch(authApi.util.resetApiState());
                                                         dispatch(hostApi.util.resetApiState());
                                                         localStorage.removeItem("user");
                                                         setIsProfileOpen(false);
                                                         navigate("/signin");
                                                     }}
-                                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium cursor-pointer text-red-600"
+                                                    className="w-full text-left px-4 py-3 text-sm text-[#FF6B6B] hover:bg-[#FF6B6B]/10 font-bold cursor-pointer transition-colors rounded-xl flex items-center gap-3"
                                                 >
+                                                    <X className="w-4 h-4" />
                                                     Logout
                                                 </button>
                                             </div>
-                                        </div>
-                                    );
-                                })()}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         )}
-                    </div>
-                </div>
-            </header>
+                    </div >
+                </div >
+            </header >
 
-            {/* ================= MOBILE LAYOUT ================= */}
-            <div className="md:hidden">
-                {/* Mobile Top Bar removed - replaced by global MobileHomeHeader in RootLayout */}
-
-
-                {/* 3. Bottom Navigation Bar */}
-                {/* 3. Bottom Navigation Bar - Removed as it's now global in RootLayout via MobileFooterNav */}
-                {/* <div className="fixed bottom-0 left-0 right-0 z-50 ..."> ... </div> */}
-            </div>
+            {/* ================= MOBILE LAYOUT (Handled Globally) ================= */}
+            < div className="md:hidden" ></div >
         </>
     )
 }

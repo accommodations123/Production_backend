@@ -4,10 +4,10 @@ import {
     X, User, ShoppingBag, HelpCircle, Settings, Bell, MessageSquare, LogOut, Plane, Heart, ChevronRight, Briefcase
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useGetMeQuery, useLogoutMutation } from "@/store/api/authApi";
+import { useGetMeQuery, useLogoutMutation, authApi } from "@/store/api/authApi";
 import { useDispatch } from "react-redux";
-import { authApi } from "@/store/api/authApi";
 import { hostApi } from "@/store/api/hostApi";
+import { cn } from "@/lib/utils";
 
 export function MobileSidebar({ isOpen, onClose }) {
     const navigate = useNavigate();
@@ -18,7 +18,6 @@ export function MobileSidebar({ isOpen, onClose }) {
     const handleLogout = async () => {
         try {
             await logout().unwrap();
-            // Reset API state to clear cached data
             dispatch(authApi.util.resetApiState());
             dispatch(hostApi.util.resetApiState());
             onClose();
@@ -28,156 +27,128 @@ export function MobileSidebar({ isOpen, onClose }) {
         }
     };
 
+    const menuSections = [
+        {
+            title: "Account",
+            items: [
+                { icon: User, label: "Profile", path: "/account-v2" },
+                { icon: ShoppingBag, label: "My Listings", path: "/host/dashboard" },
+                { icon: Heart, label: "Wishlist", path: "/wishlist" },
+                { icon: Plane, label: "My Trips", path: "/trips" },
+            ]
+        },
+        {
+            title: "Support & Settings",
+            items: [
+                { icon: Bell, label: "Notifications", path: "/notifications" },
+                { icon: MessageSquare, label: "Messages", path: "/chat" },
+                { icon: Settings, label: "Settings", path: "/account/settings" },
+                { icon: HelpCircle, label: "Help Center", path: "/support" },
+            ]
+        }
+    ];
+
     return (
         <AnimatePresence>
             {isOpen && (
                 <>
                     {/* Backdrop */}
-                    {/*  <motion.div
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
-                    /> */}
+                        className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm"
+                    />
 
-                    {/* Sidebar - Full Screen */}
+                    {/* Sidebar Drawer */}
                     <motion.div
                         initial={{ x: "-100%" }}
                         animate={{ x: 0 }}
                         exit={{ x: "-100%" }}
                         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                        className="fixed inset-0 w-full bg-[#FAFAFA] z-50 overflow-y-auto"
+                        className="fixed inset-y-0 left-0 w-[80%] max-w-sm bg-white z-50 overflow-y-auto shadow-2xl"
                     >
-                        {/* Header Section */}
-                        <div className="bg-white px-6 pt-safe pb-6 flex items-start justify-between sticky top-0 z-10 border-b border-gray-100">
-                            <div className="flex items-center gap-4 pt-12 md:pt-4">
-                                <div className="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 border-2 border-white shadow-sm overflow-hidden">
-                                    {userData?.profileImage || userData?.avatar ? (
-                                        <img src={userData.profileImage || userData.avatar} alt="Profile" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <User className="w-7 h-7" />
-                                    )}
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900 leading-tight">
-                                        {userData?.firstName ? `${userData.firstName} ${userData.lastName || ''}` : "Guest User"}
-                                    </h2>
-                                    <p className="text-sm text-gray-500 mt-0.5">
-                                        {userData?.email || userData?.phoneNumber || "Sign in"}
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full mt-12 md:mt-4">
-                                <X className="w-6 h-6 text-gray-400" />
+                        {/* Header */}
+                        <div className="bg-[#00142E] p-6 text-white pt-12 relative overflow-hidden">
+                            {/* Decorative blob */}
+                            <div className="absolute top-[-50%] right-[-50%] w-full h-full bg-[#CB2A25]/20 rounded-full blur-[60px]" />
+
+                            <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+                                <X className="w-5 h-5 text-white" />
                             </button>
+
+                            <div className="relative z-10 mt-4">
+                                {userData ? (
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 rounded-full border-2 border-white/30 overflow-hidden bg-[#CB2A25]">
+                                            {userData?.profile_image ? (
+                                                <img src={userData.profile_image} alt="Profile" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="flex h-full w-full items-center justify-center font-bold text-white text-xl">
+                                                    {userData?.name?.charAt(0) || "U"}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <h2 className="text-lg font-bold">{userData?.name || "Welcome Back"}</h2>
+                                            <p className="text-white/60 text-sm truncate max-w-[150px]">{userData?.email}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Link to="/signin" onClick={onClose} className="flex items-center gap-4 group cursor-pointer">
+                                        <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white/50 border-2 border-dashed border-white/20 group-hover:bg-white group-hover:text-[#CB2A25] transition-all">
+                                            <User className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold">Guest User</h2>
+                                            <p className="text-[#CB2A25] font-bold text-sm">Sign In to continue</p>
+                                        </div>
+                                    </Link>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Quick Actions Grid */}
-                        <div className="p-4 grid grid-cols-2 gap-4">
-                            <Link to="/wishlist" onClick={onClose} className="bg-white p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm border border-gray-100 hover:scale-[1.02] transition-transform">
-                                <Heart className="w-6 h-6 text-pink-500" />
-                                <span className="text-sm font-bold text-gray-700">Wishlist</span>
-                            </Link>
-                            <Link to="/trips" onClick={onClose} className="bg-white p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-sm border border-gray-100 hover:scale-[1.02] transition-transform">
-                                <Plane className="w-6 h-6 text-blue-500" />
-                                <span className="text-sm font-bold text-gray-700">Your Trips</span>
-                            </Link>
-                        </div>
-
-                        {/* Menu Lists */}
-                        <div className="px-4 pb-20 space-y-6">
-                            {/* Information Section */}
-                            <div>
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Account</h3>
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-sm">
-                                    <Link to="/account" onClick={onClose} className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <User className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Profile</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                    <Link to="/host/dashboard" onClick={onClose} className="flex items-center justify-between p-4 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <ShoppingBag className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">My Listings</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
+                        {/* Menu Items */}
+                        <div className="p-6 space-y-8">
+                            {menuSections.map((section, idx) => (
+                                <div key={idx}>
+                                    <h3 className="text-xs font-bold text-[#00142E]/40 uppercase tracking-widest mb-4 px-2">{section.title}</h3>
+                                    <div className="space-y-1">
+                                        {section.items.map((item, i) => (
+                                            <Link
+                                                key={i}
+                                                to={item.path}
+                                                onClick={onClose}
+                                                className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors group"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[#00142E] group-hover:bg-[#00142E] group-hover:text-white transition-colors">
+                                                        <item.icon className="w-4 h-4" />
+                                                    </div>
+                                                    <span className="font-medium text-[#00142E]">{item.label}</span>
+                                                </div>
+                                                <ChevronRight className="w-4 h-4 text-gray-300" />
+                                            </Link>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            ))}
 
-                            {/* Resources Section */}
-                            <div>
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Resources</h3>
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-sm">
-                                    <Link to="/career" onClick={onClose} className="flex items-center justify-between p-4 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <Briefcase className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Career</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                </div>
-                            </div>
-
-                            {/* Settings & Support Section */}
-                            <div>
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 px-2">Settings & Support</h3>
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-sm">
-                                    <Link to="/notifications" onClick={onClose} className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <Bell className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Notifications</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                    <Link to="/messages" onClick={onClose} className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <MessageSquare className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Messages</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                    <Link to="/account/settings" onClick={onClose} className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <Settings className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Settings</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                    <Link to="/help" onClick={onClose} className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <HelpCircle className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Help</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                    <Link to="/support" onClick={onClose} className="flex items-center justify-between p-4 hover:bg-gray-50">
-                                        <div className="flex items-center gap-3">
-                                            <User className="w-5 h-5 text-gray-500" />
-                                            <span className="font-medium text-gray-900">Support</span>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-gray-300" />
-                                    </Link>
-                                </div>
-                            </div>
-
-                            {/* Logout Button */}
                             {userData && (
                                 <button
                                     onClick={handleLogout}
-                                    className="w-full bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center justify-center gap-2 text-red-600 font-medium active:bg-red-50 transition-colors"
+                                    className="w-full mt-4 p-4 rounded-xl border border-red-100 bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition-colors"
                                 >
                                     <LogOut className="w-5 h-5" />
-                                    Log Out
+                                    Sign Out
                                 </button>
                             )}
+                        </div>
 
-                            <div className="py-6 text-center text-gray-400 text-xs">
-                                v2.4.0 • Made with ❤️ in India
-                            </div>
+                        {/* Footer */}
+                        <div className="p-6 text-center">
+                            <p className="text-xs text-gray-400">NextKinLife v2.0</p>
                         </div>
                     </motion.div>
                 </>

@@ -90,7 +90,7 @@ const Signin = () => {
         </div>
 
         {/* Right Side */}
-        <div className="w-full bg-gray-50 flex flex-col justify-center items-center p-8 md:p-12 h-full overflow-y-auto">
+        <div className="w-full bg-gray-50 flex flex-col justify-center items-center px-4 py-8 md:p-12 min-h-full overflow-y-auto">
           <div className="w-full max-w-sm mx-auto py-8">
             <div className="text-center mb-8 lg:hidden">
               <div className="w-16 h-16 rounded-xl overflow-hidden shadow-lg mx-auto mb-4">
