@@ -67,15 +67,35 @@ const Application = sequelize.define(
       allowNull: true
     },
 
+    /* ===== STATUS TRACKING ===== */
     status: {
       type: DataTypes.ENUM(
-        "new",
-        "reviewing",
+        "submitted",
+        "viewed",
+        "shortlisted",
         "interview",
         "offer",
-        "rejected"
+        "rejected",
+        "withdrawn"
       ),
-      defaultValue: "new"
+      defaultValue: "submitted"
+    },
+
+    status_updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW
+    },
+
+    /* ===== VIEW TRACKING ===== */
+    last_viewed_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+
+    viewed_by_admin: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     }
   },
   {
@@ -85,10 +105,12 @@ const Application = sequelize.define(
     indexes: [
       { fields: ["job_id"] },
       { fields: ["status"] },
-      { fields: ["email"] }
+      { fields: ["email"] },
+      { fields: ["last_viewed_at"] }
     ]
   }
 );
+
 
 /* RELATIONS */
 Application.belongsTo(Job, {

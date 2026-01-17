@@ -6,7 +6,7 @@ import uploadResume from "../../middleware/uploads/uploadResume.js";
 
 import {getJobs,getJobById,createJob} from "../../controllers/carrer/jobController.js";
 
-import {applyJob,updateApplicationStatus,getMyApplications} from "../../controllers/carrer/applicationController.js";
+import {applyJob,updateApplicationStatus,getMyApplications,updateJobStatus,getAllApplications} from "../../controllers/carrer/applicationController.js";
 
 const router = express.Router();
 
@@ -30,7 +30,8 @@ router.get("/applications/me",userAuth,getMyApplications);
 ===================================================== */
 
 router.post("/admin/jobs",adminAuth,createJob);
-
+router.patch("/admin/jobs/:id/status",adminAuth,updateJobStatus);
 router.patch("/admin/applications/:id/status",adminAuth,updateApplicationStatus);
+router.get("/admin/applications",adminAuth,getAllApplications);
 
 export default router;

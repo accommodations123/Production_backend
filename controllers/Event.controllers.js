@@ -323,14 +323,14 @@ export const getPendingItems = async (req, res) => {
       include: [{
         model: Host,
         attributes: ["id", "full_name", "status"],
-        include: [{ model: User, attributes: ["id", "email"] }]
+        include: [{ model: User, attributes: ["id", "email","profile_image"] }]
       }]
     });
 
     const pendingHosts = await Host.findAll({
       where: hostWhere,
       order: [["created_at", "DESC"]],
-      include: [{ model: User, attributes: ["id", "email"] }]
+      include: [{ model: User, attributes: ["id", "email","profile_image"] }]
     });
 
     const result = { events: pendingEvents, hosts: pendingHosts };
@@ -523,7 +523,13 @@ export const getApprovedEvents = async (req, res) => {
       include: [
         {
           model: Host,
-          attributes: ["id", "full_name", "phone", "email", "status"]
+          attributes: ["id", "full_name", "phone", "email", "status",],
+          include: [
+            {
+              model: User,
+              attributes: ["profile_image"]
+            }
+          ]
         }
       ],
       order: [["created_at", "DESC"]]

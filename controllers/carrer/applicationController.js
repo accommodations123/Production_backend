@@ -1,7 +1,7 @@
 import sequelize from "../../config/db.js";
 import Application from "../../model/carrer/Application.js";
 import Job from "../../model/carrer/Job.js";
-
+import User from "../../model/User.js";
 const VALID_STATUSES = [
   "new",
   "reviewing",
@@ -132,6 +132,25 @@ export const getMyApplications = async (req, res) => {
     });
   }
 };
+export const updateJobStatus = async (req, res) => {
+  const { status } = req.body;
+  const allowed = ["draft", "active", "closed"];
+
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ message: "Invalid status" });
+  }
+
+  const job = await Job.findByPk(req.params.id);
+  if (!job) {
+    return res.status(404).json({ message: "Job not found" });
+  }
+
+  job.status = status;
+  await job.save();
+
+  res.json({ success: true, job });
+};
+
 
 
 export const updateApplicationStatus = async (req, res) => {
@@ -165,3 +184,22 @@ export const updateApplicationStatus = async (req, res) => {
   }
 };
 
+export const getAllApplications = async (req, res) => {
+  const applications = await Application.findAll({
+    order: [["created_at", "DESC"]],
+    include: [
+      {
+        model: Job,
+        as: "job",
+        attributes: ["id", "title"]
+      },
+      {
+        model: User,
+        as: "user",
+        attributes: ["id", "email"]
+      }
+    ]
+  });
+
+  res.json({ success: true, applications });
+};

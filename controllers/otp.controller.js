@@ -45,14 +45,27 @@ const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 ============================================================ */
 export const sendOTP = async (req, res) => {
   try {
-    const { email } = req.body;
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "Request body missing" });
+    }
 
-    if (!email)
+    let { email } = req.body;
+
+    if (!email) {
       return res.status(400).json({ message: "Email required" });
+    }
 
-    // RATE LIMIT
+    email = email.trim().toLowerCase();
+
+    // basic sanity check (not full RFC)
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    /* ================= RATE LIMIT ================= */
+    const rateKey = `otp:${email}:${req.ip}`;
     try {
-      await otpLimiter.consume(email);
+      await otpLimiter.consume(rateKey);
     } catch {
       return res.status(429).json({
         message: "Too many OTP requests. Try again later."
@@ -61,71 +74,47 @@ export const sendOTP = async (req, res) => {
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    const [user] = await User.findOrCreate({
-      where: { email },
-      defaults: {
+
+    const user = await User.findOne({ where: { email } });
+
+    if (user) {
+      // DO NOT reset verification if already verified
+      if (!user.verified) {
+        user.otp = otp;
+        user.otpExpires = expiresAt;
+        await user.save();
+      }
+    } else {
+      await User.create({
+        email,
         verified: false,
         otp,
         otpExpires: expiresAt
-      }
-    });
-
-    if (!user.isNewRecord) {
-      user.otp = otp;
-      user.otpExpires = expiresAt;
-      user.verified = false;
-      await user.save();
+      });
     }
-
-    // await setCache(`otp:${email}`, { otp, expiresAt }, 300);
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
       subject: "Your OTP Verification Code",
       html: `
-  <div style="font-family: Arial, Helvetica, sans-serif; max-width: 420px; margin: auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-    <h2 style="color: #111827; margin-bottom: 10px;">Verify Your Account</h2>
-
-    <p style="color: #374151; font-size: 14px; line-height: 1.5;">
-      Use the one-time password below to complete your verification.
-    </p>
-
-    <div style="margin: 24px 0; text-align: center;">
-      <span style="
-        display: inline-block;
-        padding: 14px 24px;
-        font-size: 24px;
-        font-weight: bold;
-        letter-spacing: 4px;
-        color: #111827;
-        background: #f3f4f6;
-        border-radius: 6px;
-      ">
-        ${otp}
-      </span>
-    </div>
-
-    <p style="color: #6b7280; font-size: 13px;">
-      This code is valid for <strong>5 minutes</strong>.
-      Do not share it with anyone.
-    </p>
-
-    <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
-      If you did not request this code, you can safely ignore this email.
-    </p>
-  </div>
-`
-
+        <div style="font-family: Arial; max-width: 420px; margin: auto;">
+          <h2>Verify Your Account</h2>
+          <p>Your OTP is:</p>
+          <h1 style="letter-spacing: 6px;">${otp}</h1>
+          <p>This code is valid for 5 minutes.</p>
+        </div>
+      `
     });
 
     return res.json({ message: "OTP sent to email" });
 
   } catch (error) {
-    console.log("SEND OTP ERROR:", error);
+    console.error("SEND OTP ERROR:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 /* ============================================================

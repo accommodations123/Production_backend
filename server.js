@@ -52,8 +52,9 @@ import CarrerRoutes from './routes/carrer/careers.routes.js'
         credentials: true
       })
     );
+     app.use(express.json());
     app.use(cookieParser())
-    app.use(express.json());
+   
 
 
     // Routes
