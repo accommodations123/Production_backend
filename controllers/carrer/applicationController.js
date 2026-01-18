@@ -222,22 +222,35 @@ export const getAdminApplicationById = async (req, res) => {
   }
 
   // FIRST VIEW LOGIC
-  if (application.status === "submitted") {
-    await application.update({
-      status: "viewed",
-      last_viewed_at: new Date(),
-      viewed_by_admin: req.admin.id,
-      status_updated_at: new Date()
-    });
+ if (application.status === "submitted") {
+  await application.update({
+    status: "viewed",
+    last_viewed_at: new Date(),
+    viewed_by_admin: req.admin.id,
+    status_updated_at: new Date()
+  });
 
-    await ApplicationStatusHistory.create({
+  await ApplicationStatusHistory.create({
+    application_id: application.id,
+    from_status: "submitted",
+    to_status: "viewed",
+    acted_by_id: req.admin.id,
+    acted_by_role: "admin"
+  });
+
+  // 🔔 USER NOTIFICATION
+  await Notification.create({
+    user_id: application.user_id,
+    type: "application_viewed",
+    title: "Your application was viewed",
+    message: `Your application for "${application.job.title}" has been reviewed by our team.`,
+    meta: {
       application_id: application.id,
-      from_status: "submitted",
-      to_status: "viewed",
-      acted_by_id: req.admin.id,
-      acted_by_role: req.admin.role || "admin"
-    });
-  }
+      job_id: application.job_id
+    }
+  });
+}
+
 
   return res.json({
     success: true,

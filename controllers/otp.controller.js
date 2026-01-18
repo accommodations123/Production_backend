@@ -124,35 +124,74 @@ export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Email and OTP required" });
+    if (!email) {
+      return res.status(400).json({ message: "Email required" });
     }
 
-    const user = await User.findOne({ where: { email } })
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    /* ===============================
+       CASE 1: ALREADY VERIFIED USER
+    =============================== */
+    if (user.verified) {
+      const token = jwt.sign(
+        { id: user.id, role: "user" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      const isProd = process.env.NODE_ENV === "production";
+
+      res.cookie("access_token", token, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+        domain: isProd ? ".test.nextkinlife.live" : undefined,
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+
+      return res.json({
+        message: "User already verified",
+        user: {
+          id: user.id,
+          email: user.email,
+          verified: true
+        }
+      });
+    }
+
+    /* ===============================
+       CASE 2: OTP VERIFICATION
+    =============================== */
+    if (!otp) {
+      return res.status(400).json({ message: "OTP required" });
+    }
 
     if (
-      !user ||
       !user.otp ||
-      new Date(user.otpExpires) < new Date() ||
-      user.otp !== otp
+      !user.otpExpires ||
+      new Date(user.otpExpires).getTime() < Date.now() ||
+      String(user.otp).trim() !== String(otp).trim()
     ) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    // ✅ Mark user verified
+    // Mark verified
     user.verified = true;
     user.otp = null;
     user.otpExpires = null;
     await user.save();
 
-    // ✅ Generate JWT (SERVER ONLY)
     const token = jwt.sign(
       { id: user.id, role: "user" },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // ✅ Set secure cookie (single source of truth)
     const isProd = process.env.NODE_ENV === "production";
 
     res.cookie("access_token", token, {
@@ -162,15 +201,7 @@ export const verifyOTP = async (req, res) => {
       domain: isProd ? ".test.nextkinlife.live" : undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
-//     const isPostman = req.headers["user-agent"]?.includes("Postman");
 
-// res.cookie("access_token", token, {
-//   httpOnly: true,
-//   secure: !isPostman,
-//   sameSite: isPostman ? "lax" : "none",
-//   domain: isPostman ? undefined : ".test.nextkinlife.live"
-// });
-    // ❌ NEVER return token to frontend
     return res.json({
       message: "OTP verified successfully",
       user: {
@@ -185,6 +216,7 @@ export const verifyOTP = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const logout = async (req, res) => {
