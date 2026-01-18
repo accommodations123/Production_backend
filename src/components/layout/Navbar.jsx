@@ -123,6 +123,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
 
     // Mobile State
     const [isMobileCountryOpen, setIsMobileCountryOpen] = React.useState(false)
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
     const location = useLocation()
 
     // Define Explore section paths
@@ -141,6 +142,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
     React.useEffect(() => {
         setIsMobileCountryOpen(false)
         setIsHostDropdownOpen(false)
+        setIsMobileMenuOpen(false)
     }, [location.pathname])
 
     // Click Outside Refs
@@ -148,6 +150,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
     const profileRef = useClickOutside(() => setIsProfileOpen(false))
     const mobileCountryRef = useClickOutside(() => setIsMobileCountryOpen(false))
     const hostDropdownRef = useClickOutside(() => setIsHostDropdownOpen(false))
+    const mobileMenuRef = useClickOutside(() => setIsMobileMenuOpen(false))
 
 
     // Host options for dropdown
@@ -181,6 +184,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
         { name: "Accommodations", path: "/search" },
         { name: "Buy/Sell", path: "/marketplace" },
         { name: "Community", path: "/groups" },
+        { name: "Events", path: "/events" },
         { name: "Travel Partners", path: "/travel" },
     ]
 
@@ -578,8 +582,153 @@ export function Navbar({ minimal = false, onMenuClick }) {
                 </div >
             </header >
 
-            {/* ================= MOBILE LAYOUT (Handled Globally) ================= */}
-            < div className="md:hidden" ></div >
+            {/* ================= MOBILE LAYOUT (Sidebar) ================= */}
+            <div className="md:hidden">
+                {/* Mobile Top Bar */}
+                <div className={cn(
+                    "fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between transition-all duration-300",
+                    isScrolled || isMobileMenuOpen ? "bg-[#0A1A2F]/95 backdrop-blur-xl border-b border-white/10 shadow-lg" : "bg-transparent"
+                )}>
+                    <Link to="/" className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden ring-1 ring-white/20">
+                            <img src="/logo.jpeg" alt="Logo" className="w-full h-full object-cover" />
+                        </div>
+                        <span className="text-white font-bold text-lg">NextKin<span className="text-accent text-xs align-top ml-0.5">LIFE</span></span>
+                    </Link>
+
+                    <div className="flex items-center gap-3">
+                        {!isMobileMenuOpen && (
+                            <Link to="/search" className="p-2 hover:bg-white/10 rounded-full text-white/80 transition-colors">
+                                <Search className="w-5 h-5" />
+                            </Link>
+                        )}
+                        <button
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                            className="p-2 text-white hover:bg-white/10 rounded-full transition-colors relative z-50"
+                        >
+                            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Mobile Menu Overlay */}
+                <AnimatePresence>
+                    {isMobileMenuOpen && (
+                        <>
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            />
+
+                            {/* Drawer */}
+                            <motion.div
+                                initial={{ x: "100%" }}
+                                animate={{ x: 0 }}
+                                exit={{ x: "100%" }}
+                                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                className="fixed inset-y-0 right-0 w-[85%] max-w-sm bg-[#0F2238] z-40 overflow-y-auto border-l border-white/10 shadow-2xl"
+                                ref={mobileMenuRef}
+                            >
+                                <div className="min-h-full flex flex-col pt-20 pb-8 px-6">
+
+                                    {/* User Profile Section */}
+                                    <div className="mb-8 p-4 rounded-2xl bg-white/5 border border-white/5">
+                                        {isAuthenticated ? (
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-accent/50">
+                                                    {resolvedUser?.profile_image ? (
+                                                        <img src={resolvedUser.profile_image} alt="Profile" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full bg-accent flex items-center justify-center text-white font-bold">
+                                                            {displayName.slice(0, 2).toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-white font-bold truncate">{displayName}</p>
+                                                    <Link to="/account-v2" className="text-xs text-accent hover:underline">View Profile</Link>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-3">
+                                                <p className="text-white font-bold text-center mb-1">Welcome to NextKin</p>
+                                                <Button onClick={() => navigate("/signin")} className="w-full bg-accent hover:bg-accent/90 text-white font-bold rounded-xl">
+                                                    Sign In / Sign Up
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Navigation Links */}
+                                    <nav className="space-y-2 mb-8">
+                                        {navItems.map((item) => (
+                                            <Link
+                                                key={item.name}
+                                                to={item.path}
+                                                className={cn(
+                                                    "flex items-center justify-between px-4 py-3.5 rounded-xl transition-all",
+                                                    location.pathname === item.path
+                                                        ? "bg-accent text-white font-bold shadow-lg shadow-accent/20"
+                                                        : "text-white/70 hover:bg-white/5 hover:text-white"
+                                                )}
+                                            >
+                                                {item.name}
+                                                {location.pathname === item.path && <div className="w-2 h-2 rounded-full bg-white" />}
+                                            </Link>
+                                        ))}
+                                    </nav>
+
+                                    <div className="h-px bg-white/10 my-4" />
+
+                                    {/* Host Section */}
+                                    <div className="mb-8">
+                                        <p className="px-4 text-xs font-bold text-white/40 uppercase tracking-widest mb-3">Hosting</p>
+                                        <div className="space-y-2">
+                                            {hostOptions.map((option) => (
+                                                <button
+                                                    key={option.id}
+                                                    onClick={() => {
+                                                        navigate(option.path)
+                                                        setIsMobileMenuOpen(false)
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 flex items-center gap-3 group transition-colors"
+                                                >
+                                                    <div className="p-2 rounded-lg bg-white/5 text-white/70 group-hover:text-accent group-hover:bg-white/10 transition-colors">
+                                                        {React.cloneElement(option.icon, { className: "w-5 h-5" })}
+                                                    </div>
+                                                    <span className="text-white/80 font-medium group-hover:text-white">{option.title}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Logout if authenticated */}
+                                    {isAuthenticated && (
+                                        <button
+                                            onClick={async () => {
+                                                try { await logout().unwrap(); } catch (e) { }
+                                                disconnectSocket();
+                                                dispatch(authApi.util.resetApiState());
+                                                dispatch(hostApi.util.resetApiState());
+                                                localStorage.removeItem("user");
+                                                setIsMobileMenuOpen(false);
+                                                navigate("/signin");
+                                            }}
+                                            className="mt-auto w-full py-4 text-[#FF6B6B] font-bold hover:bg-[#FF6B6B]/10 rounded-xl transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <X className="w-5 h-5" /> Sign Out
+                                        </button>
+                                    )}
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+            </div>
         </>
     )
 }

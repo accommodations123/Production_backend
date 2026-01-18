@@ -15,11 +15,10 @@ import { useGetEventByIdQuery } from "@/store/api/hostApi"
 const TabButton = memo(({ tab, activeTab, onClick }) => (
     <button
         onClick={() => onClick(tab)}
-        className={`flex-1 min-w-[100px] px-4 py-3 rounded-2xl font-medium capitalize transition-all duration-300 relative ${
-            activeTab === tab
-                ? 'text-white bg-accent shadow-lg transform scale-105'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
-        }`}
+        className={`flex-1 min-w-[100px] px-4 py-3 rounded-2xl font-medium capitalize transition-all duration-300 relative ${activeTab === tab
+            ? 'text-white bg-accent shadow-lg transform scale-105'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+            }`}
     >
         {tab}
         {activeTab === tab && (
@@ -128,18 +127,17 @@ const HeroSection = memo(({ event, isSaved, onSave, shareOpen, onShare, copied, 
                             <Globe className="h-4 w-4 text-accent" />
                             <span className="text-sm text-accent font-medium">{event.country}</span>
                         </div>
-                        <div className={`flex items-center gap-2 backdrop-blur-sm px-3 py-2 rounded-full ${
-                            event.event_mode === 'online' ? 'bg-blue-500/90' : 
-                            event.event_mode === 'hybrid' ? 'bg-purple-500/90' : 
-                            'bg-green-500/90'
-                        }`}>
-                            {event.event_mode === 'online' ? <Video className="h-4 w-4 text-white" /> : 
-                             event.event_mode === 'hybrid' ? <Monitor className="h-4 w-4 text-white" /> : 
-                             <MapPin className="h-4 w-4 text-white" />}
+                        <div className={`flex items-center gap-2 backdrop-blur-sm px-3 py-2 rounded-full ${event.event_mode === 'online' ? 'bg-blue-500/90' :
+                            event.event_mode === 'hybrid' ? 'bg-purple-500/90' :
+                                'bg-green-500/90'
+                            }`}>
+                            {event.event_mode === 'online' ? <Video className="h-4 w-4 text-white" /> :
+                                event.event_mode === 'hybrid' ? <Monitor className="h-4 w-4 text-white" /> :
+                                    <MapPin className="h-4 w-4 text-white" />}
                             <span className="text-sm text-white font-medium capitalize">
-                                {event.event_mode === 'online' ? 'Online Event' : 
-                                 event.event_mode === 'hybrid' ? 'Hybrid Event' : 
-                                 'In-Person Event'}
+                                {event.event_mode === 'online' ? 'Online Event' :
+                                    event.event_mode === 'hybrid' ? 'Hybrid Event' :
+                                        'In-Person Event'}
                             </span>
                         </div>
                     </div>
@@ -183,11 +181,10 @@ const RegistrationBar = memo(({ isRegistered, handleRegister, event }) => (
                 </div>
                 <Button
                     onClick={handleRegister}
-                    className={`font-bold py-3 px-6 sm:px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-xl ${
-                        isRegistered
-                            ? 'bg-green-500 hover:bg-green-600 text-white'
-                            : 'bg-accent text-white hover:bg-accent/90'
-                    }`}
+                    className={`font-bold py-3 px-6 sm:px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-xl ${isRegistered
+                        ? 'bg-green-500 hover:bg-green-600 text-white'
+                        : 'bg-accent text-white hover:bg-accent/90'
+                        }`}
                 >
                     {isRegistered ? (
                         <>
@@ -220,20 +217,20 @@ const EventModeSection = memo(({ event }) => {
     const isOnline = event.event_mode === 'online';
     const isHybrid = event.event_mode === 'hybrid';
     const isInPerson = event.event_mode === 'offline';
-    const bgColor = isOnline ? 'from-blue-500 to-blue-600' : 
-                   isHybrid ? 'from-purple-500 to-purple-600' : 
-                   'from-green-500 to-green-600';
-    const icon = isOnline ? <Video className="h-6 w-6 text-white" /> : 
-                 isHybrid ? <Monitor className="h-6 w-6 text-white" /> : 
-                 <MapPin className="h-6 w-6 text-white" />;
-    const title = isOnline ? 'Online Event' : 
-                  isHybrid ? 'Hybrid Event' : 
-                  'In-Person Event';
-    const description = isOnline 
+    const bgColor = isOnline ? 'from-blue-500 to-blue-600' :
+        isHybrid ? 'from-purple-500 to-purple-600' :
+            'from-green-500 to-green-600';
+    const icon = isOnline ? <Video className="h-6 w-6 text-white" /> :
+        isHybrid ? <Monitor className="h-6 w-6 text-white" /> :
+            <MapPin className="h-6 w-6 text-white" />;
+    const title = isOnline ? 'Online Event' :
+        isHybrid ? 'Hybrid Event' :
+            'In-Person Event';
+    const description = isOnline
         ? 'This event will be held entirely online. Join from anywhere in the world!'
         : isHybrid
-        ? 'This event has both in-person and online attendance options. Choose what works best for you!'
-        : 'This event will be held in person at the venue location.';
+            ? 'This event has both in-person and online attendance options. Choose what works best for you!'
+            : 'This event will be held in person at the venue location.';
 
     return (
         <section className="bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8">
@@ -246,15 +243,13 @@ const EventModeSection = memo(({ event }) => {
                     <p className="text-gray-500 text-sm mt-1">Event Format Details</p>
                 </div>
             </div>
-            <div className={`bg-gradient-to-b ${
-                isOnline ? 'from-blue-50 to-blue-100' : 
-                isHybrid ? 'from-purple-50 to-purple-100' : 
-                'from-green-50 to-green-100'
-            } rounded-2xl p-6 border ${
-                isOnline ? 'border-blue-200' : 
-                isHybrid ? 'border-purple-200' : 
-                'border-green-200'
-            }`}>
+            <div className={`bg-gradient-to-b ${isOnline ? 'from-blue-50 to-blue-100' :
+                isHybrid ? 'from-purple-50 to-purple-100' :
+                    'from-green-50 to-green-100'
+                } rounded-2xl p-6 border ${isOnline ? 'border-blue-200' :
+                    isHybrid ? 'border-purple-200' :
+                        'border-green-200'
+                }`}>
                 <p className="text-gray-700 mb-6">{description}</p>
                 {(isOnline || isHybrid) && event.event_url && (
                     <div className="mb-6">
@@ -263,9 +258,9 @@ const EventModeSection = memo(({ event }) => {
                             Event Link
                         </h3>
                         <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-gray-100 flex items-center justify-between">
-                            <a 
-                                href={event.event_url.trim()} 
-                                target="_blank" 
+                            <a
+                                href={event.event_url.trim()}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:text-blue-800 truncate flex-1 mr-4"
                             >
@@ -321,9 +316,8 @@ const OverviewTab = memo(({ event, visibleSections }) => {
         <div className="space-y-6 md:space-y-8">
             <section
                 id="overview"
-                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${
-                    visibleSections.has('overview') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${visibleSections.has('overview') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
             >
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center shadow-lg">
@@ -341,9 +335,8 @@ const OverviewTab = memo(({ event, visibleSections }) => {
             <EventModeSection event={event} />
             <section
                 id="included"
-                className={`bg-accent/10 rounded-3xl p-6 md:p-8 border border-accent/20 animate-section transition-all duration-700 ${
-                    visibleSections.has('included') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`bg-accent/10 rounded-3xl p-6 md:p-8 border border-accent/20 animate-section transition-all duration-700 ${visibleSections.has('included') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
             >
                 <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">What's Included</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -363,9 +356,8 @@ const OverviewTab = memo(({ event, visibleSections }) => {
             </section>
             <section
                 id="gallery"
-                className={`animate-section transition-all duration-700 ${
-                    visibleSections.has('gallery') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`animate-section transition-all duration-700 ${visibleSections.has('gallery') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
             >
                 <div className="flex items-center gap-4 mb-6">
                     <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center shadow-lg">
@@ -406,9 +398,8 @@ const ScheduleTab = memo(({ event, visibleSections }) => {
     return (
         <div id="schedule" className="space-y-6 md:space-y-8">
             <section
-                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${
-                    visibleSections.has('schedule') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${visibleSections.has('schedule') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
             >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
                     <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center shadow-lg">
@@ -433,9 +424,9 @@ const ScheduleTab = memo(({ event, visibleSections }) => {
                                     >
                                         <span className="text-xs font-bold">{item.time}</span>
                                         <span className="text-2xl mt-1">
-                                            {item.icon === 'coffee' ? '☕' : 
-                                             item.icon === 'mic' ? '🎤' :
-                                             item.icon === 'rocket' ? '🚀' : '📚'}
+                                            {item.icon === 'coffee' ? '☕' :
+                                                item.icon === 'mic' ? '🎤' :
+                                                    item.icon === 'rocket' ? '🚀' : '📚'}
                                         </span>
                                     </div>
                                 </div>
@@ -607,9 +598,8 @@ const VenueTab = memo(({ event, visibleSections }) => {
                 </div>
             </section>
             <section
-                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 delay-100 ${
-                    visibleSections.has('venue-features') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 delay-100 ${visibleSections.has('venue-features') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
                 id="venue-features"
             >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
@@ -661,9 +651,8 @@ const ReviewsTab = memo(({ event, visibleSections }) => {
     return (
         <div id="reviews" className="space-y-6 md:space-y-8">
             <section
-                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${
-                    visibleSections.has('reviews') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${visibleSections.has('reviews') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
             >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
                     <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center shadow-lg">
@@ -715,9 +704,8 @@ const ReviewsTab = memo(({ event, visibleSections }) => {
                 </div>
             </section>
             <section
-                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 delay-100 ${
-                    visibleSections.has('review-form') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
+                className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 delay-100 ${visibleSections.has('review-form') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    }`}
                 id="review-form"
             >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
@@ -832,21 +820,20 @@ const Sidebar = memo(({ event }) => {
             </div>
             {/* Event Mode Card */}
             <div className="bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 border border-gray-100">
-                <div className={`relative h-48 ${
-                    event.event_mode === 'online' ? 'bg-gradient-to-br from-blue-200 to-blue-300' : 
-                    event.event_mode === 'hybrid' ? 'bg-gradient-to-br from-purple-200 to-purple-300' : 
-                    'bg-gradient-to-br from-gray-200 to-gray-300'
-                } flex items-center justify-center`}>
-                    {event.event_mode === 'online' ? <Video className="h-16 w-16 text-blue-600" /> : 
-                     event.event_mode === 'hybrid' ? <Monitor className="h-16 w-16 text-purple-600" /> : 
-                     <MapPin className="h-16 w-16 text-gray-600" />}
+                <div className={`relative h-48 ${event.event_mode === 'online' ? 'bg-gradient-to-br from-blue-200 to-blue-300' :
+                    event.event_mode === 'hybrid' ? 'bg-gradient-to-br from-purple-200 to-purple-300' :
+                        'bg-gradient-to-br from-gray-200 to-gray-300'
+                    } flex items-center justify-center`}>
+                    {event.event_mode === 'online' ? <Video className="h-16 w-16 text-blue-600" /> :
+                        event.event_mode === 'hybrid' ? <Monitor className="h-16 w-16 text-purple-600" /> :
+                            <MapPin className="h-16 w-16 text-gray-600" />}
                 </div>
                 <div className="p-6">
                     <h3 className="font-bold text-gray-900 mb-2 capitalize">{event.event_mode} Event</h3>
                     <p className="text-gray-600 text-sm mb-4">
-                        {event.event_mode === 'online' ? 'Join from anywhere in the world' : 
-                         event.event_mode === 'hybrid' ? 'In-person and online options available' : 
-                         'Held at the venue location'}
+                        {event.event_mode === 'online' ? 'Join from anywhere in the world' :
+                            event.event_mode === 'hybrid' ? 'In-person and online options available' :
+                                'Held at the venue location'}
                     </p>
                     {event.event_mode === 'online' && event.event_url && (
                         <Button

@@ -4,6 +4,7 @@ import { CountryProvider } from "@/context/CountryContext";
 import ScrollToTop from "@/components/layout/ScrollToTop";
 import RootLayout from "@/app/layout";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import HostGuard from "@/components/auth/HostGuard";
 // import PropertiesListPage from "@/app/properties/page";
 import HostOnboardingForm from "./components/host/Host";
 import { TravelCommunity } from "./components/dashboard/TravelCommunity";
@@ -12,6 +13,9 @@ import { TravelCommunity } from "./components/dashboard/TravelCommunity";
 const Home = lazy(() => import("@/app/page"));
 // const BookConfirmation = lazy(() => import("@/app/book/confirmation/page"));
 const Career = lazy(() => import("@/app/career/page"));
+const About = lazy(() => import("@/app/about/page"));
+const Trust = lazy(() => import("@/app/trust/page"));
+const Help = lazy(() => import("@/app/help/page"));
 const Contact = lazy(() => import("@/app/contact/page"));
 const Dashboard = lazy(() => import("@/app/dashboard/page"));
 const EventsPage = lazy(() => import("@/app/events/page"));
@@ -54,13 +58,20 @@ export default function App() {
                             <Route path="/" element={<Home />} />
                             {/* <Route path="/book/confirmation" element={<BookConfirmation />} /> */}
                             <Route path="/career" element={<Career />} />
+                            <Route path="/about" element={<About />} />
+                            <Route path="/trust" element={<Trust />} />
+                            <Route path="/help" element={<Help />} />
                             <Route path="/contact" element={<Contact />} />
                             <Route path="/chat" element={<ChatPage />} />
                             <Route path="/chat/:id" element={<ChatPage />} />
                             {/* <Route path="/account" element={<Dashboard />} /> */}
                             <Route path="/account-v2" element={<NewDashboard />} />
                             <Route path="/events" element={<EventsPage />} />
-                            <Route path="/events/host" element={<HostEventPage />} />
+                            <Route path="/events/host" element={
+                                <HostGuard>
+                                    <HostEventPage />
+                                </HostGuard>
+                            } />
                             <Route path="/events/:id" element={<EventDetailsPage />} />
                             <Route path="/groups" element={<Groups />} />
                             <Route path="/groups/create" element={<CreateGroupPage />} />
@@ -77,7 +88,11 @@ export default function App() {
                             <Route path="/search" element={<Search />} />
                             {/* <Route path="/host/guidelines" element={<HostYourHouse />} /> */}
                             {/* <Route path="/host/verify" element={<HostVerificationPage />} /> */}
-                            <Route path="/host/create" element={<HostCreatePage />} />
+                            <Route path="/host/create" element={
+                                <HostGuard>
+                                    <HostCreatePage />
+                                </HostGuard>
+                            } />
                             {/* <Route path="/trust" element={<TrustPage />} /> */}
                             {/* <Route path="/onboarding" element={<OnboardingPage />} /> */}
                             {/* <Route path="/resources/accommodation" element={<AccommodationPage />} /> */}

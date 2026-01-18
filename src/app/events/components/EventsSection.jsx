@@ -8,9 +8,7 @@ export const EventsSection = memo(({ category, events, visibleSections, onViewDe
     return (
         <section
             id={category.id}
-            className={`space-y-4 sm:space-y-6 mb-8 sm:mb-16 animate-section transition-all duration-700 ${visibleSections.has(category.id) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-                }`}
-            style={{ animationDelay: `${categoryIndex * 100}ms` }}
+            className={`space-y-4 sm:space-y-6 mb-8 sm:mb-16`}
         >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-[#00152d] flex items-center gap-2">

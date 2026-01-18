@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MobileHomeHeader } from "@/components/home/MobileHomeHeader";
 import { MobileFooterNav } from "@/components/layout/MobileFooterNav";
 import { SearchOverlay } from "@/components/search/SearchOverlay";
+import { Toaster } from "sonner";
 
 export default function RootLayout({ children }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function RootLayout({ children }) {
       <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       {children}
       <MobileFooterNav />
+      <Toaster position="top-center" richColors />
     </div>
   )
 }

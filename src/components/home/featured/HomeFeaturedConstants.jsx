@@ -144,7 +144,7 @@ export const COMMUNITY_SHARES = [
 export const FEATURE_CARDS = [
     {
         icon: <Home className="w-8 h-8" />,
-        title: "Community Stays",
+        title: "Accommodations",
         description: "Verified homes with Indian hosts",
         stats: "10K+"
     },
@@ -164,7 +164,7 @@ export const FEATURE_CARDS = [
         icon: <Package className="w-8 h-8" />,
         title: "Community Sharing",
         description: "Share trusted items within community",
-        stats: "50K+"
+        stats: "5K+"
     }
 ];
 

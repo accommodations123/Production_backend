@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Heart, Star, MapPin, Users, Wifi, Car, Utensils, Tv,
-    Thermometer, Bed, CheckCircle, ShieldCheck, Dumbbell
+    Thermometer, Bed, CheckCircle, ShieldCheck, Dumbbell, ArrowRight, ExternalLink, Bath, MessageCircle
 } from 'lucide-react';
 import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { FaWhatsapp, FaInstagram, FaFacebook } from "react-icons/fa";
 import { MdEmail } from "react-icons/md";
 import { useCountry } from '@/context/CountryContext';
+import { toast } from 'sonner';
 
 export const CardContainer = ({ children, linkTo, className = "" }) => (
-    <Link to={linkTo} className="group block h-full" aria-label="View details">
-        <div className={`bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl hover:border-accent/30 transition-all duration-300 h-full flex flex-col ${className}`}>
+    <Link to={linkTo} className="group block h-full select-none focus:outline-none" aria-label="View details">
+        <div className={`bg-white rounded-[1.5rem] border border-[#E5E7EB] hover:border-[#CB2A25]/20 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-full flex flex-col overflow-hidden relative ${className}`}>
             {children}
         </div>
     </Link>
@@ -26,21 +27,16 @@ export const PropertyCard = ({ property }) => {
 
     // Helper to normalize image URLs
     const getValidImageUrl = (imagePath) => {
-        if (!imagePath) return "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=400&h=300&fit=crop";
+        if (!imagePath) return "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=600&h=400&fit=crop";
         if (imagePath.startsWith('http')) return imagePath;
-        // Assuming Vite proxy /api -> backend, but images might be served from root or /uploads
-        // If relative path like "uploads/...", prepend origin or specific base
-        // For development with proxy, it might need to be /path if served by public
-        // Or if served by backend, we might need the full backend URL if proxy doesn't handle static files well?
-        // Let's try prepending / assuming it's a relative path served by the app/proxy
         return `/${imagePath.startsWith('/') ? imagePath.slice(1) : imagePath}`;
     };
 
     // Safely get property data
     const propertyData = {
         id: property.id || property._id || 'unknown',
-        title: property.title || property.name || (property.property_type ? `${property.property_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}${property.city ? ` in ${property.city}` : ''}` : ""),
-        location: property.city || property.location?.city || property.address || "",
+        title: property.title || property.name || (property.property_type ? `${property.property_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}${property.city ? ` in ${property.city}` : ''}` : "Premium Stay"),
+        location: property.city || property.location?.city || property.address || "Location Info",
         hostPreference: property.host_preference || "",
         image: getValidImageUrl((Array.isArray(property.photos) && property.photos.length > 0)
             ? property.photos[0]
@@ -60,204 +56,188 @@ export const PropertyCard = ({ property }) => {
             period: (property.price_per_month || property.pricing?.perMonth) ? 'month' : (property.price_per_night || property.pricing?.perNight) ? 'night' : 'hour'
         },
         host: property.host || property.Host || property.creator || null,
-        hostImage: getValidImageUrl(property.host?.profile_image || property.Host?.profile_image || property.host?.image || property.creator?.profile_image)
+        hostImage: getValidImageUrl(property.host?.profile_image || property.Host?.profile_image || property.host?.image || property.creator?.profile_image),
+        // Contact Details
+        phone: property.phone || property.mobile || property.host?.phone || property.Host?.phone,
+        email: property.email || property.host?.email || property.Host?.email,
+        whatsapp: property.whatsapp || property.phone || property.mobile || property.host?.phone, // Robust Fallback
+        facebook: property.facebook || property.host?.facebook || property.Host?.facebook,
+        instagram: property.instagram || property.host?.instagram || property.Host?.instagram,
     };
 
+    const handleAction = (e, actionType, actionData) => {
+        e.preventDefault(); // Prevent Navigation
+        e.stopPropagation();
 
-    const getAmenityIcons = (amenities) => {
-        const iconMap = {
-            'wifi': <Wifi key="wifi" className="w-3 h-3 text-gray-600" />,
-            'parking': <Car key="parking" className="w-3 h-3 text-gray-600" />,
-            'kitchen': <Utensils key="kitchen" className="w-3 h-3 text-gray-600" />,
-            'tv': <Tv key="tv" className="w-3 h-3 text-gray-600" />,
-            'ac': <Thermometer key="ac" className="w-3 h-3 text-gray-600" />,
-            'gym': <Dumbbell key="gym" className="w-3 h-3 text-gray-600" />,
-        };
+        if (!actionData) {
+            toast.error(`Host has not provided ${actionType} details.`);
+            return;
+        }
 
-        const icons = [];
-        amenities.forEach(amenity => {
-            const lowerAmenity = amenity.toLowerCase();
-            if (iconMap[lowerAmenity]) {
-                icons.push(iconMap[lowerAmenity]);
-            } else if (lowerAmenity.includes('wifi')) {
-                icons.push(<Wifi key="wifi" className="w-4 h-4 text-accent" />);
-            } else if (lowerAmenity.includes('parking')) {
-                icons.push(<Car key="parking" className="w-4 h-4 text-accent" />);
-            } else if (lowerAmenity.includes('kitchen')) {
-                icons.push(<Utensils key="kitchen" className="w-4 h-4 text-accent" />);
-            }
-        });
-
-        return icons.slice(0, 5);
+        switch (actionType) {
+            case 'WhatsApp':
+                window.open(`https://wa.me/${actionData.replace(/\D/g, '')}`, '_blank');
+                break;
+            case 'Phone':
+                window.open(`tel:${actionData}`, '_self');
+                break;
+            case 'Message':
+                window.open(`sms:${actionData}`, '_self');
+                break;
+            case 'Email':
+                window.open(`mailto:${actionData}`, '_self');
+                break;
+            case 'Facebook':
+                const fbUrl = actionData.startsWith('http') ? actionData : `https://facebook.com/${actionData}`;
+                window.open(fbUrl, '_blank');
+                break;
+            case 'Instagram':
+                const instUrl = actionData.startsWith('http') ? actionData : `https://instagram.com/${actionData.replace('@', '')}`;
+                window.open(instUrl, '_blank');
+                break;
+            default:
+                break;
+        }
     };
 
     return (
         <CardContainer key={propertyData.id} linkTo={`/rooms/${propertyData.id}`}>
             {/* Image Section */}
-            <div className="relative h-48 overflow-hidden rounded-t-xl bg-gray-100">
+            <div className="relative h-64 overflow-hidden bg-gray-100">
                 <img
                     src={propertyData.image}
                     alt={propertyData.title}
-                    className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
                     onLoad={() => setIsImageLoaded(true)}
                     onError={(e) => {
-                        e.target.src = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=400&h=300&fit=crop";
+                        e.target.src = "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=600&h=400&fit=crop";
                         e.target.classList.remove('opacity-0');
                     }}
                     loading="lazy"
                 />
 
-                <div className="absolute top-3 right-3 flex flex-col gap-2">
+                {/* Top Badges */}
+                <div className="absolute top-4 left-4 z-20 flex gap-2">
+                    {propertyData.isVerified ? (
+                        <div className="bg-green-500/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm border border-green-400/50">
+                            <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                            <span className="text-xs font-bold text-white">Verified</span>
+                        </div>
+                    ) : (
+                        <div className="bg-red-500/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm border border-red-400/50">
+                            <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                            <span className="text-xs font-bold text-white">Unverified</span>
+                        </div>
+                    )}
+                    {propertyData.rating > 0 && (
+                        <div className="bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm border border-white/50">
+                            <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                            <span className="text-xs font-bold text-[#00142E]">{propertyData.rating}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Favorite Button */}
+                <div className="absolute top-4 right-4 z-20">
                     <button
-                        className={`h-8 w-8 rounded-full flex items-center justify-center hover:scale-110 transition-transform ${isFavorited ? 'bg-red-100' : 'bg-white/90'}`}
+                        className={`h-9 w-9 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md shadow-sm border border-white/20 ${isFavorited ? 'bg-[#CB2A25] text-white shadow-[#CB2A25]/30' : 'bg-black/20 text-white hover:bg-white hover:text-[#CB2A25]'}`}
                         aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
                         onClick={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
                             setIsFavorited(!isFavorited);
                         }}
                     >
-                        <Heart className={`w-4 h-4 ${isFavorited ? 'text-red-500 fill-red-500' : 'text-gray-700'}`} />
+                        <Heart className={`w-4 h-4 ${isFavorited ? 'fill-current' : ''}`} />
                     </button>
                 </div>
-                <div className="absolute bottom-3 left-3 flex gap-2">
-                    <VerificationBadge isVerified={propertyData.isVerified} />
+
+                {/* Host Image Overlay (Bottom Right) */}
+                <div className="absolute bottom-3 right-3 z-20">
+                    <div className="w-10 h-10 rounded-full p-0.5 bg-white shadow-lg">
+                        <img
+                            src={propertyData.hostImage}
+                            alt="Host"
+                            className="w-full h-full rounded-full object-cover"
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Content Section */}
-            <div className="p-4 flex-grow flex flex-col">
-                <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                        <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 mb-1 group-hover:text-accent transition-colors">
-                            {propertyData.title || "Untitled Property"}
-                        </h3>
-                        {propertyData.location && (
-                            <div className="flex items-center gap-1 text-gray-600 text-xs">
-                                <MapPin className="w-3 h-3" />
-                                <span className="line-clamp-1">{propertyData.location}</span>
-                            </div>
-                        )}
+            <div className="p-5 flex-grow flex flex-col gap-4">
+                {/* Title & Location */}
+                <div className="space-y-1">
+                    <h3 className="font-bold text-lg leading-tight line-clamp-1 text-[#00142E] group-hover:text-[#CB2A25] transition-colors">
+                        {propertyData.title}
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-[#00142E]/60 text-sm font-medium">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="line-clamp-1">{propertyData.location}</span>
                     </div>
-                    {/* {propertyData.rating > 0 && (
-                        <div className="flex items-center bg-yellow-50 px-2 py-1 rounded-full shadow-sm shrink-0 ml-2">
-                            <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                            <span className="text-xs font-semibold text-gray-900 ml-1">
-                                {propertyData.rating}
-                            </span>
-                        </div>
-                    )} */}
                 </div>
 
-                <div className="flex items-center text-xs text-gray-500 mb-3 gap-2">
-                    {propertyData.bedrooms > 0 && (
-                        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-md">
-                            <Bed className="w-3 h-3" />
-                            {propertyData.bedrooms} bed
-                        </span>
-                    )}
+                {/* Stats Row */}
+                <div className="flex items-center gap-3 text-sm text-[#00142E]/70">
+                    <div className="flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-[#CB2A25]" />
+                        <span className="font-medium">{propertyData.guests}</span>
+                    </div>
+                    <div className="w-px h-3 bg-[#00142E]/10" />
+                    <div className="flex items-center gap-1.5">
+                        <Bed className="w-4 h-4 text-[#CB2A25]" />
+                        <span className="font-medium">{propertyData.bedrooms}</span>
+                    </div>
                     {propertyData.bathrooms > 0 && (
-                        <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-md">
-                            <Users className="w-3 h-3" />
-                            {propertyData.bathrooms} bath
-                        </span>
+                        <>
+                            <div className="w-px h-3 bg-[#00142E]/10" />
+                            <div className="flex items-center gap-1.5">
+                                <Bath className="w-4 h-4 text-[#CB2A25]" />
+                                <span className="font-medium">{propertyData.bathrooms}</span>
+                            </div>
+                        </>
                     )}
                 </div>
 
-                {/* Price & Amenities Section */}
-                <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-bold text-gray-900">
-                            {propertyData.price.amount > 0
-                                ? formatPrice(propertyData.price.amount)
-                                : "Price on request"
-                            }
-                        </span>
-                        {propertyData.price.amount > 0 && (
-                            <span className="text-xs text-gray-500">/ {propertyData.price.period}</span>
-                        )}
-                    </div>
-
-                    {/* Amenities Right Side */}
-                    {propertyData.amenities && propertyData.amenities.length > 0 && (
-                        <div className="flex items-center gap-1">
-                            {getAmenityIcons(propertyData.amenities).slice(0, 3)}
-                            {propertyData.amenities.length > 3 && (
-                                <span className="text-[10px] text-gray-400 font-medium border border-gray-200 rounded-full px-1">
-                                    +{propertyData.amenities.length - 3}
-                                </span>
+                {/* Price & Actions Row */}
+                <div className="flex items-end justify-between mt-auto pt-4 border-t border-gray-100">
+                    <div>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-xl font-black text-[#00142E]">
+                                {propertyData.price.amount > 0 ? formatPrice(propertyData.price.amount) : "On Request"}
+                            </span>
+                            {propertyData.price.amount > 0 && (
+                                <span className="text-xs font-medium text-[#00142E]/50">/{propertyData.price.period}</span>
                             )}
                         </div>
-                    )}
-                </div>
-
-                <div className="mt-auto flex items-center justify-between pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                        {/* Host Image */}
-                        <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
-                            {propertyData.hostImage && !propertyData.hostImage.includes("unsplash") ? (
-                                <img
-                                    src={propertyData.hostImage}
-                                    alt="Host"
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.nextSibling.style.display = 'flex';
-                                    }}
-                                />
-                            ) : null}
-                            <Users className={`w-4 h-4 ${propertyData.hostImage && !propertyData.hostImage.includes("unsplash") ? 'hidden' : 'block'}`} />
-                        </div>
-                        <div className="flex flex-col truncate">
-                            <span className="text-sm font-semibold text-gray-900 truncate">
-                                {propertyData.host?.full_name || propertyData.host?.name || propertyData.host?.User?.full_name || "Host"}
-                            </span>
-                            <div className="text-[10px] text-green-600 flex items-center gap-1">
-                                <CheckCircle className="w-3 h-3" />
-                                Direct
-                            </div>
-                        </div>
                     </div>
 
-                    <div className="flex gap-1 shrink-0">
+                    <div className="flex gap-2">
+                        {/* WhatsApp */}
                         <button
-                            className="h-8 w-8 border border-green-600 text-green-600 hover:bg-green-50 rounded-full flex items-center justify-center transition-all shadow-sm"
-                            title="Chat on WhatsApp"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                // WhatsApp logic
-                            }}
+                            className="group/btn relative w-9 h-9 rounded-full bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-[#25D366]/30"
+                            onClick={(e) => handleAction(e, 'WhatsApp', propertyData.whatsapp)}
+                            title="WhatsApp"
                         >
-                            <FaWhatsapp className="w-4 h-4" />
+                            <FaWhatsapp className="w-4.5 h-4.5" />
                         </button>
+
+                        {/* Instagram */}
                         <button
-                            className="h-8 w-8 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-full flex items-center justify-center transition-all shadow-sm"
+                            className="group/btn relative w-9 h-9 rounded-full bg-pink-50 text-pink-500 hover:bg-pink-500 hover:text-white flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-pink-500/30"
+                            onClick={(e) => handleAction(e, 'Instagram', propertyData.instagram)}
+                            title="Instagram"
+                        >
+                            <FaInstagram className="w-4.5 h-4.5" />
+                        </button>
+
+                        {/* Facebook */}
+                        <button
+                            className="group/btn relative w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-sm hover:shadow-lg hover:shadow-indigo-600/30"
+                            onClick={(e) => handleAction(e, 'Facebook', propertyData.facebook)}
                             title="Facebook"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                // Facebook logic
-                            }}
                         >
-                            <FaFacebook className="w-4 h-4" />
-                        </button>
-                        <button
-                            className="h-8 w-8 border border-pink-600 text-pink-600 hover:bg-pink-50 rounded-full flex items-center justify-center transition-all shadow-sm"
-                            title="Visit Instagram"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                // Instagram logic
-                            }}
-                        >
-                            <FaInstagram className="w-4 h-4" />
-                        </button>
-                        <button
-                            className="h-8 w-8 border border-gray-600 text-gray-600 hover:bg-gray-50 rounded-full flex items-center justify-center transition-all shadow-sm"
-                            title="Send Email"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                // Email logic
-                            }}
-                        >
-                            <MdEmail className="w-4 h-4" />
+                            <FaFacebook className="w-4.5 h-4.5" />
                         </button>
                     </div>
                 </div>

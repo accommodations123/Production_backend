@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 
 export function Hero() {
   return (
-    <div className="relative bg-white overflow-hidden min-h-screen md:min-h-[90vh] flex items-center pt-24 pb-12 md:pb-20">
+    <div className="relative bg-white overflow-hidden min-h-[auto] md:min-h-[70vh] flex items-center pt-24 pb-4">
 
       {/* 1. Dynamic Background Shape */}
       <div className="absolute top-0 right-0 w-full md:w-2/3 h-full bg-[#FFF5F5] skew-y-12 md:skew-y-0 md:skew-x-12 translate-y-32 md:translate-y-0 md:translate-x-32 z-0 opacity-50 md:opacity-100" />

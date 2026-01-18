@@ -27,6 +27,8 @@ import {
   useTravelMatchActionMutation,
   useCreateTripMutation
 } from "@/store/api/authApi";
+import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 
 /* ===================== POST TRIP MODAL ===================== */
 function PostTripModal({ onClose, onAdd }) {
@@ -434,6 +436,8 @@ export default function TravelPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
+      <Navbar />
+
       {/* ================= HERO SECTION ================= */}
       <section
         className="relative min-h-[50vh] flex items-center bg-cover bg-center overflow-hidden"
@@ -682,6 +686,12 @@ export default function TravelPage() {
 
       {/* MODAL - TRIP DETAILS */}
       <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
+
+      {/* Footer */}
+      <div className="hidden md:block">
+        <Footer />
+      </div>
+      <div className="md:hidden h-20" />
     </main>
   );
 }

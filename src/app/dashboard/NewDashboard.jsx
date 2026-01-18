@@ -256,6 +256,7 @@ export default function NewDashboard() {
               initialData={currentUser}
               onUpdate={handleUpdatePersonalInfo}
               isUpdating={isUpdating}
+              isHost={!!(hostProfile?.id || hostProfile?._id)}
             />
           </div>
         );

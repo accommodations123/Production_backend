@@ -2,61 +2,43 @@ import React, { useState, useEffect, memo } from "react"
 import { Link } from "react-router-dom"
 import { Star, EyeOff, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { reviewService } from "../services/eventApi"
+import { useGetEventReviewsQuery, useGetEventRatingQuery, useAddEventReviewMutation, useHideEventReviewMutation } from "@/store/api/hostApi"
 import { useAuth } from "../hooks/useAuth"
+import { toast } from "sonner"
 
 export const ReviewsTab = memo(({ event, visibleSections }) => {
-    const [reviews, setReviews] = useState([])
-    const [rating, setRating] = useState({ rating: 0, count: 0 })
-    const [loading, setLoading] = useState(true)
-    const [submitting, setSubmitting] = useState(false)
-    const [userRating, setUserRating] = useState(0)
-    const [reviewText, setReviewText] = useState('')
-    const [hasReviewed, setHasReviewed] = useState(false)
-    const [userReviewId, setUserReviewId] = useState(null)
-    const [showSuccessMessage, setShowSuccessMessage] = useState(false)
-    const [errorMessage, setErrorMessage] = useState('')
-
     const { user } = useAuth()
 
+    // RTK Query hooks
+    const { data: reviews = [], isLoading: reviewsLoading } = useGetEventReviewsQuery(event.id, {
+        skip: !event?.id
+    })
+    const { data: ratingData = { rating: 0, count: 0 } } = useGetEventRatingQuery(event.id, {
+        skip: !event?.id
+    })
+
+    const [addReview, { isLoading: submitting }] = useAddEventReviewMutation()
+    const [hideReview] = useHideEventReviewMutation()
+
+    const [userRating, setUserRating] = useState(0)
+    const [reviewText, setReviewText] = useState('')
+    const [errorMessage, setErrorMessage] = useState('')
+    const [showSuccessMessage, setShowSuccessMessage] = useState(false)
+
+    // Derived state
+    const userReview = React.useMemo(() => {
+        if (!user || !reviews.length) return null
+        return reviews.find(review => review.user_id === user.id)
+    }, [user, reviews])
+
+    const hasReviewed = !!userReview
+
     useEffect(() => {
-        const fetchReviews = async () => {
-            try {
-                setLoading(true)
-                const [reviewsData, ratingData] = await Promise.all([
-                    reviewService.getEventReviews(event.id),
-                    reviewService.getEventRating(event.id)
-                ])
-
-                setReviews(reviewsData)
-                setRating({
-                    rating: typeof ratingData?.rating === 'number' ? ratingData.rating : 0,
-                    count: reviewsData.length || 0
-                })
-
-                if (user && reviewsData.length > 0) {
-                    const userReview = reviewsData.find(review => review.user_id === user.id)
-                    if (userReview) {
-                        setHasReviewed(true)
-                        setUserReviewId(userReview.id)
-                        setUserRating(userReview.rating || 0)
-                        setReviewText(userReview.comment || '')
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching reviews:', error)
-                setErrorMessage('Failed to load reviews. Please try again later.')
-                setReviews([])
-                setRating({ rating: 0, count: 0 })
-            } finally {
-                setLoading(false)
-            }
+        if (userReview) {
+            setUserRating(userReview.rating || 0)
+            setReviewText(userReview.comment || '')
         }
-
-        if (event?.id) {
-            fetchReviews()
-        }
-    }, [event?.id, user])
+    }, [userReview])
 
     const handleSubmitReview = async () => {
         if (!user) {
@@ -70,63 +52,37 @@ export const ReviewsTab = memo(({ event, visibleSections }) => {
         }
 
         try {
-            setSubmitting(true)
             setErrorMessage('')
+            await addReview({
+                id: event.id,
+                data: {
+                    reviewer_name: user?.full_name || user?.name || user?.username || "NextKin User",
+                    rating: userRating,
+                    comment: reviewText
+                }
+            }).unwrap()
 
-            const reviewData = {
-                rating: userRating,
-                comment: reviewText
-            }
-
-            await reviewService.submitReview(event.id, reviewData)
-
-            const [reviewsData, ratingData] = await Promise.all([
-                reviewService.getEventReviews(event.id),
-                reviewService.getEventRating(event.id)
-            ])
-
-            setReviews(reviewsData)
-            setRating({
-                rating: typeof ratingData?.rating === 'number' ? ratingData.rating : 0,
-                count: reviewsData.length || 0
-            })
-            setHasReviewed(true)
+            toast.success("Your review has been submitted successfully!")
             setShowSuccessMessage(true)
-
-            const newUserReview = reviewsData.find(review => review.user_id === user.id)
-            if (newUserReview) {
-                setUserReviewId(newUserReview.id)
-            }
-
             setTimeout(() => setShowSuccessMessage(false), 3000)
         } catch (error) {
             console.error('Error submitting review:', error)
-            setErrorMessage('Failed to submit review. Please try again.')
-        } finally {
-            setSubmitting(false)
+            const msg = error?.data?.message || 'Failed to submit review. Please try again.'
+            setErrorMessage(msg)
+            toast.error(msg)
         }
     }
 
     const handleHideReview = async () => {
-        if (!userReviewId) return
+        if (!userReview?.id) return
 
         try {
-            await reviewService.hideReview(userReviewId)
-            const updatedReviews = reviews.filter(review => review.id !== userReviewId)
-            setReviews(updatedReviews)
-            setHasReviewed(false)
-            setUserReviewId(null)
+            await hideReview(userReview.id).unwrap()
             setUserRating(0)
             setReviewText('')
-
-            const ratingData = await reviewService.getEventRating(event.id)
-            setRating({
-                rating: typeof ratingData?.rating === 'number' ? ratingData.rating : 0,
-                count: updatedReviews.length || 0
-            })
         } catch (error) {
             console.error('Error hiding review:', error)
-            setErrorMessage('Failed to hide review. Please try again.')
+            setErrorMessage(error?.data?.message || 'Failed to hide review. Please try again.')
         }
     }
 
@@ -143,8 +99,24 @@ export const ReviewsTab = memo(({ event, visibleSections }) => {
         return `${Math.floor(diffDays / 365)} year${Math.floor(diffDays / 365) > 1 ? 's' : ''} ago`
     }
 
-    const displayRating = typeof rating.rating === 'number' ? rating.rating : 0
+    const displayRating = typeof ratingData?.rating === 'number' ? ratingData.rating : 0
     const displayCount = reviews.length || 0
+
+    const isEventCompleted = React.useMemo(() => {
+        if (!event?.end_date && !event?.date) return false
+
+        // Use end_date if available, otherwise assume event ends on start_date
+        const endDateStr = event.end_date || event.date
+        const endTimeStr = event.end_time || "23:59:59"
+
+        try {
+            const eventEnd = new Date(`${endDateStr}T${endTimeStr}`)
+            return new Date() > eventEnd
+        } catch (e) {
+            // Fallback for date parsing issues
+            return new Date() > new Date(endDateStr)
+        }
+    }, [event])
 
     return (
         <div id="reviews" className="space-y-6 md:space-y-8">
@@ -152,6 +124,7 @@ export const ReviewsTab = memo(({ event, visibleSections }) => {
                 className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 ${visibleSections.has('reviews') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
                     }`}
             >
+                {/* ... existing reviews display code ... */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
                     <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center shadow-lg">
                         <Star className="h-8 w-8 text-white" />
@@ -190,7 +163,7 @@ export const ReviewsTab = memo(({ event, visibleSections }) => {
                     </div>
                 </div>
 
-                {loading ? (
+                {reviewsLoading ? (
                     <div className="flex justify-center py-8">
                         <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
                     </div>
@@ -244,7 +217,7 @@ export const ReviewsTab = memo(({ event, visibleSections }) => {
 
             {!hasReviewed && (
                 <section
-                    className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 delay-100 ${visibleSections.has('review-form') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+                    className={`bg-gradient-to-b from-white to-gray-50 rounded-3xl shadow-xl p-6 md:p-8 animate-section transition-all duration-700 delay-100 ${visibleSections.has('reviews') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
                         }`}
                     id="review-form"
                 >
@@ -257,48 +230,58 @@ export const ReviewsTab = memo(({ event, visibleSections }) => {
                             <p className="text-gray-500 text-sm mt-1">Share your experience with others</p>
                         </div>
                     </div>
-                    <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-100">
-                        {!user ? (
-                            <div className="text-center py-8">
-                                <p className="text-gray-600 mb-4">You must be logged in to leave a review.</p>
-                                <Link to="/login">
-                                    <Button className="bg-accent text-white hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-xl rounded-2xl">
-                                        Login to Review
-                                    </Button>
-                                </Link>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mb-4">
-                                    <label className="block text-gray-700 font-medium mb-2">Your Rating</label>
-                                    <div className="flex gap-2">
-                                        {[1, 2, 3, 4, 5].map((star) => (
-                                            <button key={star} className="p-1" onClick={() => setUserRating(star)}>
-                                                <Star className={`h-8 w-8 ${star <= userRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300 hover:text-yellow-400 hover:fill-yellow-400'} transition-colors`} />
-                                            </button>
-                                        ))}
+
+                    {!isEventCompleted ? (
+                        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-8 text-center">
+                            <p className="text-blue-800 font-medium text-lg mb-2">Event in Progress or Upcoming</p>
+                            <p className="text-blue-600">
+                                Reviews will be available after the event concludes on {new Date(event.end_date || event.date).toLocaleDateString()}.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-gray-100">
+                            {!user ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-600 mb-4">You must be logged in to leave a review.</p>
+                                    <Link to="/login">
+                                        <Button className="bg-accent text-white hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-xl rounded-2xl">
+                                            Login to Review
+                                        </Button>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="mb-4">
+                                        <label className="block text-gray-700 font-medium mb-2">Your Rating</label>
+                                        <div className="flex gap-2">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button key={star} className="p-1" onClick={() => setUserRating(star)}>
+                                                    <Star className={`h-8 w-8 ${star <= userRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300 hover:text-yellow-400 hover:fill-yellow-400'} transition-colors`} />
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="mb-4">
-                                    <label className="block text-gray-700 font-medium mb-2">Your Review</label>
-                                    <textarea
-                                        className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-                                        rows="4"
-                                        placeholder="Share your experience with this event..."
-                                        value={reviewText}
-                                        onChange={(e) => setReviewText(e.target.value)}
-                                    ></textarea>
-                                </div>
-                                <Button
-                                    onClick={handleSubmitReview}
-                                    disabled={submitting || userRating === 0}
-                                    className="bg-accent text-white hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-xl rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {submitting ? 'Submitting...' : 'Submit Review'}
-                                </Button>
-                            </>
-                        )}
-                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-gray-700 font-medium mb-2">Your Review</label>
+                                        <textarea
+                                            className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                                            rows="4"
+                                            placeholder="Share your experience with this event..."
+                                            value={reviewText}
+                                            onChange={(e) => setReviewText(e.target.value)}
+                                        ></textarea>
+                                    </div>
+                                    <Button
+                                        onClick={handleSubmitReview}
+                                        disabled={submitting || userRating === 0}
+                                        className="bg-accent text-white hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-xl rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {submitting ? 'Submitting...' : 'Submit Review'}
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </section>
             )}
         </div>

@@ -6,7 +6,8 @@ import { Footer } from "@/components/layout/Footer"
 import { JobCard } from "@/components/career/JobCard"
 import { FilterSection } from "@/components/career/FilterSection"
 import { JobDetailsModal } from "@/components/career/JobDetailsModal"
-import { JOBS, FILTERS } from "@/lib/mock-jobs"
+import { FILTERS } from "@/lib/mock-jobs"
+import { useGetJobsQuery } from "@/store/api/hostApi"
 import { Search, MapPin, Filter, X, Briefcase, Clock, DollarSign, Building, Calendar, Users, TrendingUp, Award, ChevronRight, Star, ArrowRight, Globe, Zap, Shield, Target, Sparkles, Coffee, Wifi, Heart, Home } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
@@ -25,6 +26,8 @@ export default function CareerPage() {
     const [selectedJob, setSelectedJob] = useState(null)
     const [hoveredJobId, setHoveredJobId] = useState(null)
     const [activeTab, setActiveTab] = useState("all")
+
+    const { data: jobs = [], isLoading } = useGetJobsQuery()
 
     const handleViewDetails = (job) => {
         setSelectedJob(job)
@@ -56,7 +59,7 @@ export default function CareerPage() {
 
     // Filter jobs
     const filteredJobs = useMemo(() => {
-        return JOBS.filter(job => {
+        return jobs.filter(job => {
             // Search query
             const matchesSearch =
                 job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -73,15 +76,15 @@ export default function CareerPage() {
             const matchesWorkStyle = selectedFilters.workStyle.length === 0 || selectedFilters.workStyle.includes(job.workStyle)
 
             // Tab filter
-            const matchesTab = activeTab === "all" || 
+            const matchesTab = activeTab === "all" ||
                 (activeTab === "featured" && job.featured) ||
                 (activeTab === "remote" && job.workStyle === "Remote") ||
                 (activeTab === "new" && job.isNew)
 
-            return matchesSearch && matchesLocation && matchesExperience && matchesType && 
-                   matchesDepartment && matchesWorkStyle && matchesTab
+            return matchesSearch && matchesLocation && matchesExperience && matchesType &&
+                matchesDepartment && matchesWorkStyle && matchesTab
         })
-    }, [searchQuery, selectedFilters, activeTab])
+    }, [searchQuery, selectedFilters, activeTab, jobs])
 
     // Animation variants
     const containerVariants = {
@@ -124,9 +127,9 @@ export default function CareerPage() {
                     <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-500 rounded-full mix-blend-multiply filter blur-xl opacity-15 animate-pulse animation-delay-2000"></div>
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-700 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse animation-delay-4000"></div>
                 </div>
-                
+
                 <div className="container mx-auto max-w-6xl relative z-10">
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
@@ -141,7 +144,7 @@ export default function CareerPage() {
                     </motion.div>
 
                     {/* Smaller Search Bar with Logo Colors */}
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.2 }}
@@ -173,7 +176,7 @@ export default function CareerPage() {
                     </motion.div>
 
                     {/* Enhanced Job stats with logo colors */}
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.5, delay: 0.4 }}
@@ -181,7 +184,7 @@ export default function CareerPage() {
                     >
                         <div className="flex items-center gap-3 text-white/90 bg-white/10 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20">
                             <Briefcase className="h-6 w-6" />
-                            <span className="font-semibold text-lg">{JOBS.length}+ Open Positions</span>
+                            <span className="font-semibold text-lg">{jobs.length}+ Open Positions</span>
                         </div>
                         <div className="flex items-center gap-3 text-white/90 bg-white/10 backdrop-blur-sm px-6 py-3 rounded-full border border-white/20">
                             <Building className="h-6 w-6" />
@@ -204,11 +207,10 @@ export default function CareerPage() {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all whitespace-nowrap ${
-                                        activeTab === tab.id
-                                            ? "bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg"
-                                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                                    }`}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all whitespace-nowrap ${activeTab === tab.id
+                                        ? "bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg"
+                                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                        }`}
                                 >
                                     <tab.icon className="h-4 w-4" />
                                     {tab.label}
@@ -216,7 +218,7 @@ export default function CareerPage() {
                             ))}
                         </div>
                         <div className="hidden md:flex items-center gap-2 text-sm text-gray-500">
-                            <span>Showing {filteredJobs.length} of {JOBS.length} jobs</span>
+                            <span>Showing {filteredJobs.length} of {jobs.length} jobs</span>
                         </div>
                     </div>
                 </div>
@@ -225,7 +227,7 @@ export default function CareerPage() {
             {/* Enhanced Company Benefits Section with logo colors */}
             <section className="py-16 px-4 bg-gradient-to-br from-gray-50 to-white">
                 <div className="container mx-auto max-w-6xl">
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
@@ -237,8 +239,8 @@ export default function CareerPage() {
                             We offer competitive benefits, a supportive work environment, and opportunities for growth. Join us in making a difference.
                         </p>
                     </motion.div>
-                    
-                    <motion.div 
+
+                    <motion.div
                         initial={{ opacity: 0 }}
                         whileInView={{ opacity: 1 }}
                         viewport={{ once: true }}
@@ -255,7 +257,7 @@ export default function CareerPage() {
                             { icon: Target, title: "Impact", desc: "Make a real difference in millions of lives", color: "from-blue-700 to-blue-900" },
                             { icon: Wifi, title: "Modern Office", desc: "State-of-the-art facilities and equipment", color: "from-red-700 to-red-900" }
                         ].map((benefit, index) => (
-                            <motion.div 
+                            <motion.div
                                 key={index}
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
@@ -281,7 +283,7 @@ export default function CareerPage() {
 
                     {/* Enhanced LEFT SIDEBAR - FILTERS with logo colors */}
                     <aside className="hidden lg:block w-80 flex-shrink-0">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.5 }}
@@ -362,7 +364,7 @@ export default function CareerPage() {
 
                     {/* Enhanced RIGHT CONTENT - JOB LIST */}
                     <div className="flex-1">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
@@ -377,7 +379,7 @@ export default function CareerPage() {
                             </div>
                         </motion.div>
 
-                        <motion.div 
+                        <motion.div
                             variants={containerVariants}
                             initial="hidden"
                             animate="visible"
@@ -401,7 +403,7 @@ export default function CareerPage() {
                                     </motion.div>
                                 ))
                             ) : (
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.5 }}

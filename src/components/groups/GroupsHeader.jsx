@@ -18,8 +18,7 @@ const FILTERS = [
     "Women-only"
 ]
 
-export function GroupsHeader() {
-    const [activeFilter, setActiveFilter] = React.useState("All")
+export function GroupsHeader({ searchQuery, setSearchQuery, activeFilter, setActiveFilter }) {
 
     return (
         <div className="space-y-8 mb-12">
@@ -34,6 +33,8 @@ export function GroupsHeader() {
                 <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search by country, city, or group name..."
                         className="pl-12 pr-4 h-14 rounded-full border-gray-200 shadow-sm text-lg text-[#07182A]"
                     />

@@ -15,7 +15,7 @@ export function FilterSection({ title, options, selected, onChange }) {
                 {title}
                 <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </Button>
-            
+
             {isExpanded && (
                 <div className="mt-4 space-y-3">
                     {options.map((option) => (

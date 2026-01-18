@@ -21,9 +21,56 @@ import { toast } from "sonner"
 export default function GroupsPage() {
   const navigate = useNavigate()
   const [joiningId, setJoiningId] = React.useState(null) // Tracks which card is loading
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [activeFilter, setActiveFilter] = React.useState("All")
 
   // API hooks
   const { data: communities, isLoading, error, refetch: refetchList } = useGetCommunitiesQuery();
+
+  // --- Filter Logic ---
+  const filteredCommunities = React.useMemo(() => {
+    if (!communities) return [];
+
+    return communities.filter(community => {
+      // 1. Search Query Filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchName = community.name?.toLowerCase().includes(query);
+        const matchCity = community.city?.toLowerCase().includes(query);
+        const matchCountry = community.country?.toLowerCase().includes(query);
+        const matchDesc = community.description?.toLowerCase().includes(query);
+
+        if (!matchName && !matchCity && !matchCountry && !matchDesc) return false;
+      }
+
+      // 2. Category Filter (Simple mapping based on FILTERS in Header)
+      if (activeFilter !== "All") {
+        // This assumes 'topics' or other fields map to these filters.
+        // Adjust logic based on actual data structure if needed.
+        // For now, let's assume simple string matching or exact types if available.
+        // If "Cities" -> has city
+        if (activeFilter === "Cities" && !community.city) return false;
+        if (activeFilter === "Countries" && !community.country) return false;
+        // For others (Students, Workers etc), checking topics
+        if (["Students", "Workers", "Visa & Immigration", "Accommodation Help", "Buy/Sell", "Women-only"].includes(activeFilter)) {
+          return community.topics?.includes(activeFilter) || community.category === activeFilter;
+        }
+      }
+
+      return true;
+    });
+  }, [communities, searchQuery, activeFilter]);
+
+  // --- Categorize communities for display using FILTERED list ---
+  const cityGroups = filteredCommunities.filter(community => community.city);
+  // Country groups: has country but NOT city (to avoid duplication if that's the intent, or just has country)
+  // Original logic was !community.city, keeping that.
+  const countryGroups = filteredCommunities.filter(community => community.country && !community.city);
+  const purposeGroups = filteredCommunities.filter(community => community.topics && community.topics.length > 0);
+
+  // Trending/Recommended: Just slice the filtered list for now as we don't have explicit flags
+  const trendingGroups = filteredCommunities.slice(0, 3);
+  const recommendedGroups = filteredCommunities.slice(0, 3);
 
 
   // --- Handlers for joining/leaving from the LIST view ---
@@ -85,11 +132,9 @@ export default function GroupsPage() {
   }
 
   // --- Categorize communities for display ---
-  const cityGroups = communities?.filter(community => community.city) || [];
-  const countryGroups = communities?.filter(community => community.country && !community.city) || [];
-  const purposeGroups = communities?.filter(community => community.topics && community.topics.length > 0) || [];
-  const trendingGroups = communities?.slice(0, 3) || [];
-  const recommendedGroups = communities?.slice(0, 3) || [];
+  // --- Filter Logic ---
+  // --- Categorize communities for display ---
+  // (Logic moved up due to Hooks rules)
 
   return (
     <main className="min-h-screen bg-background pt-20">
@@ -98,26 +143,16 @@ export default function GroupsPage() {
       {/* Header Section */}
       <div className="bg-[#F1E7D6] pt-12 pb-8 border-b border-[#E6E6E6]">
         <div className="container mx-auto px-4">
-          <GroupsHeader />
+          <GroupsHeader
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+          />
         </div>
       </div>
 
-      {/* Banner Section */}
-      <section className="container mx-auto px-4 py-8">
-        <div className="relative rounded-2xl overflow-hidden bg-[#07182A] text-white p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-lg">
-          <div className="relative z-10 max-w-xl">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Find your community anywhere in the world</h2>
-            <p className="text-lg text-gray-300 mb-6">Connect with people who share your interests, background, or destination.</p>
-            <div className="flex -space-x-4">
-              {[1, 2, 3, 4, 5].map((i) => (<div key={i} className="w-10 h-10 rounded-full border-2 border-[#07182A] bg-gray-200 flex items-center justify-center text-[#07182A] font-bold text-xs">U{i}</div>))}
-              <div className="w-10 h-10 rounded-full border-2 border-[#07182A] bg-[#C93A30] flex items-center justify-center text-white font-bold text-xs">+2k</div>
-            </div>
-          </div>
-          <div className="relative z-10"><Users className="h-32 w-32 text-white/20" /></div>
-          <div className="absolute top-0 right-0 w-64 h-64 bg-[#C93A30]/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-        </div>
-      </section>
+
 
       {/* Community Sections */}
       <GroupsSection title="City-Based Groups" className="bg-white">

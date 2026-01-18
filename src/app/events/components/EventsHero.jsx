@@ -34,10 +34,7 @@ export const EventsHero = memo(({ totalEvents, searchQuery, setSearchQuery, feat
             <div className="container mx-auto max-w-7xl relative z-10">
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
                     <div className="text-center lg:text-left max-w-2xl animate-fade-in">
-                        <div className="inline-flex items-center gap-2 bg-[#ff0000]/10 backdrop-blur-md rounded-full px-4 py-2 mb-6 border border-[#ff0000]/20 hover:bg-[#ff0000]/20 transition-all duration-300 transform hover:scale-105">
-                            <Globe className="h-4 w-4 text-[#ff0000]" />
-                            <span className="text-white text-sm font-medium">Connecting {totalEvents.toLocaleString()}+ Events Worldwide</span>
-                        </div>
+
 
                         <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
                             Discover Amazing <span className="text-[#ff0000]">Events</span>
@@ -66,27 +63,9 @@ export const EventsHero = memo(({ totalEvents, searchQuery, setSearchQuery, feat
                                     Host an Event
                                 </Button>
                             </Link>
-
-                            <Button variant="outline" className="h-12 px-6 sm:px-8 bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-white/20 rounded-xl font-medium transform hover:scale-105 transition-all duration-300 text-sm sm:text-base">
-                                <Calendar className="h-5 w-5 mr-2" />
-                                Browse Calendar
-                            </Button>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-white">
-                            <div className="flex items-center gap-2 hover:text-[#ff0000] transition-colors duration-300 cursor-pointer group">
-                                <Users className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
-                                <span className="text-sm">2M+ Members</span>
-                            </div>
-                            <div className="flex items-center gap-2 hover:text-[#ff0000] transition-colors duration-300 cursor-pointer group">
-                                <MapPin className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
-                                <span className="text-sm">120+ Countries</span>
-                            </div>
-                            <div className="flex items-center gap-2 hover:text-[#ff0000] transition-colors duration-300 cursor-pointer group">
-                                <Star className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
-                                <span className="text-sm">4.8 Rating</span>
-                            </div>
-                        </div>
+
                     </div>
 
                     {/* Hero Slider */}

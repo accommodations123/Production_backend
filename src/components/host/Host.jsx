@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { FaWhatsapp, FaInstagram, FaFacebook } from "react-icons/fa";
 import { fetchAddressByPincode } from "@/lib/pincodeUtils";
+import { Navbar } from "@/components/layout/Navbar";
 
 export default function HostOnboardingForm() {
   const [formData, setFormData] = useState({
@@ -43,11 +44,6 @@ export default function HostOnboardingForm() {
   // Redirect if already a host
   useEffect(() => {
     if (hostProfile) {
-      // If they have any host profile, send to creation wizard immediately
-      if (hostProfile.id || hostProfile._id) {
-        navigate("/host/create");
-        return;
-      }
       // Populate form with existing data if available
       setFormData(prev => ({
         ...prev,
@@ -281,7 +277,8 @@ export default function HostOnboardingForm() {
   };
 
   return (
-    <div className="min-h-screen bg-primary flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-primary flex flex-col pt-24 pb-12 sm:px-6 lg:px-8">
+      <Navbar />
       {/* Success Message */}
       {showSuccess && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm animate-fade-in">

@@ -101,20 +101,26 @@ const InfoField = ({
     </div>
 )
 
-export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdating }) => {
+import { useNavigate } from "react-router-dom"
+
+// ... (existing imports)
+
+export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdating, isHost }) => {
+    const navigate = useNavigate()
     const [editStates, setEditStates] = useState({
         personal: false,
         location: false,
         social: false,
     })
 
+    // ... (existing state)
     const [formData, setFormData] = useState({
-        full_name: initialData?.full_name || "John Doe",
-        email: initialData?.email || "john.doe@example.com",
-        phone: initialData?.phone || "+1 234 567 890",
-        country: initialData?.country || "United States",
-        state: initialData?.state || "New York",
-        city: initialData?.city || "New York City",
+        full_name: initialData?.full_name || "",
+        email: initialData?.email || "",
+        phone: initialData?.phone || "",
+        country: initialData?.country || "",
+        state: initialData?.state || "",
+        city: initialData?.city || "",
         address: initialData?.address || "",
         zip: initialData?.zip || "",
         whatsapp: initialData?.whatsapp || "",
@@ -126,17 +132,17 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
         if (initialData) {
             setFormData(prev => ({
                 ...prev,
-                full_name: initialData.full_name || prev.full_name,
-                email: initialData.email || prev.email,
-                phone: initialData.phone || prev.phone,
-                country: initialData.country || prev.country,
-                state: initialData.state || prev.state,
-                city: initialData.city || prev.city,
-                address: initialData.address || prev.address,
-                zip: initialData.zip || prev.zip,
-                whatsapp: initialData.whatsapp || prev.whatsapp,
-                facebook: initialData.facebook || prev.facebook,
-                instagram: initialData.instagram || prev.instagram,
+                full_name: initialData.full_name || prev.full_name || "",
+                email: initialData.email || prev.email || "",
+                phone: initialData.phone || prev.phone || "",
+                country: initialData.country || prev.country || "",
+                state: initialData.state || prev.state || "",
+                city: initialData.city || prev.city || "",
+                address: initialData.address || prev.address || "",
+                zip: initialData.zip || prev.zip || "",
+                whatsapp: initialData.whatsapp || prev.whatsapp || "",
+                facebook: initialData.facebook || prev.facebook || "",
+                instagram: initialData.instagram || prev.instagram || "",
             }))
         }
     }, [initialData])
@@ -147,6 +153,11 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
     }
 
     const toggleEdit = async (section) => {
+        if (!isHost) {
+            navigate('/hosts')
+            return
+        }
+
         if (editStates[section]) {
             try {
                 if (onUpdate) {

@@ -110,6 +110,16 @@ const Button = ({
 };
 
 /* =========================================================
+   HELPER FUNCTIONS
+   ========================================================= */
+
+const appendIfExists = (formData, key, value) => {
+  if (value !== undefined && value !== null && value !== "") {
+    formData.append(key, value);
+  }
+};
+
+/* =========================================================
    MAIN COMPONENT
    ========================================================= */
 
@@ -121,10 +131,15 @@ export function SellForm({ onPost }) {
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
   const [zipCode, setZipCode] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [country, setCountry] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  // const [email, setEmail] = useState(""); // Email from DB
   const [phone, setPhone] = useState("");
   const [isPincodeLoading, setIsPincodeLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   const [category, setCategory] = useState("Furniture");
   const [subcategory, setSubcategory] = useState("");
@@ -152,6 +167,7 @@ export function SellForm({ onPost }) {
         const addressData = await fetchAddressByPincode(zipCode);
         if (addressData) {
           setCity(addressData.city || city);
+          setState(addressData.state || state);
           setCountry(addressData.country || country);
         }
         setIsPincodeLoading(false);
@@ -186,6 +202,13 @@ export function SellForm({ onPost }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setValidationError("");
+
+    // Client-side validation
+    if (!title || !price || !description || !country || !state || !city || !streetAddress || !name || !phone) {
+      setValidationError("Please fill in all required fields (Address, Name, Phone, etc.)");
+      return;
+    }
 
     const formData = new FormData();
 
@@ -195,21 +218,23 @@ export function SellForm({ onPost }) {
 
     // Prefer ONE location strategy
     appendIfExists(formData, "country", country);
+    appendIfExists(formData, "state", state);
     appendIfExists(formData, "city", city);
     appendIfExists(formData, "zip_code", zipCode);
+    appendIfExists(formData, "street_address", streetAddress);
 
     appendIfExists(formData, "category", category);
     appendIfExists(formData, "subcategory", subcategory || category);
 
     appendIfExists(formData, "name", name);
-    appendIfExists(formData, "email", email);
+    // appendIfExists(formData, "email", email);
     appendIfExists(formData, "phone", phone);
 
     formData.append("status", "active");
 
-    // IMPORTANT: image key name
+    // IMPORTANT: image key name matches backend/Postman
     images.forEach((img) => {
-      formData.append("images", img); // <-- rename from galleryImages
+      formData.append("galleryImages", img);
     });
 
     try {
@@ -235,6 +260,12 @@ export function SellForm({ onPost }) {
       {isError && (
         <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
           {error?.data?.message || "Failed to create listing"}
+        </div>
+      )}
+
+      {validationError && (
+        <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+          {validationError}
         </div>
       )}
 
@@ -341,8 +372,16 @@ export function SellForm({ onPost }) {
           <Label>Country</Label>
           <Input value={country} onChange={(e) => setCountry(e.target.value)} />
 
-          <Label>City</Label>
-          <Input value={city} onChange={(e) => setCity(e.target.value)} />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>State</Label>
+              <Input value={state} onChange={(e) => setState(e.target.value)} />
+            </div>
+            <div>
+              <Label>City</Label>
+              <Input value={city} onChange={(e) => setCity(e.target.value)} />
+            </div>
+          </div>
 
           <div className="flex justify-between items-center">
             <Label>Zip Code</Label>
@@ -353,6 +392,9 @@ export function SellForm({ onPost }) {
             value={zipCode}
             onChange={(e) => setZipCode(e.target.value)}
           />
+
+          <Label>Street Address</Label>
+          <Input value={streetAddress} onChange={(e) => setStreetAddress(e.target.value)} />
 
           <Label>Description</Label>
           <Textarea
@@ -369,12 +411,12 @@ export function SellForm({ onPost }) {
           <Label>Name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} />
 
-          <Label>Email</Label>
-          <Input
+          {/* <Label>Email</Label> */}
+          {/* <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-          />
+          /> */}
 
           <Label>Phone</Label>
           <Input

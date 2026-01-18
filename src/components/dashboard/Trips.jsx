@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGetMyTripsQuery, useLazySearchTripsQuery, useTravelMatchActionMutation } from '@/store/api/authApi';
+import { useGetHostProfileQuery } from "@/store/api/hostApi";
 import { Calendar, Clock, Plane, ArrowRight, UserPlus, Check, X, Smartphone, Loader2, MapPin, Users, Ticket, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -117,17 +118,52 @@ const MatchFinder = ({ trip, onClose }) => {
 
 export const Trips = () => {
     const { data, isLoading, isError } = useGetMyTripsQuery();
+    const { data: hostProfile } = useGetHostProfileQuery();
     const [sendAction] = useTravelMatchActionMutation();
     const navigate = useNavigate();
     const [activeMatchTrip, setActiveMatchTrip] = useState(null);
 
+    const handlePlanTrip = () => {
+        if (!hostProfile || (!hostProfile.id && !hostProfile._id)) {
+            navigate('/hosts', { replace: true });
+            return;
+        }
+        // Redirect to trip creation page or open modal
+        // Since I don't know the exact route, I will alert for now or assume a route.
+        // User hasn't specified the trip create route.
+        // I will assume it DOES NOT exist or I should navigate to a placeholder.
+        alert("Trip Creation Feature requires Host Profile. (Route not defined yet).");
+    };
+
     const tripList = data?.trips || [];
 
-    // Aggregate all pending requests across all trips
-    const allPendingMatches = tripList.flatMap(trip =>
-        (trip.matches || []).filter(m => m.status === 'pending' || m.status === 'requested')
-            .map(match => ({ ...match, tripDetails: trip }))
-    );
+    // Separate matches into Incoming (needs my action) and Sent (waiting for others)
+    const incomingRequests = [];
+    const sentRequests = [];
+
+    tripList.forEach(trip => {
+        (trip.matches || []).forEach(match => {
+            console.log('Processing match:', match, 'for trip:', trip.id);
+            if (match.status === 'pending' || match.status === 'requested') {
+                // If the matched_trip_id is MINE, then someone requested ME -> Incoming
+                // If the trip_id is MINE, then I requested someone -> Sent
+
+                // Allow loose comparison for IDs in case of string/number mismatch
+                if (match.matched_trip_id == trip.id) {
+                    console.log('-> Classified as INCOMING');
+                    incomingRequests.push({ ...match, tripDetails: trip });
+                } else if (match.trip_id == trip.id) {
+                    console.log('-> Classified as SENT');
+                    sentRequests.push({ ...match, tripDetails: trip });
+                } else {
+                    console.log('-> Unclassified match:', match.trip_id, match.matched_trip_id, trip.id);
+                }
+            }
+        });
+    });
+
+    console.log('Incoming:', incomingRequests);
+    console.log('Sent:', sentRequests);
 
     const handleRequestAction = async (match, action) => {
         try {
@@ -205,7 +241,7 @@ export const Trips = () => {
                         </div>
                         <button
                             className="bg-white text-primary hover:bg-neutral/20 rounded-xl px-6 py-3 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 flex items-center gap-2 whitespace-nowrap"
-                        // Add onClick handler for creating a new trip if needed
+                            onClick={handlePlanTrip}
                         >
                             <Ticket className="w-5 h-5" />
                             Plan New Trip
@@ -214,51 +250,94 @@ export const Trips = () => {
                 </div>
 
                 {/* Pending Requests Section */}
-                {allPendingMatches.length > 0 && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-xl font-bold text-primary">Pending Requests</h2>
-                            <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs font-bold rounded-full">{allPendingMatches.length}</span>
-                        </div>
+                {(incomingRequests.length > 0 || sentRequests.length > 0) && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            {allPendingMatches.map(match => (
-                                <div key={match.id} className="bg-white p-5 rounded-2xl shadow-lg shadow-neutral/10 border border-accent/20 flex items-center justify-between group hover:border-accent/40 transition-colors">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 bg-gradient-to-br from-accent to-red-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-accent/20">
-                                            {(match.user?.full_name?.[0] || "U")}
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-primary text-lg">{match.user?.full_name || "Unknown Traveler"}</h4>
-                                            <div className="flex items-center gap-1.5 text-xs text-primary/60 mt-1">
-                                                <span className="font-medium bg-neutral/10 px-2 py-0.5 rounded text-primary/80">
-                                                    {match.tripDetails.from_city} → {match.tripDetails.to_city}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-primary/40 mt-1">
-                                                {new Date(match.tripDetails.travel_date).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <button
-                                            onClick={() => handleRequestAction(match, 'accept')}
-                                            className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors border border-green-100"
-                                            title="Accept"
-                                        >
-                                            <Check size={20} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleRequestAction(match, 'reject')}
-                                            className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-100"
-                                            title="Reject"
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
+                        {/* Incoming Requests (To Accept/Reject) */}
+                        {incomingRequests.length > 0 && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-xl font-bold text-primary">Incoming Requests</h2>
+                                    <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs font-bold rounded-full">{incomingRequests.length}</span>
                                 </div>
-                            ))}
-                        </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {incomingRequests.map(match => (
+                                        <div key={match.id} className="bg-white p-5 rounded-2xl shadow-lg shadow-neutral/10 border border-accent/20 flex items-center justify-between group hover:border-accent/40 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-14 h-14 bg-gradient-to-br from-accent to-red-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-accent/20">
+                                                    {(match.sender_host?.full_name?.[0] || match.user?.full_name?.[0] || "U")}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-primary text-lg">{match.sender_host?.full_name || match.user?.full_name || "Unknown Traveler"}</h4>
+                                                    <div className="flex items-center gap-1.5 text-xs text-primary/60 mt-1">
+                                                        <span className="font-medium bg-neutral/10 px-2 py-0.5 rounded text-primary/80">
+                                                            Trip Match
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-primary/40 mt-1">
+                                                        For your trip to {match.tripDetails.to_city}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => handleRequestAction(match, 'accept')}
+                                                    className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors border border-green-100 flex items-center gap-2 justify-center"
+                                                    title="Accept"
+                                                >
+                                                    <Check size={20} />
+                                                    <span className="text-xs font-bold md:hidden">Accept</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRequestAction(match, 'reject')}
+                                                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-100 flex items-center gap-2 justify-center"
+                                                    title="Reject"
+                                                >
+                                                    <X size={20} />
+                                                    <span className="text-xs font-bold md:hidden">Reject</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sent Requests (Pending Approval) */}
+                        {sentRequests.length > 0 && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-xl font-bold text-primary">Sent Requests</h2>
+                                    <span className="px-2 py-0.5 bg-neutral/10 text-primary/60 text-xs font-bold rounded-full">{sentRequests.length}</span>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {sentRequests.map(match => (
+                                        <div key={match.id} className="bg-white/60 p-5 rounded-2xl border border-neutral/20 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-14 h-14 bg-neutral/20 rounded-xl flex items-center justify-center text-primary/40 font-bold text-xl">
+                                                    {(match.receiver_host?.full_name?.[0] || match.host?.full_name?.[0] || "U")}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-primary/80 text-lg">{match.receiver_host?.full_name || match.host?.full_name || "Traveler"}</h4>
+                                                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded text-xs font-bold mt-1">
+                                                        <Clock size={12} />
+                                                        Pending
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRequestAction(match, 'cancel')}
+                                                className="text-xs font-medium text-red-500 hover:text-red-700 hover:underline px-3 py-1.5"
+                                            >
+                                                Cancel Request
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -443,6 +522,27 @@ export const Trips = () => {
                             ))}
                         </div>
                     )}
+                </div>
+            </div>
+
+            {/* DEBUG SECTION - REMOVE BEFORE PRODUCTION */}
+            <div className="fixed bottom-4 left-4 p-4 bg-black/80 text-white text-xs rounded-lg max-w-lg z-50 overflow-auto max-h-[300px]">
+                <h3 className="font-bold border-b border-white/20 mb-2">Debug Info</h3>
+                <div>Total Trips: {tripList.length}</div>
+                <div>Incoming Requests: {incomingRequests.length}</div>
+                <div>Sent Requests: {sentRequests.length}</div>
+                <div className="mt-2">
+                    <strong>Matches Found:</strong>
+                    <pre>{JSON.stringify(tripList.map(t => ({
+                        id: t.id,
+                        matchesCount: t.matches?.length || 0,
+                        matchIds: t.matches?.map(m => ({
+                            id: m.id,
+                            trip_id: m.trip_id,
+                            matched_trip_id: m.matched_trip_id,
+                            status: m.status
+                        }))
+                    })), null, 2)}</pre>
                 </div>
             </div>
         </div>

@@ -3,22 +3,27 @@ import { MapPin, Calendar, Users, Star, MessageCircle, Share2 } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { useCountry } from '@/context/CountryContext';
 
-const HostPhoto = ({ host }) => {
+const HostPhoto = ({ host, name }) => {
     const photoUrl =
         host?.selfie_photo ||
         host?.photo ||
         host?.avatar_image ||
-        host?.image ||
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&auto=format&fit=crop";
+        host?.image;
 
     return (
-        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-gray-100">
-            <img
-                src={photoUrl}
-                alt="Organizer"
-                className="w-full h-full object-cover"
-                loading="lazy"
-            />
+        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center border border-gray-200">
+            {photoUrl ? (
+                <img
+                    src={photoUrl}
+                    alt={name || "Organizer"}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                />
+            ) : (
+                <span className="text-xs font-bold text-gray-500 uppercase">
+                    {(name || "O").charAt(0)}
+                </span>
+            )}
         </div>
     );
 };
@@ -62,99 +67,97 @@ export const EventCard = ({ event, viewMode = "grid", onViewDetails }) => {
         return "Organizer";
     };
 
+    const getDateParts = (dateString) => {
+        if (!dateString) return { month: "TBA", day: "" };
+        const date = new Date(dateString);
+        return {
+            month: date.toLocaleDateString('en-US', { month: 'short' }),
+            day: date.toLocaleDateString('en-US', { day: 'numeric' })
+        };
+    };
+
+    const { month, day } = getDateParts(event.date || event.start_date || event.event_date);
+
     return (
-        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all overflow-hidden ${viewMode === "list" ? "flex" : ""
+        <div className={`group bg-white rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-300 border border-neutral-100 overflow-hidden ${viewMode === "list" ? "flex" : "flex flex-col h-full"
             }`}>
             {/* Event Image */}
             {viewMode !== "list" && (
-                <div className="relative h-40 overflow-hidden">
+                <div className="relative h-48 overflow-hidden">
                     <img
                         src={event.banner_image || event.image || "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=400&h=200&fit=crop"}
                         alt={event.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent"></div>
-                    <div className="absolute top-3 left-3">
-                        <span className="bg-white/90 text-gray-800 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#00142E]/80 via-transparent to-transparent"></div>
+
+                    {/* Date Block Overlay */}
+                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md rounded-xl p-1.5 text-center min-w-[3rem] shadow-lg border border-white/20">
+                        <span className="block text-[10px] font-bold text-[#CB2A25] uppercase tracking-wider">{month}</span>
+                        <span className="block text-lg font-black text-[#00142E] leading-none mt-0.5">{day}</span>
+                    </div>
+
+                    <div className="absolute bottom-3 left-3 right-3">
+                        <span className="inline-block bg-[#CB2A25] text-white text-[10px] font-bold px-2 py-0.5 rounded-md mb-1.5 shadow-sm uppercase tracking-wide">
                             {event.category || "Community"}
                         </span>
-                    </div>
-                    <div className="absolute bottom-3 right-3">
-                        <span className="bg-black/70 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
-                            {event.type || "Free"}
-                        </span>
+                        <h3 className="text-lg font-bold text-white leading-tight line-clamp-1 drop-shadow-md">
+                            {event.title}
+                        </h3>
                     </div>
                 </div>
             )}
 
-            <div className={`p-4 sm:p-5 ${viewMode === "list" ? "flex-1 flex flex-col justify-between" : ""}`}>
-                <div>
-                    <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
-                        <span className="text-xs sm:text-sm text-gray-600">
-                            {event.city ? `${event.city}, ${event.country || ""}` : event.location || "Location TBA"}
-                        </span>
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 line-clamp-2">{event.title}</h3>
-                    <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">{event.description}</p>
-
-                    {/* Event Stats */}
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <div className="flex items-center gap-2">
-                            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
-                            <span className="text-xs sm:text-sm text-gray-600">
-                                {formatDate(event.date || event.start_date || event.event_date)}
-                                {(event.time || event.start_time) && ` at ${formatTime(event.time || event.start_time)}`}
+            <div className={`p-4 ${viewMode === "list" ? "flex-1 flex flex-col justify-between" : "flex-1 flex flex-col"}`}>
+                <div className="flex-1">
+                    {/* Location & Time */}
+                    <div className="flex items-start gap-4 mb-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                            <MapPin className="h-3.5 w-3.5 text-[#CB2A25] shrink-0" />
+                            <span className="font-medium line-clamp-1" title={event.city ? `${event.city}, ${event.country || ""}` : event.location}>
+                                {event.city ? `${event.city}, ${event.country || ""}` : event.location || "Location TBA"}
                             </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" />
-                            <span className="text-xs sm:text-sm text-gray-600">
-                                {event.attendees_count || 0} attending
-                            </span>
-                        </div>
+                        {(event.time || event.start_time) && (
+                            <div className="flex items-center gap-2 text-xs text-gray-500 ml-auto">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span>{formatTime(event.time || event.start_time)}</span>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Organizer */}
-                    <div className="flex items-center gap-3 mb-3 sm:mb-4">
-                        <HostPhoto host={event.Host || event.host || event.creator} />
-                        <div>
-                            <p className="text-xs text-gray-500">Organized by</p>
-                            <p className="text-sm font-medium text-gray-900">{getOrganizerName()}</p>
+                    <p className="text-gray-600 text-xs mb-4 line-clamp-2 leading-relaxed border-l-2 border-gray-100 pl-3">
+                        {event.description}
+                    </p>
+
+                    {/* Organizer & Stats */}
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100 bg-gray-50/50 -mx-4 px-4 pb-1">
+                        <div className="flex items-center gap-2 mb-2">
+                            <HostPhoto host={event.Host || event.host || event.creator} name={getOrganizerName()} />
+                            <div>
+                                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Hosted by</p>
+                                <p className="text-xs font-bold text-[#00142E] truncate max-w-[100px]" title={getOrganizerName()}>
+                                    {getOrganizerName()}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-full border border-gray-200 shadow-sm mb-2">
+                            <Users className="h-3 w-3 text-[#CB2A25]" />
+                            <span className="text-[10px] font-bold text-[#00142E]">{event.attendees_count || 0}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Rating */}
-                {event.rating > 0 && (
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <Star key={star} className={`h-3 w-3 sm:h-4 sm:w-4 ${star <= event.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                            ))}
-                            <span className="text-xs sm:text-sm text-gray-600 ml-1">
-                                ({event.reviews_count || 0})
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-gray-500">
-                            <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                            <span className="text-xs sm:text-sm">
-                                {event.comments_count || 0}
-                            </span>
-                        </div>
-                    </div>
-                )}
+                {/* Rating hidden for cleaner look, can be re-enabled if critical */}
 
                 {/* Action Buttons */}
-                <div className="flex gap-2">
+                <div className="mt-3 flex gap-2">
                     <Button
                         onClick={() => onViewDetails(event.id || event._id)}
-                        className="flex-1 bg-[#ff0000] hover:bg-[#cc0000] text-white rounded-lg py-2 text-xs sm:text-sm font-medium transition-all duration-200"
+                        className="flex-1 bg-[#00142E] hover:bg-[#CB2A25] text-white rounded-lg py-4 text-xs font-bold transition-all duration-300 shadow-md group-hover:shadow-lg flex items-center justify-center gap-2 h-9"
                     >
                         View Details
-                    </Button>
-                    <Button variant="outline" className="px-3 sm:px-4 py-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200">
-                        <Share2 className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                 </div>
             </div>

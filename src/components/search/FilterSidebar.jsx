@@ -69,25 +69,8 @@ export function FilterSidebar({ filters, onFilterChange, distinctValues = {}, cl
                 />
             </div>
 
-            {/* 3. Distance Range */}
-            <div className="mb-8 border-b border-gray-100 pb-6">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-sm text-gray-900">Distance</h3>
-                    <span className="text-xs text-primary font-bold">
-                        {filters.distance || 10} km
-                    </span>
-                </div>
-                <Slider
-                    defaultValue={[filters.distance || 10]}
-                    max={50}
-                    step={1}
-                    onValueChange={(vals) => handleChange('distance', vals[0])}
-                    className="mb-2"
-                />
-            </div>
-
-            {/* 4. Property Category */}
-            <div className="mb-8 border-b border-gray-100 pb-6">
+            {/* 3. Property Category */}
+            <div className="mb-8">
                 <h3 className="font-bold text-sm text-gray-900 mb-3">Property Type</h3>
                 <div className="space-y-2">
                     {['Apartment', 'House', 'PG', 'Hostel', 'Shared Room'].map((cat) => (
@@ -106,44 +89,6 @@ export function FilterSidebar({ filters, onFilterChange, distinctValues = {}, cl
                             />
                             <span className="text-sm text-gray-600 group-hover:text-gray-900">{cat}</span>
                         </label>
-                    ))}
-                </div>
-            </div>
-
-            {/* 5. Stay Duration */}
-            <div className="mb-8 border-b border-gray-100 pb-6">
-                <h3 className="font-bold text-sm text-gray-900 mb-3">Duration</h3>
-                <div className="space-y-2">
-                    {['ShortTerm', 'LongTerm', 'Flexible'].map((type) => (
-                        <label key={type} className="flex items-center gap-3 cursor-pointer">
-                            <input
-                                type="radio"
-                                name="stayType"
-                                className="w-4 h-4 text-primary focus:ring-primary border-gray-300"
-                                checked={filters.stayType === type}
-                                onChange={() => handleChange('stayType', type)}
-                            />
-                            <span className="text-sm text-gray-600">{type.replace(/([A-Z])/g, ' $1').trim()}</span>
-                        </label>
-                    ))}
-                </div>
-            </div>
-
-            {/* 6. Furnishing */}
-            <div className="mb-8">
-                <h3 className="font-bold text-sm text-gray-900 mb-3">Furnishing</h3>
-                <div className="flex flex-wrap gap-2">
-                    {['Furnished', 'Semi-Furnished', 'Unfurnished'].map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => handleChange('furnishing', filters.furnishing === f ? '' : f)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${filters.furnishing === f
-                                ? 'bg-primary text-white border-primary'
-                                : 'bg-white text-gray-600 border-gray-200 hover:border-primary'
-                                }`}
-                        >
-                            {f}
-                        </button>
                     ))}
                 </div>
             </div>

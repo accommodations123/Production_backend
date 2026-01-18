@@ -3,11 +3,11 @@ import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { useParams } from "react-router-dom"
 import { Navbar } from "@/components/layout/Navbar"
 import { Footer } from "@/components/layout/Footer"
-import { useGetEventByIdQuery } from "@/store/api/hostApi"
+import { useGetEventByIdQuery, useJoinEventMutation, useLeaveEventMutation } from "@/store/api/hostApi"
+import { toast } from "sonner"
 
 // Hooks & Services
 import { useAuth } from "./hooks/useAuth"
-import { eventService } from "./services/eventApi"
 
 // Components
 import { HeroSection } from "./components/HeroSection"
@@ -34,6 +34,9 @@ export default function EventDetailsPage() {
     const [registrationSuccess, setRegistrationSuccess] = useState('')
     const [isCheckingRegistration, setIsCheckingRegistration] = useState(true)
 
+    const [joinEvent, { isLoading: isJoining }] = useJoinEventMutation()
+    const [leaveEvent, { isLoading: isLeaving }] = useLeaveEventMutation()
+
     const { user } = useAuth()
 
     const event = useMemo(() => {
@@ -45,6 +48,8 @@ export default function EventDetailsPage() {
             image: apiEvent.banner_image || (apiEvent.gallery_images?.[0]) || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30",
             date: apiEvent.start_date,
             time: apiEvent.start_time,
+            end_date: apiEvent.end_date,
+            end_time: apiEvent.end_time,
             location: `${apiEvent.city}, ${apiEvent.country}`,
             city: apiEvent.city,
             country: apiEvent.country,
@@ -73,32 +78,19 @@ export default function EventDetailsPage() {
                 : null,
             event_mode: apiEvent.event_mode || "offline",
             event_url: apiEvent.event_url || "",
-            online_instructions: apiEvent.online_instructions || ""
+            online_instructions: apiEvent.online_instructions || "",
+            is_registered: apiEvent.is_registered || false // Assuming backend returns this with event details
         }
     }, [apiEvent])
 
+    // Update isRegistered state based on event data
     useEffect(() => {
-        const checkRegistration = async () => {
-            if (!event?.id || !user?.id) {
-                setIsRegistered(false)
-                setIsCheckingRegistration(false)
-                return
-            }
-
-            try {
-                setIsCheckingRegistration(true)
-                const status = await eventService.checkRegistrationStatus(event.id)
-                setIsRegistered(status.registered || false)
-            } catch (error) {
-                console.error('Error checking registration status:', error)
-                setIsRegistered(false)
-            } finally {
-                setIsCheckingRegistration(false)
-            }
+        if (event) {
+            setIsRegistered(!!event.is_registered)
         }
+    }, [event])
 
-        checkRegistration()
-    }, [event?.id, user?.id])
+    // Removed manual registration check effect since we rely on apiEvent data now
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -121,9 +113,11 @@ export default function EventDetailsPage() {
         try {
             await navigator.clipboard.writeText(window.location.href)
             setCopiedLink(true)
+            toast.success("Link copied to clipboard!")
             setTimeout(() => setCopiedLink(false), 2000)
         } catch (err) {
             console.error('Failed to copy:', err)
+            toast.error("Failed to copy link")
         }
     }, [])
 
@@ -132,62 +126,63 @@ export default function EventDetailsPage() {
 
     const handleRegister = useCallback(async () => {
         if (!user) {
-            setRegistrationError('You must be logged in to register for this event.')
-            setTimeout(() => setRegistrationError(''), 5000)
+            toast.error('You must be logged in to register for this event.')
             return
         }
 
         try {
-            setIsProcessing(true)
             setRegistrationError('')
             setRegistrationSuccess('')
 
-            const result = await eventService.joinEvent(event.id)
-
-            if (result.alreadyRegistered) {
-                setIsRegistered(true)
-                setRegistrationSuccess('You are already registered for this event.')
-                setTimeout(() => setRegistrationSuccess(''), 5000)
-                return
-            }
+            await joinEvent(event.id).unwrap()
 
             setIsRegistered(true)
             setRegistrationSuccess('Successfully registered for event!')
+            toast.success('Successfully registered for event!')
             setTimeout(() => setRegistrationSuccess(''), 5000)
         } catch (error) {
             console.error('Error joining event:', error)
-            setRegistrationError(error.message || 'Failed to register for event. Please try again.')
-            setTimeout(() => setRegistrationError(''), 5000)
-        } finally {
-            setIsProcessing(false)
+            const msg = error?.data?.message || error.message || 'Failed to register for event.'
+
+            if (msg.includes('already joined')) {
+                setIsRegistered(true)
+                setRegistrationSuccess('You are already registered for this event.')
+                toast.info('You are already registered for this event.')
+            } else {
+                setRegistrationError(msg)
+                toast.error(msg)
+            }
+            setTimeout(() => {
+                setRegistrationError('')
+                setRegistrationSuccess('')
+            }, 5000)
         }
-    }, [event?.id, user])
+    }, [event?.id, user, joinEvent])
 
     const handleLeave = useCallback(async () => {
         if (!user) {
-            setRegistrationError('You must be logged in to leave this event.')
-            setTimeout(() => setRegistrationError(''), 5000)
+            toast.error('You must be logged in to leave this event.')
             return
         }
 
         try {
-            setIsProcessing(true)
             setRegistrationError('')
             setRegistrationSuccess('')
 
-            await eventService.leaveEvent(event.id)
+            await leaveEvent(event.id).unwrap()
 
             setIsRegistered(false)
             setRegistrationSuccess('Successfully left the event.')
+            toast.success('Successfully left the event.')
             setTimeout(() => setRegistrationSuccess(''), 5000)
         } catch (error) {
             console.error('Error leaving event:', error)
-            setRegistrationError(error.message || 'Failed to leave event. Please try again.')
+            const msg = error?.data?.message || error.message || 'Failed to leave event.'
+            setRegistrationError(msg)
+            toast.error(msg)
             setTimeout(() => setRegistrationError(''), 5000)
-        } finally {
-            setIsProcessing(false)
         }
-    }, [event?.id, user])
+    }, [event?.id, user, leaveEvent])
 
     const handleTabClick = useCallback((tab) => {
         setActiveTab(tab)
@@ -225,7 +220,7 @@ export default function EventDetailsPage() {
                 handleRegister={handleRegister}
                 handleLeave={handleLeave}
                 event={event}
-                isLoading={isProcessing || isCheckingRegistration}
+                isLoading={isProcessing || isJoining || isLeaving}
                 errorMessage={registrationError}
                 successMessage={registrationSuccess}
             />

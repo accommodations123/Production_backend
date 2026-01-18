@@ -4,64 +4,65 @@ import { Button } from "@/components/ui/button"
 
 // Function to generate a consistent color based on company name
 const getCompanyColor = (companyName) => {
-  const colors = [
-    "bg-blue-500", "bg-green-500", "bg-red-500", "bg-purple-500", 
-    "bg-yellow-500", "bg-pink-500", "bg-indigo-500", "bg-teal-500"
-  ];
-  
-  let hash = 0;
-  for (let i = 0; i < companyName.length; i++) {
-    hash = companyName.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  
-  return colors[Math.abs(hash) % colors.length];
+    const colors = [
+        "bg-blue-500", "bg-green-500", "bg-red-500", "bg-purple-500",
+        "bg-yellow-500", "bg-pink-500", "bg-indigo-500", "bg-teal-500"
+    ];
+
+    let hash = 0;
+    if (!companyName) return colors[0];
+    for (let i = 0; i < companyName.length; i++) {
+        hash = companyName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    return colors[Math.abs(hash) % colors.length];
 }
 
 // Function to get company initial
 const getCompanyInitial = (companyName) => {
-  return companyName ? companyName.charAt(0).toUpperCase() : '';
+    return companyName ? companyName.charAt(0).toUpperCase() : '';
 }
 
 // Function to get work style icon
 const getWorkStyleIcon = (workStyle) => {
-  switch(workStyle?.toLowerCase()) {
-    case 'remote':
-      return <Wifi className="h-4 w-4" />;
-    case 'hybrid':
-      return <Wifi className="h-4 w-4" />;
-    case 'on-site':
-    default:
-      return <Building className="h-4 w-4" />;
-  }
+    switch (workStyle?.toLowerCase()) {
+        case 'remote':
+            return <Wifi className="h-4 w-4" />;
+        case 'hybrid':
+            return <Wifi className="h-4 w-4" />;
+        case 'on-site':
+        default:
+            return <Building className="h-4 w-4" />;
+    }
 }
 
 // Function to get work style label
 const getWorkStyleLabel = (workStyle) => {
-  switch(workStyle?.toLowerCase()) {
-    case 'remote':
-      return 'Remote';
-    case 'hybrid':
-      return 'Hybrid';
-    case 'on-site':
-      return 'On-site';
-    default:
-      return workStyle || 'Not specified';
-  }
+    switch (workStyle?.toLowerCase()) {
+        case 'remote':
+            return 'Remote';
+        case 'hybrid':
+            return 'Hybrid';
+        case 'on-site':
+            return 'On-site';
+        default:
+            return workStyle || 'Not specified';
+    }
 }
 
 export function JobCard({ job, onViewDetails }) {
     // State to track if image has loaded successfully
     const [imageError, setImageError] = useState(false)
-    
+
     return (
         <div className="bg-white rounded-xl p-6 border border-gray-100 hover:shadow-lg transition-all group relative overflow-hidden">
             <div className="flex flex-col md:flex-row gap-6">
                 {/* Logo */}
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
                     {job.logo && !imageError ? (
-                        <img 
-                            src={job.logo} 
-                            alt={job.company} 
+                        <img
+                            src={job.logo}
+                            alt={job.company}
                             className="w-full h-full object-cover"
                             onError={() => {
                                 setImageError(true);
@@ -120,7 +121,7 @@ export function JobCard({ job, onViewDetails }) {
                     </p>
 
                     {/* Technologies */}
-                    {job.technologies && job.technologies.length > 0 && (
+                    {job.technologies && Array.isArray(job.technologies) && job.technologies.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-4">
                             {job.technologies.slice(0, 4).map((tech, index) => (
                                 <span
@@ -141,7 +142,7 @@ export function JobCard({ job, onViewDetails }) {
                     {/* Skills & Action */}
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-50">
                         <div className="flex flex-wrap gap-2">
-                            {job.skills && job.skills.map((skill, index) => (
+                            {job.skills && Array.isArray(job.skills) && job.skills.map((skill, index) => (
                                 <span
                                     key={index}
                                     className="px-2 py-1 rounded-md bg-gray-50 text-gray-600 text-xs font-medium"

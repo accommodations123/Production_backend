@@ -60,7 +60,7 @@ const baseQueryWithLogger = async (args, api, extraOptions) => {
 export const hostApi = createApi({
     reducerPath: "hostApi",
     baseQuery: baseQueryWithLogger,
-    tagTypes: ["Property", "Host", "Event", "Community", "BuySell"],
+    tagTypes: ["Property", "Host", "Event", "Community", "BuySell", "Review", "Job"],
     endpoints: (builder) => ({
         saveHost: builder.mutation({
             query: (hostData) => ({
@@ -176,7 +176,15 @@ export const hostApi = createApi({
                     headers: { "X-Country": countryCode }
                 };
             },
-            transformResponse: (response) => response?.event || response?.data || response,
+            transformResponse: (response) => {
+                const event = response?.event || response?.data || response;
+                // Merge is_registered if it exists at the root level but not in the event object
+                if (response?.is_registered !== undefined && event && typeof event === 'object') {
+                    return { ...event, is_registered: response.is_registered };
+                }
+                return event;
+            },
+            providesTags: (result, error, id) => [{ type: "Event", id }],
         }),
 
         uploadFile: builder.mutation({
@@ -425,6 +433,104 @@ export const hostApi = createApi({
             }),
             invalidatesTags: ["Community"],
         }),
+        // Reviews
+        getEventReviews: builder.query({
+            query: (id) => `events/reviews/${id}/reviews`,
+            providesTags: (result, error, id) => [{ type: "Review", id }],
+            transformResponse: (response) => {
+                const results = response?.reviews || response?.data || response || [];
+                return Array.isArray(results) ? results : [];
+            }
+        }),
+
+        addEventReview: builder.mutation({
+            query: ({ id, data }) => ({
+                url: `events/reviews/${id}/reviews`,
+                method: "POST",
+                body: data,
+            }),
+            invalidatesTags: (result, error, { id }) => [{ type: "Review", id }, { type: "Event", id }],
+        }),
+
+        getEventRating: builder.query({
+            query: (id) => `events/reviews/${id}/rating`,
+            providesTags: (result, error, id) => [{ type: "Review", id }],
+        }),
+
+        hideEventReview: builder.mutation({
+            query: (id) => ({
+                url: `events/reviews/reviews/${id}/hide`,
+                method: "PATCH",
+            }),
+            invalidatesTags: (result, error, id) => [{ type: "Review", id }, { type: "Event", id }],
+        }),
+
+        joinEvent: builder.mutation({
+            query: (id) => ({
+                url: `events/${id}/join`,
+                method: "POST",
+            }),
+            invalidatesTags: (result, error, id) => [{ type: "Event", id }],
+        }),
+
+        leaveEvent: builder.mutation({
+            query: (id) => ({
+                url: `events/${id}/leave`,
+                method: "POST",
+            }),
+            invalidatesTags: (result, error, id) => [{ type: "Event", id }],
+        }),
+        getJobs: builder.query({
+            query: () => "carrer/jobs",
+            providesTags: ["Job"],
+            transformResponse: (response) => {
+                const jobs = response?.jobs || response?.data || response || [];
+                if (!Array.isArray(jobs)) return [];
+                return jobs.map(job => ({
+                    ...job,
+                    id: job.id || job._id,
+                    experience: job.experience_level || job.experience,
+                    type: job.employment_type || job.type,
+                    workStyle: job.work_style || job.workStyle,
+                    salary: job.salary_range || job.salary,
+                    postedDate: job.createdAt || job.postedDate,
+                    applicants: job.applications_count || job.applicants,
+                    responsibilities: job.responsibilities || [],
+                    requirements: job.requirements || [],
+                    benefits: job.benefits || [],
+                    isNew: (new Date() - new Date(job.createdAt || 0)) < 7 * 24 * 60 * 60 * 1000,
+                }));
+            },
+        }),
+        getJobById: builder.query({
+            query: (id) => `carrer/jobs/${id}`,
+            providesTags: (result, error, id) => [{ type: "Job", id }],
+            transformResponse: (response) => {
+                const job = response?.job || response?.data || response;
+                if (!job) return null;
+                return {
+                    ...job,
+                    id: job.id || job._id,
+                    experience: job.experience_level || job.experience,
+                    type: job.employment_type || job.type,
+                    workStyle: job.work_style || job.workStyle,
+                    salary: job.salary_range || job.salary,
+                    postedDate: job.createdAt || job.postedDate,
+                    applicants: job.applications_count || job.applicants,
+                    // Ensure arrays are present
+                    responsibilities: job.responsibilities || [],
+                    requirements: job.requirements || [],
+                    benefits: job.benefits || [],
+                };
+            },
+        }),
+        applyForJob: builder.mutation({
+            query: (formData) => ({
+                url: "carrer/apply",
+                method: "POST",
+                body: formData,
+            }),
+        }),
     }),
 });
 
@@ -473,4 +579,13 @@ export const {
     useAddCommunityResourceMutation,
     useGetCommunityResourcesQuery,
     useDeleteCommunityResourceMutation,
+    useGetEventReviewsQuery,
+    useAddEventReviewMutation,
+    useGetEventRatingQuery,
+    useHideEventReviewMutation,
+    useJoinEventMutation,
+    useLeaveEventMutation,
+    useApplyForJobMutation,
+    useGetJobsQuery,
+    useGetJobByIdQuery,
 } = hostApi;
