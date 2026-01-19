@@ -4,6 +4,7 @@ import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheServic
 import axios from "axios";
 import geoip from "geoip-lite";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
+import { logAudit } from "../services/auditLogger.js";
 
 // Save host details
 export const saveHost = async (req, res) => {
@@ -112,10 +113,20 @@ export const saveHost = async (req, res) => {
       host_id: data.id,
       country: data.country,
       state: data.state,
-      created_at: new Date()
+
     }).catch(err => {
       console.error("ANALYTICS HOST_CREATED FAILED:", err);
     });
+    logAudit({
+      action: "HOST_CREATED",
+      actor: req.auditActor,
+      target: { type: "host", id: data.id },
+      req
+    }).catch(err => {
+      console.error("AUDIT LOG FAILED", err);
+    });
+
+
 
 
     // Invalidate caches
@@ -155,6 +166,13 @@ export const updateHost = async (req, res) => {
 
     // Ownership check
     if (host.user_id !== userId) {
+       logAudit({
+        action: "HOST_UPDATE_FORBIDDEN",
+        actor: req.auditActor,
+        target: { type: "host", id: hostId },
+        severity: "HIGH",
+        req
+      }).catch(console.error);
       return res.status(403).json({
         success: false,
         message: "You are not authorized to update this host"
@@ -205,10 +223,20 @@ export const updateHost = async (req, res) => {
       metadata: {
         fields_updated: Object.keys(req.body)
       },
-      created_at: new Date()
+
     }).catch(err => {
       console.error("ANALYTICS HOST_UPDATED FAILED:", err);
     });
+     logAudit({
+      action: "HOST_UPDATED",
+      actor: req.auditActor,
+      target: { type: "host", id: host.id },
+      req,
+      metadata: {
+        fields: Object.keys(req.body)
+      }
+    }).catch(console.error);
+
 
 
     /* ===============================
@@ -305,6 +333,7 @@ export const getMyHost = async (req, res) => {
 export const getPendingHosts = async (req, res) => {
   try {
     const { country, state } = req.query;
+   
 
     // ✅ Location-aware cache key
     const cacheKey = `pending_hosts:${country || "all"}:${state || "all"}`;
@@ -329,6 +358,7 @@ export const getPendingHosts = async (req, res) => {
       ],
       order: [["created_at", "DESC"]]
     });
+
 
     // ✅ Cache per location
     await setCache(cacheKey, hosts, 300);
@@ -359,11 +389,17 @@ export const approveHost = async (req, res) => {
       host_id: host.id,
       country: host.country,
       state: host.state,
-      created_at: new Date()
+
     }).catch(err => {
       console.error("ANALYTICS HOST_APPROVED FAILED:", err);
     });
-
+     logAudit({
+      action: "HOST_APPROVED",
+      actor: req.auditActor,
+      target: { type: "host", id: host.id },
+      severity: "HIGH",
+      req
+    }).catch(console.error);
 
     // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
@@ -396,10 +432,20 @@ export const rejectHost = async (req, res) => {
       metadata: {
         reason: host.rejection_reason
       },
-      created_at: new Date()
     }).catch(err => {
       console.error("ANALYTICS HOST_REJECTED FAILED:", err);
     });
+     logAudit({
+      action: "HOST_REJECTED",
+      actor: req.auditActor,
+      target: { type: "host", id: host.id },
+      severity: "HIGH",
+      req,
+      metadata: {
+        reason: host.rejection_reason
+      }
+    }).catch(console.error);
+
 
 
     // Clear caches

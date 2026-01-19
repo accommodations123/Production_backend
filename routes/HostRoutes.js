@@ -13,18 +13,16 @@ import {
 } from "../controllers/HostController.js";
 import { upload } from "../middleware/upload.js"; 
 import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
-
+import { auditContext } from "../middleware/auditContext.js";
 const router = express.Router();
 
-
-
-router.post("/save",userauth,upload.fields([{ name: "idPhoto", maxCount: 1 },{ name: "selfiePhoto", maxCount: 1 }]),multerErrorHandler,saveHost);
-router.put("/update/:id",userauth,upload.single("profile_image"),multerErrorHandler,updateHost);
+router.post("/save",userauth,auditContext("user"),upload.fields([{ name: "idPhoto", maxCount: 1 },{ name: "selfiePhoto", maxCount: 1 }]),multerErrorHandler,saveHost);
+router.put("/update/:id",userauth,auditContext("user"),upload.single("profile_image"),multerErrorHandler,updateHost);
 // Get logged-in user's host verification details
-router.get("/get", userauth, getMyHost);
-router.get("/admin/hosts/pending",adminAuth,getPendingHosts)
-router.put("/admin/hosts/approve/:id",adminAuth,approveHost)
-router.put("/admin/hosts/reject/:id",adminAuth,rejectHost)
-router.get("/admin/hosts/approved", adminAuth, getApprovedHosts);
-router.get("/admin/hosts/rejected", adminAuth, getRejectedHosts);
+router.get("/get", userauth,auditContext("user"), getMyHost);
+router.get("/admin/hosts/pending",adminAuth,auditContext("admin"),getPendingHosts)
+router.put("/admin/hosts/approve/:id",adminAuth,auditContext("admin"),approveHost)
+router.put("/admin/hosts/reject/:id",adminAuth,auditContext("admin"),rejectHost)
+router.get("/admin/hosts/approved", adminAuth,auditContext("admin"), getApprovedHosts);
+router.get("/admin/hosts/rejected", adminAuth,auditContext("admin"), getRejectedHosts);
 export default router;
