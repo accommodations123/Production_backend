@@ -121,5 +121,3 @@ export const getApprovedWithHosts = async (req, res) => {
   }
 };
 
-
-

@@ -954,3 +954,98 @@ export const softDeleteEvent = async (req, res) => {
 };
 
 
+export const getAdminApprovedEvents = async (req, res) => {
+  try {
+    const { country, state } = req.query;
+
+    const cacheKey = `admin:events:approved:${country || "all"}:${state || "all"}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({ success: true, events: cached });
+    }
+
+    const where = { status: "approved", is_deleted: false };
+    if (country) where.country = country;
+    if (state) where.state = state;
+
+    const events = await Event.findAll({
+      where,
+      order: [["updated_at", "DESC"]],
+      include: [
+        {
+          model: Host,
+          attributes: ["id", "full_name", "status"],
+          include: [
+            {
+              model: User,
+              attributes: ["id", "email", "profile_image"]
+            }
+          ]
+        }
+      ]
+    });
+
+    const plain = events.map(e => e.toJSON());
+
+    await setCache(cacheKey, plain, 300);
+
+    return res.json({
+      success: true,
+      events: plain
+    });
+
+  } catch (err) {
+    console.error("ADMIN APPROVED EVENTS ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+export const getAdminRejectedEvents = async (req, res) => {
+  try {
+    const { country, state } = req.query;
+
+    const cacheKey = `admin:events:rejected:${country || "all"}:${state || "all"}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({ success: true, events: cached });
+    }
+
+    const where = { status: "rejected", is_deleted: false };
+    if (country) where.country = country;
+    if (state) where.state = state;
+
+    const events = await Event.findAll({
+      where,
+      order: [["updated_at", "DESC"]],
+      attributes: {
+        include: ["rejection_reason"]
+      },
+      include: [
+        {
+          model: Host,
+          attributes: ["id", "full_name", "status"],
+          include: [
+            {
+              model: User,
+              attributes: ["id", "email", "profile_image"]
+            }
+          ]
+        }
+      ]
+    });
+
+    const plain = events.map(e => e.toJSON());
+
+    await setCache(cacheKey, plain, 300);
+
+    return res.json({
+      success: true,
+      events: plain
+    });
+
+  } catch (err) {
+    console.error("ADMIN REJECTED EVENTS ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};

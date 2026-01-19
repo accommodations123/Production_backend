@@ -15,6 +15,8 @@ import {
   getAdminDashboardStats,
   approveEvent,
   rejectEvent,
+  getAdminApprovedEvents,
+  getAdminRejectedEvents,
   getApprovedEvents,
   getMyEvents,
   getEventById,
@@ -74,6 +76,10 @@ router.get("/admin/pending", adminAuth, getPendingItems);
 router.get("/admin/statistics",adminAuth,getAdminDashboardStats)
 router.put("/admin/approve/:id", adminAuth, approveEvent);
 router.put("/admin/reject/:id", adminAuth, rejectEvent);
+// ADMIN VISIBILITY
+router.get("/admin/events/approved", adminAuth, getAdminApprovedEvents);
+router.get("/admin/events/rejected", adminAuth, getAdminRejectedEvents);
+
 /* -----------------------------------------
    PUBLIC ROUTES
 ----------------------------------------- */
