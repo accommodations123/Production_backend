@@ -27,7 +27,8 @@ import authRoutes from './routes/auth/googleAuthroutes.js'
 import travelRoutes from './routes/travel/travelRoutes.js'
 import CarrerRoutes from './routes/carrer/careers.routes.js'
 import analyticsRoutes from './routes/DashboardAnalytics/analyticsroutes.js'
-(async () => {
+import EventAnalytics from './routes/DashboardAnalytics/eventanalyticsroutes.js'
+ (async () => {
   try {
     await sequelize.authenticate();
     await sequelize.sync();
@@ -74,6 +75,7 @@ import analyticsRoutes from './routes/DashboardAnalytics/analyticsroutes.js'
     app.use('/travel', travelRoutes)
     app.use('/carrer',CarrerRoutes)
     app.use('/analytics',analyticsRoutes)
+    app.use('/eventanalytics',EventAnalytics)
 
     const server = http.createServer(app)
     initSocket(server)

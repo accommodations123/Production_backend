@@ -2,7 +2,8 @@ import BuySellListing from "../model/BuySellListing .js";
 import User from "../model/User.js";
 import { Op } from "sequelize";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
-
+import { logAudit } from "../services/auditLogger.js";
+import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 
 /* =========================
    CREATE LISTING
@@ -381,6 +382,21 @@ export const approveBuySellListing = async (req, res) => {
         }
 
         await listing.update({ status: "active" });
+         // 🔐 AUDIT (admin action)
+    logAudit({
+      action: "BUYSELL_LISTING_APPROVED",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "buy_sell_listing", id: listing.id },
+      severity: "MEDIUM",
+      req
+    }).catch(console.error);
+
+    // 📊 ANALYTICS (dashboard count)
+    AnalyticsEvent.create({
+      event_type: "BUYSELL_LISTING_APPROVED",
+      user_id: req.admin.id,
+      country: listing.country || null
+    }).catch(console.error);
 
         return res.json({
             success: true,
@@ -405,6 +421,19 @@ export const blockBuySellListing = async (req, res) => {
         }
 
         await listing.update({ status: "blocked" });
+         logAudit({
+      action: "BUYSELL_LISTING_BLOCKED",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "buy_sell_listing", id: listing.id },
+      severity: "HIGH",
+      req
+    }).catch(console.error);
+
+    AnalyticsEvent.create({
+      event_type: "BUYSELL_LISTING_BLOCKED",
+      user_id: req.admin.id,
+      country: listing.country || null
+    }).catch(console.error);
 
         return res.json({
             success: true,

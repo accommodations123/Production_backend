@@ -3,7 +3,7 @@ import {
   getEventAnalyticsSummary,
   getEventEngagementTimeseries,
   getEventAnalyticsByLocation
-} from "../../controllers/DashboardAnalytics/adminAnalyticsController.js";
+} from "../../controllers/DashboardAnalytics/eventAnalyticsController.js";
 
 import  adminAuth  from "../../middleware/adminAuth.js";
 

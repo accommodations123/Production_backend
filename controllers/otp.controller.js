@@ -106,14 +106,14 @@ export const sendOTP = async (req, res) => {
         </div>
       `
     });
-    await logAudit({
-  action: "OTP_SENT",
-  actor: { role: "system" },
-  target: { type: "user_email", id: null },
-  severity: "LOW",
-  req,
-  metadata: { email }
-});
+    logAudit({
+      action: "OTP_SENT",
+      actor: { role: "system" },
+      target: { type: "user_email", id: null },
+      severity: "LOW",
+      req,
+      metadata: { email }
+    }).catch(console.error);
 
 
     return res.json({ message: "OTP sent to email" });
@@ -180,23 +180,23 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "OTP required" });
     }
 
-if (
-  !user.otp ||
-  !user.otpExpires ||
-  new Date(user.otpExpires).getTime() < Date.now() ||
-  String(user.otp).trim() !== String(otp).trim()
-) {
-  await logAudit({
-    action: "OTP_VERIFICATION_FAILED",
-    actor: { role: "system" },
-    target: { type: "user", id: user?.id },
-    severity: "HIGH",
-    req,
-    metadata: { email }
-  });
+    if (
+      !user.otp ||
+      !user.otpExpires ||
+      new Date(user.otpExpires).getTime() < Date.now() ||
+      String(user.otp).trim() !== String(otp).trim()
+    ) {
+      logAudit({
+        action: "OTP_VERIFICATION_FAILED",
+        actor: { role: "system" },
+        target: { type: "user", id: user?.id },
+        severity: "HIGH",
+        req,
+        metadata: { email }
+      }).catch(console.error);
 
-  return res.status(400).json({ message: "Invalid or expired OTP" });
-}
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
 
 
 
@@ -222,22 +222,22 @@ if (
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-   await logAudit({
-  action: "USER_LOGIN",
-  actor: { id: user.id, role: "user" },
-  target: { type: "user", id: user.id },
-  severity: "LOW",
-  req
-});
+    logAudit({
+      action: "USER_LOGIN",
+      actor: { id: user.id, role: "user" },
+      target: { type: "user", id: user.id },
+      severity: "LOW",
+      req
+    }).catch(console.error);
 
-return res.json({
-  message: "OTP verified successfully",
-  user: {
-    id: user.id,
-    email: user.email,
-    verified: true
-  }
-});
+    return res.json({
+      message: "OTP verified successfully",
+      user: {
+        id: user.id,
+        email: user.email,
+        verified: true
+      }
+    });
 
 
 
@@ -257,7 +257,7 @@ export const logout = async (req, res) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       await deleteCache(`user:${decoded.id}`);
-    } catch {}
+    } catch { }
   }
 
   res.clearCookie("access_token", {
@@ -266,12 +266,12 @@ export const logout = async (req, res) => {
     sameSite: isProd ? "none" : "lax",
     domain: isProd ? ".test.nextkinlife.live" : undefined,
   });
-  await logAudit({
-  action: "USER_LOGOUT",
-  actor: req.auditActor,
-  target: { type: "user", id: req.user?.id },
-  req
-});
+  logAudit({
+    action: "USER_LOGOUT",
+    actor: req.auditActor,
+    target: { type: "user", id: req.user?.id },
+    req
+  }).catch(console.error);
 
 
   return res.json({ success: true });

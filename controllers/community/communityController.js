@@ -2,7 +2,8 @@ import Community from "../../model/community/Community.js";
 import Event from "../../model/Events.models.js";
 import CommunityMember from "../../model/community/CommunityMember.js";
 import { setCache, getCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
-
+import { logAudit } from "../../services/auditLogger.js";
+import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
 /* CREATE COMMUNITY */
 export const createCommunity = async (req, res) => {
   try {
@@ -317,6 +318,20 @@ export const approveCommunity = async (req, res) => {
 
   community.status = "active";
   await community.save();
+   // 🔐 AUDIT (mandatory)
+    logAudit({
+      action: "COMMUNITY_APPROVED",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "community", id: community.id },
+      severity: "MEDIUM",
+      req
+    }).catch(console.error);
+
+    // 📊 ANALYTICS (dashboard)
+    AnalyticsEvent.create({
+      event_type: "COMMUNITY_APPROVED",
+      user_id: req.admin.id
+    }).catch(console.error);
 
   res.json({
     success: true,
@@ -334,6 +349,18 @@ export const rejectCommunity = async (req, res) => {
 
   community.status = "deleted";
   await community.save();
+   logAudit({
+      action: "COMMUNITY_REJECTED",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "community", id: community.id },
+      severity: "HIGH",
+      req
+    }).catch(console.error);
+
+    AnalyticsEvent.create({
+      event_type: "COMMUNITY_REJECTED",
+      user_id: req.admin.id
+    }).catch(console.error);
 
   res.json({
     success: true,
@@ -351,6 +378,18 @@ export const suspendCommunity = async (req, res) => {
 
   community.status = "suspended";
   await community.save();
+   logAudit({
+      action: "COMMUNITY_SUSPENDED",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "community", id: community.id },
+      severity: "CRITICAL",
+      req
+    }).catch(console.error);
+
+    AnalyticsEvent.create({
+      event_type: "COMMUNITY_SUSPENDED",
+      user_id: req.admin.id
+    }).catch(console.error);
 
   res.json({
     success: true,

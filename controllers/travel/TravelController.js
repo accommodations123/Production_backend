@@ -3,7 +3,8 @@ import TravelMatch from "../../model/travel/TravelMatch.js";
 import Host from "../../model/Host.js";
 import User from "../../model/User.js";
 import { Op } from "sequelize";
-
+import { logAudit } from "../../services/auditLogger.js";
+import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
 export const createTrip = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -234,6 +235,10 @@ export const travelMatchAction = async (req, res) => {
         matched_trip_id,
         status: "pending"
       });
+        AnalyticsEvent.create({
+    event_type: "TRAVEL_MATCH_REQUESTED",
+    host_id: host.id
+  }).catch(console.error);
 
       return res.json({
         success: true,
@@ -261,6 +266,18 @@ export const travelMatchAction = async (req, res) => {
       match.status = "accepted";
       match.consent_given = true;
       await match.save();
+       logAudit({
+    action: "TRAVEL_MATCH_ACCEPTED",
+    actor: { id: req.user.id, role: "user" },
+    target: { type: "travel_match", id: match.id },
+    severity: "LOW",
+    req
+  }).catch(console.error);
+
+  AnalyticsEvent.create({
+    event_type: "TRAVEL_MATCH_ACCEPTED",
+    host_id: host.id
+  }).catch(console.error);
 
       return res.json({
         success: true,
@@ -552,6 +569,18 @@ export const adminCancelTrip = async (req, res) => {
 
     trip.status = "cancelled";
     await trip.save();
+     logAudit({
+      action: "ADMIN_CANCELLED_TRIP",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "travel_trip", id: trip.id },
+      severity: "HIGH",
+      req
+    }).catch(console.error);
+
+    AnalyticsEvent.create({
+      event_type: "ADMIN_CANCELLED_TRIP",
+      user_id: req.admin.id
+    }).catch(console.error);
 
     return res.json({
       success: true,
@@ -630,6 +659,19 @@ export const adminBlockHost = async (req, res) => {
     host.status = "rejected";
     host.rejection_reason = "Blocked by admin";
     await host.save();
+      logAudit({
+      action: "ADMIN_BLOCKED_HOST",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "host", id: host.id },
+      severity: "CRITICAL",
+      req
+    }).catch(console.error);
+
+    AnalyticsEvent.create({
+      event_type: "HOST_BLOCKED",
+      user_id: req.admin.id,
+      country: host.country || null
+    }).catch(console.error);
 
     return res.json({
       success: true,

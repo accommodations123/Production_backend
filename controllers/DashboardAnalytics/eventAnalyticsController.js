@@ -39,8 +39,12 @@ export const getEventEngagementTimeseries = async (req, res) => {
   try {
     const { eventId, type = "EVENT_JOINED", days = 30 } = req.query;
 
+    if (!eventId) {
+      return res.status(400).json({ message: "eventId is required" });
+    }
+
     const since = new Date();
-    since.setDate(since.getDate() - Number(days));
+    since.setUTCDate(since.getUTCDate() - Number(days));
 
     const [rows] = await sequelize.query(
       `
@@ -54,7 +58,13 @@ export const getEventEngagementTimeseries = async (req, res) => {
       GROUP BY day
       ORDER BY day ASC
       `,
-      { replacements: { type, eventId, since } }
+      {
+        replacements: {
+          type,
+          eventId,
+          since
+        }
+      }
     );
 
     return res.json({
@@ -67,6 +77,7 @@ export const getEventEngagementTimeseries = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const getEventAnalyticsByLocation = async (req, res) => {

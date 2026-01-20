@@ -569,7 +569,7 @@ export const rejectEvent = async (req, res) => {
       event_id: event.id,
       country: event.country,
       state: event.state,
-      metadata: { reason: event.rejection_reason,actor:"admin" }
+      metadata: { reason: event.rejection_reason }
     });
 
 

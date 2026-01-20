@@ -1,7 +1,8 @@
 import Property from "../model/Property.js";
 import Host from "../model/Host.js";
 import User from "../model/User.js";
-
+import { logAudit } from "../services/auditLogger.js";
+import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { getIO } from "../services/socket.js";
 import { sendPropertyApprovedEmail } from "../services/emailService.js";
@@ -95,6 +96,15 @@ export const approveProperty = async (req, res) => {
       listing_expires_at: expiresAt,
       is_expired: false
     });
+       // 🔐 AUDIT (authoritative)
+    logAudit({
+      action: "PROPERTY_APPROVED",
+      actor: req.auditActor,
+      target: { type: "property", id: property.id },
+      severity: "HIGH",
+      req,
+      metadata: { expires_at: expiresAt }
+    }).catch(console.error);
     AnalyticsEvent.create({
       event_type: "PROPERTY_APPROVED",
       user_id: req.admin?.id || null,   // approving admin
@@ -162,6 +172,14 @@ export const rejectProperty = async (req, res) => {
     property.status = "rejected";
     property.rejection_reason = req.body.reason || "Not specified";
     await property.save();
+        logAudit({
+      action: "PROPERTY_REJECTED",
+      actor: req.auditActor,
+      target: { type: "property", id: property.id },
+      severity: "HIGH",
+      req,
+      metadata: { reason: property.rejection_reason }
+    }).catch(console.error);
     AnalyticsEvent.create({
       event_type: "PROPERTY_REJECTED",
       user_id: req.admin?.id || null,
