@@ -191,7 +191,9 @@ export const travelMatchAction = async (req, res) => {
     }
 
     const host = await Host.findOne({ where: { user_id: userId } });
-    if (!host) return res.status(403).json({ message: "Host not found" });
+    if (!host) {
+      return res.status(403).json({ message: "Host not found" });
+    }
 
     const [tripA, tripB] = await Promise.all([
       TravelTrip.findByPk(trip_id),
@@ -202,13 +204,44 @@ export const travelMatchAction = async (req, res) => {
       return res.status(404).json({ message: "Trip not found" });
     }
 
-    let match = await TravelMatch.findOne({ where: { trip_id, matched_trip_id } });
+    // 🔒 AUTHORIZATION
+    if (action === "request" && tripA.host_id !== host.id) {
+      return res.status(403).json({
+        message: "You can only request from your own trip"
+      });
+    }
 
-    /* ===== REQUEST ===== */
-    if (action === "request") {
-      if (tripA.host_id !== host.id) {
-        return res.status(403).json({ message: "You can only request from your own trip" });
+    if (
+      (action === "accept" || action === "reject") &&
+      tripB.host_id !== host.id
+    ) {
+      return res.status(403).json({
+        message: "You are not authorized to respond to this request"
+      });
+    }
+
+    if (
+      action === "cancel" &&
+      tripA.host_id !== host.id &&
+      tripB.host_id !== host.id
+    ) {
+      return res.status(403).json({
+        message: "You are not authorized to cancel this match"
+      });
+    }
+
+    // 🔎 ORDER-INDEPENDENT MATCH LOOKUP
+    let match = await TravelMatch.findOne({
+      where: {
+        [Op.or]: [
+          { trip_id, matched_trip_id },
+          { trip_id: matched_trip_id, matched_trip_id: trip_id }
+        ]
       }
+    });
+
+    /* ================= REQUEST ================= */
+    if (action === "request") {
       if (match) {
         return res.status(409).json({ message: "Match already exists" });
       }
@@ -219,13 +252,9 @@ export const travelMatchAction = async (req, res) => {
         status: "pending"
       });
 
-      // 🔥 invalidate receiver inbox
-      await deleteCache(`travel:matches:received:${tripB.host_id}`);
-
-      AnalyticsEvent.create({
-        event_type: "TRAVEL_MATCH_REQUESTED",
-        host_id: host.id
-      }).catch(console.error);
+      await Promise.all([
+        deleteCache(`travel:matches:received:${tripB.host_id}`)
+      ]);
 
       return res.json({ success: true, status: "pending" });
     }
@@ -234,52 +263,64 @@ export const travelMatchAction = async (req, res) => {
       return res.status(404).json({ message: "Match not found" });
     }
 
-    /* ===== ACCEPT ===== */
+    /* ================= ACCEPT ================= */
     if (action === "accept") {
       if (match.status !== "pending") {
-        return res.status(400).json({ message: "Only pending matches can be accepted" });
-      }
-      if (tripB.host_id !== host.id) {
-        return res.status(403).json({ message: "Not authorized" });
+        return res.status(400).json({
+          message: "Only pending matches can be accepted"
+        });
       }
 
       match.status = "accepted";
       match.consent_given = true;
       await match.save();
 
-      // 🔥 invalidate both inboxes
-      await deleteCache(`travel:matches:received:${tripA.host_id}`);
-      await deleteCache(`travel:matches:received:${tripB.host_id}`);
+      await Promise.all([
+        deleteCache(`travel:matches:received:${tripA.host_id}`),
+        deleteCache(`travel:matches:received:${tripB.host_id}`)
+      ]);
 
-      return res.json({ success: true, status: "accepted", whatsapp_unlocked: true });
+      return res.json({
+        success: true,
+        status: "accepted",
+        whatsapp_unlocked: true
+      });
     }
 
-    /* ===== REJECT ===== */
+    /* ================= REJECT ================= */
     if (action === "reject") {
       if (match.status !== "pending") {
-        return res.status(400).json({ message: "Only pending matches can be rejected" });
+        return res.status(400).json({
+          message: "Only pending matches can be rejected"
+        });
       }
 
       match.status = "rejected";
       await match.save();
 
-      await deleteCache(`travel:matches:received:${tripA.host_id}`);
-      await deleteCache(`travel:matches:received:${tripB.host_id}`);
+      await Promise.all([
+        deleteCache(`travel:matches:received:${tripA.host_id}`),
+        deleteCache(`travel:matches:received:${tripB.host_id}`)
+      ]);
 
       return res.json({ success: true, status: "rejected" });
     }
 
-    /* ===== CANCEL ===== */
+    /* ================= CANCEL ================= */
     if (action === "cancel") {
       if (match.status !== "accepted") {
-        return res.status(400).json({ message: "Only accepted matches can be cancelled" });
+        return res.status(400).json({
+          message: "Only accepted matches can be cancelled"
+        });
       }
 
       match.status = "cancelled";
       await match.save();
 
-      await deleteCache(`travel:matches:received:${tripA.host_id}`);
-      await deleteCache(`travel:matches:received:${tripB.host_id}`);
+      await Promise.all([
+        deleteCache(`travel:matches:received:${tripA.host_id}`),
+        deleteCache(`travel:matches:received:${tripB.host_id}`)
+      ]);
 
       return res.json({ success: true, status: "cancelled" });
     }
@@ -291,6 +332,7 @@ export const travelMatchAction = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const getReceivedMatchRequests = async (req, res) => {
