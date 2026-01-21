@@ -15,9 +15,12 @@ export const createTrip = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 1️⃣ Check approved host
+    // Host must exist & be approved
     const host = await Host.findOne({
-      where: { user_id: userId, status: "approved" }
+      where: {
+        user_id: userId,
+        status: "approved"
+      }
     });
 
     if (!host) {
@@ -26,7 +29,6 @@ export const createTrip = async (req, res) => {
       });
     }
 
-    // 2️⃣ Whitelist fields
     const {
       from_country,
       from_state,
@@ -43,7 +45,7 @@ export const createTrip = async (req, res) => {
       languages
     } = req.body;
 
-    // 3️⃣ Required validation
+    // Hard validation
     if (
       !from_country ||
       !from_city ||
@@ -52,12 +54,13 @@ export const createTrip = async (req, res) => {
       !travel_date ||
       !departure_time
     ) {
-      return res.status(400).json({
-        message: "Missing required fields"
-      });
+      return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // 4️⃣ Create trip
+    if (languages && !Array.isArray(languages)) {
+      return res.status(400).json({ message: "languages must be an array" });
+    }
+
     const trip = await TravelTrip.create({
       host_id: host.id,
       from_country,
@@ -74,13 +77,6 @@ export const createTrip = async (req, res) => {
       age,
       languages
     });
-    // 🔥 invalidate public feed
-    // AFTER trip creation
-    await Promise.all([
-      deleteCacheByPrefix("travel:public:browse:"),
-      deleteCacheByPrefix("travel:public:search:")
-    ]);
-
 
     return res.json({
       success: true,
@@ -92,6 +88,7 @@ export const createTrip = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const searchTrips = async (req, res) => {
@@ -417,46 +414,16 @@ export const publicBrowseTrips = async (req, res) => {
     const limit = Math.min(Number(req.query.limit || 10), 10);
     const offset = (page - 1) * limit;
 
-    const cacheKey = `travel:public:browse:page:${page}:limit:${limit}`;
-
-    // 1️⃣ Cache read
-    const cached = await getCache(cacheKey);
-    if (cached) {
-      return res.json({
-        success: true,
-        source: "cache",
-        page,
-        results: cached
-      });
-    }
-
     const today = new Date().toISOString().slice(0, 10);
     const maxDate = new Date(Date.now() + 30 * 86400000)
       .toISOString()
       .slice(0, 10);
 
-    // 2️⃣ DB query
     const trips = await TravelTrip.findAll({
       where: {
         status: "active",
         travel_date: { [Op.between]: [today, maxDate] }
       },
-      attributes: [
-        "id",
-        "from_country",
-        "from_city",
-        "to_country",
-        "to_city",
-        "travel_date",
-        "departure_time",
-        "arrival_date",
-        "arrival_time",
-        "airline",
-        "flight_number",
-        "age",
-        "languages"
-      ],
-
       order: [["travel_date", "ASC"]],
       limit,
       offset,
@@ -464,58 +431,56 @@ export const publicBrowseTrips = async (req, res) => {
         {
           model: Host,
           as: "host",
-          attributes: ["full_name", "country", "city"],
+          attributes: ["id", "full_name", "country", "city"],
           include: [
             {
               model: User,
-              attributes: ["profile_image"]
+              attributes: ["profile_image", "verified"]
             }
           ]
         }
       ]
     });
 
-    // 3️⃣ Map response
-   const results = trips.map(t => {
-  const trip = t.toJSON();
+    const results = trips.map(t => {
+      const trip = t.toJSON();
 
-  return {
-    id: trip.id,
+      return {
+        id: trip.id,
 
-    user: {
-      fullName: trip.host.full_name,
-      age: trip.age,
-      languages: trip.languages || [],
-      country: trip.host.country,
-      city: trip.host.city,
-      image:
-        trip.host.User?.profile_image || null
-    },
+        host: {
+          id: trip.host.id,
+          full_name: trip.host.full_name,
+          country: trip.host.country,
+          city: trip.host.city,
+          profile_image: trip.host.User?.profile_image || null,
+          verified: trip.host.User?.verified || false
+        },
 
-    destination: `${trip.to_city}, ${trip.to_country}`,
-    date: trip.travel_date,
-    time: trip.departure_time,
+        trip_meta: {
+          age: trip.age || null,
+          languages: Array.isArray(trip.languages) ? trip.languages : []
+        },
 
-    flight: {
-      airline: trip.airline,
-      flightNumber: trip.flight_number,
-      from: trip.from_city,
-      to: trip.to_city,
-      departureDate: trip.travel_date,
-      departureTime: trip.departure_time,
-      arrivalDate: trip.arrival_date,
-      arrivalTime: trip.arrival_time
-    }
-  };
-});
+        destination: `${trip.to_city}, ${trip.to_country}`,
+        date: trip.travel_date,
+        time: trip.departure_time,
 
-
-    // 4️⃣ Cache write
-    await setCache(cacheKey, results, 120);
+        flight: {
+          airline: trip.airline,
+          flightNumber: trip.flight_number,
+          from: trip.from_city,
+          to: trip.to_city,
+          departureDate: trip.travel_date,
+          departureTime: trip.departure_time,
+          arrivalDate: trip.arrival_date,
+          arrivalTime: trip.arrival_time
+        }
+      };
+    });
 
     return res.json({
       success: true,
-      source: "db",
       page,
       results
     });
@@ -530,15 +495,10 @@ export const publicBrowseTrips = async (req, res) => {
 
 
 
+
 export const publicSearchTrips = async (req, res) => {
   try {
-    const {
-      from_country,
-      to_country,
-      date,
-      page = 1,
-      limit = 10
-    } = req.query;
+    const { from_country, to_country, date, page = 1, limit = 10 } = req.query;
 
     if (!from_country || !to_country || !date) {
       return res.status(400).json({
@@ -546,23 +506,8 @@ export const publicSearchTrips = async (req, res) => {
       });
     }
 
-    const safeLimit = Math.min(Number(limit), 20);
-    const offset = (page - 1) * safeLimit;
+    const offset = (page - 1) * limit;
 
-    const cacheKey = `travel:public:search:${from_country}:${to_country}:${date}:page:${page}:limit:${safeLimit}`;
-
-    // 1️⃣ Cache read
-    const cached = await getCache(cacheKey);
-    if (cached) {
-      return res.json({
-        success: true,
-        source: "cache",
-        page: Number(page),
-        results: cached
-      });
-    }
-
-    // 2️⃣ DB query
     const trips = await TravelTrip.findAll({
       where: {
         from_country,
@@ -570,34 +515,18 @@ export const publicSearchTrips = async (req, res) => {
         travel_date: date,
         status: "active"
       },
-      attributes: [
-        "id",
-        "from_country",
-        "from_city",
-        "to_country",
-        "to_city",
-        "travel_date",
-        "departure_time",
-        "arrival_date",
-        "arrival_time",
-        "airline",
-        "flight_number",
-        "age",
-        "languages"
-      ],
-
-      limit: safeLimit,
-      offset,
       order: [["travel_date", "ASC"]],
+      limit: Number(limit),
+      offset,
       include: [
         {
           model: Host,
           as: "host",
-          attributes: ["full_name", "country", "city"],
+          attributes: ["id", "full_name", "country", "city"],
           include: [
             {
               model: User,
-              attributes: ["profile_image"]
+              attributes: ["profile_image", "verified"]
             }
           ]
         }
@@ -606,29 +535,32 @@ export const publicSearchTrips = async (req, res) => {
 
     const results = trips.map(t => {
       const trip = t.toJSON();
+
       return {
         id: trip.id,
-        from_country: trip.from_country,
-        from_city: trip.from_city,
-        to_country: trip.to_country,
-        to_city: trip.to_city,
-        travel_date: trip.travel_date,
+
         host: {
+          id: trip.host.id,
           full_name: trip.host.full_name,
           country: trip.host.country,
           city: trip.host.city,
-          profile_image: trip.host.User?.profile_image || null
-        }
+          profile_image: trip.host.User?.profile_image || null,
+          verified: trip.host.User?.verified || false
+        },
+
+        trip_meta: {
+          age: trip.age || null,
+          languages: Array.isArray(trip.languages) ? trip.languages : []
+        },
+
+        destination: `${trip.to_city}, ${trip.to_country}`,
+        date: trip.travel_date,
+        time: trip.departure_time
       };
-
     });
-
-    // 3️⃣ Cache write
-    await setCache(cacheKey, results, 120);
 
     return res.json({
       success: true,
-      source: "db",
       page: Number(page),
       results
     });
@@ -638,6 +570,7 @@ export const publicSearchTrips = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 export const publicTripPreview = async (req, res) => {
   try {
