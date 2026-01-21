@@ -206,11 +206,19 @@ export const travelMatchAction = async (req, res) => {
       return res.status(404).json({ message: "Trip not found" });
     }
 
-    // 🔐 ACTION-BASED AUTHORIZATION
+      // 🔐 ACTION-BASED AUTHORIZATION
     if (action === "request") {
+      // Existing check: Ensure the requester owns the source trip
       if (tripA.host_id !== host.id) {
         return res.status(403).json({
           message: "You can only request from your own trip"
+        });
+      }
+
+      // ✅ NEW CHECK: Prevent requesting your own target trip
+      if (tripB.host_id === host.id) {
+        return res.status(400).json({
+          message: "You cannot connect with your own trip"
         });
       }
     }
