@@ -694,50 +694,90 @@ export const getMyEvents = async (req, res) => {
 // ======================================================
 // GET SINGLE EVENT DETAILS
 // ======================================================
-export const getEventById = async (req, res) => {
+
+
+/* ======================================================
+   GET COMMUNITY DETAILS (PRODUCTION SAFE)
+   - Guest safe
+   - Cache safe
+   - Membership aware
+   ====================================================== */
+export const getCommunityById = async (req, res) => {
   try {
-    const cacheKey = `event:${req.params.id}`;
+    const communityId = Number(req.params.id);
+
+    // 🔒 Hard validation (never trust params)
+    if (!Number.isInteger(communityId)) {
+      return res.status(400).json({ message: "Invalid community id" });
+    }
+
+    const cacheKey = `community:id:${communityId}`;
+
+    let communityData;
+
+    // 1️⃣ Try cache
     const cached = await getCache(cacheKey);
     if (cached) {
-      return res.json({ success: true, event: cached });
-    }
-
-    const event = await Event.findOne({
-      where: {
-        id: req.params.id,
-        status: "approved",
-        is_deleted: false
-      },
-      include: [
-        {
-          model: Host,
-          attributes: ["id", "full_name", "phone", "country", "state", "city"]
+      // 🚨 NEVER mutate cached objects
+      communityData = JSON.parse(JSON.stringify(cached));
+    } else {
+      // 2️⃣ Fetch from DB
+      const community = await Community.findOne({
+        where: {
+          id: communityId,
+          status: "active"
         }
-      ]
-    });
+      });
 
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      if (!community) {
+        return res.status(404).json({ message: "Community not found" });
+      }
+
+      communityData = community.toJSON();
+
+      // Cache ONLY community data (not user flags)
+      await setCache(cacheKey, communityData, 300);
     }
 
-    const plainEvent = event.toJSON();
-    await setCache(cacheKey, plainEvent, 300);
-    await AnalyticsEvent.create({
-      event_type: "EVENT_VIEWED",
-      user_id: req.user?.id || null,
-      event_id: event.id,
-      country: req.headers["x-country"] || event.country,
-      state: req.headers["x-state"] || event.state
+    /* ======================================================
+       USER-SPECIFIC FLAGS (NEVER CACHED)
+       ====================================================== */
+
+    let isMember = false;
+    let memberRole = null;
+
+    if (req.user && req.user.id) {
+      const membership = await CommunityMember.findOne({
+        where: {
+          community_id: communityId,
+          user_id: req.user.id
+        },
+        attributes: ["role"]
+      });
+
+      if (membership) {
+        isMember = true;
+        memberRole = membership.role;
+      }
+    }
+
+    // 3️⃣ Final response
+    return res.json({
+      success: true,
+      community: {
+        ...communityData,
+        is_member: isMember,
+        isJoined: isMember,        // frontend compatibility
+        member_role: memberRole
+      }
     });
-
-
-    return res.json({ success: true, event: plainEvent });
 
   } catch (err) {
-    console.error("GET EVENT ERROR:", err);
+    console.error("GET COMMUNITY ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // ======================================================
