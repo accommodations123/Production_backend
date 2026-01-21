@@ -38,7 +38,9 @@ export const createTrip = async (req, res) => {
       arrival_date,
       arrival_time,
       airline,
-      flight_number
+      flight_number,
+      age,
+      languages
     } = req.body;
 
     // 3️⃣ Required validation
@@ -68,14 +70,16 @@ export const createTrip = async (req, res) => {
       arrival_date,
       arrival_time,
       airline,
-      flight_number
+      flight_number,
+      age,
+      languages
     });
     // 🔥 invalidate public feed
-   // AFTER trip creation
-await Promise.all([
-  deleteCacheByPrefix("travel:public:browse:"),
-  deleteCacheByPrefix("travel:public:search:")
-]);
+    // AFTER trip creation
+    await Promise.all([
+      deleteCacheByPrefix("travel:public:browse:"),
+      deleteCacheByPrefix("travel:public:search:")
+    ]);
 
 
     return res.json({
@@ -443,8 +447,16 @@ export const publicBrowseTrips = async (req, res) => {
         "from_city",
         "to_country",
         "to_city",
-        "travel_date"
+        "travel_date",
+        "departure_time",
+        "arrival_date",
+        "arrival_time",
+        "airline",
+        "flight_number",
+        "age",
+        "languages"
       ],
+
       order: [["travel_date", "ASC"]],
       limit,
       offset,
@@ -464,23 +476,39 @@ export const publicBrowseTrips = async (req, res) => {
     });
 
     // 3️⃣ Map response
-    const results = trips.map(t => {
-      const trip = t.toJSON();
-      return {
-        id: trip.id,
-        from_country: trip.from_country,
-        from_city: trip.from_city,
-        to_country: trip.to_country,
-        to_city: trip.to_city,
-        travel_date: trip.travel_date,
-        host: {
-          full_name: trip.host.full_name,
-          country: trip.host.country,
-          city: trip.host.city,
-          profile_image: trip.host.User?.profile_image || null
-        }
-      };
-    });
+   const results = trips.map(t => {
+  const trip = t.toJSON();
+
+  return {
+    id: trip.id,
+
+    user: {
+      fullName: trip.host.full_name,
+      age: trip.age,
+      languages: trip.languages || [],
+      country: trip.host.country,
+      city: trip.host.city,
+      image:
+        trip.host.User?.profile_image || null
+    },
+
+    destination: `${trip.to_city}, ${trip.to_country}`,
+    date: trip.travel_date,
+    time: trip.departure_time,
+
+    flight: {
+      airline: trip.airline,
+      flightNumber: trip.flight_number,
+      from: trip.from_city,
+      to: trip.to_city,
+      departureDate: trip.travel_date,
+      departureTime: trip.departure_time,
+      arrivalDate: trip.arrival_date,
+      arrivalTime: trip.arrival_time
+    }
+  };
+});
+
 
     // 4️⃣ Cache write
     await setCache(cacheKey, results, 120);
@@ -548,8 +576,16 @@ export const publicSearchTrips = async (req, res) => {
         "from_city",
         "to_country",
         "to_city",
-        "travel_date"
+        "travel_date",
+        "departure_time",
+        "arrival_date",
+        "arrival_time",
+        "airline",
+        "flight_number",
+        "age",
+        "languages"
       ],
+
       limit: safeLimit,
       offset,
       order: [["travel_date", "ASC"]],
@@ -584,6 +620,7 @@ export const publicSearchTrips = async (req, res) => {
           profile_image: trip.host.User?.profile_image || null
         }
       };
+
     });
 
     // 3️⃣ Cache write

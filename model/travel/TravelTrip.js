@@ -74,6 +74,24 @@ const TravelTrip = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true
     },
+    /* ===============================
+       🔥 NEW FIELDS (TRIP-SPECIFIC)
+       =============================== */
+
+    age: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 18,
+        max: 100
+      }
+    },
+
+    languages: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: []
+    },
 
     status: {
       type: DataTypes.STRING,
