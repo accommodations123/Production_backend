@@ -152,8 +152,10 @@ export const myTrips = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // 🔒 Resolve host (auth boundary)
     const host = await Host.findOne({
-      where: { user_id: userId }
+      where: { user_id: userId },
+      attributes: ["id"]
     });
 
     if (!host) {
@@ -162,19 +164,73 @@ export const myTrips = async (req, res) => {
 
     const trips = await TravelTrip.findAll({
       where: { host_id: host.id },
-      order: [["travel_date", "DESC"]]
+      order: [["travel_date", "DESC"]],
+      attributes: [
+        "id",
+        "from_city",
+        "to_city",
+        "travel_date",
+        "status"
+      ],
+      include: [
+        {
+          model: TravelMatch,
+          as: "sentMatches",
+          required: false,
+          attributes: ["id", "status", "matched_trip_id"]
+        },
+        {
+          model: TravelMatch,
+          as: "receivedMatches",
+          required: false,
+          attributes: ["id", "status", "trip_id"]
+        }
+      ]
+    });
+
+    // 🧠 Normalize for frontend (NO GUESSING)
+    const response = trips.map(trip => {
+      const t = trip.toJSON();
+
+      const hasPending =
+        t.sentMatches.some(m => m.status === "pending") ||
+        t.receivedMatches.some(m => m.status === "pending");
+
+      const hasAccepted =
+        t.sentMatches.some(m => m.status === "accepted") ||
+        t.receivedMatches.some(m => m.status === "accepted");
+
+      return {
+        id: t.id,
+        from_city: t.from_city,
+        to_city: t.to_city,
+        travel_date: t.travel_date,
+        status: t.status,
+
+        // 🔥 FRONTEND FLAGS (THIS FIXES CONNECT BUTTON)
+        match_state: hasAccepted
+          ? "connected"
+          : hasPending
+          ? "pending"
+          : "none",
+
+        // Optional but useful
+        sent_matches: t.sentMatches,
+        received_matches: t.receivedMatches
+      };
     });
 
     return res.json({
       success: true,
-      trips
+      trips: response
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("myTrips error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 export const travelMatchAction = async (req, res) => {
