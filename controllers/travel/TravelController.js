@@ -11,6 +11,7 @@ import {
   deleteCache,
   deleteCacheByPrefix
 } from "../../services/cacheService.js";
+import "../../model/associations.js"
 export const createTrip = async (req, res) => {
   try {
     const userId = req.user.id;

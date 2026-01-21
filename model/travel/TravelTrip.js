@@ -149,18 +149,5 @@ Host.hasMany(TravelTrip, {
   as: "trips"
 });
 
-// Matches SENT by this trip
-TravelTrip.hasMany(TravelMatch, {
-  foreignKey: "trip_id",
-  as: "sentMatches",
-  onDelete: "CASCADE"
-});
-
-// Matches RECEIVED by this trip
-TravelTrip.hasMany(TravelMatch, {
-  foreignKey: "matched_trip_id",
-  as: "receivedMatches",
-  onDelete: "CASCADE"
-});
 
 export default TravelTrip;
