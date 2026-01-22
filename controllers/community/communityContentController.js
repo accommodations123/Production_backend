@@ -5,7 +5,8 @@ import CommunityMember from "../../model/community/CommunityMember.js";
 import User from "../../model/User.js";
 import Host from "../../model/Host.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
-
+import { trackCommunityEvent } from "../../services/communityAnalytics.js";
+import { logAudit } from "../../services/auditLogger.js";
 /* ======================================================
    HELPERS
 ====================================================== */
@@ -28,70 +29,130 @@ const isAdminOrOwner = (community, userId) => {
 
 
 export const createPost = async (req, res) => {
+  const userId = req.user.id;
+  const communityId = Number(req.params.id);
+
+  const uploadedMedia = Array.isArray(req.files)
+    ? req.files.map(f => f.location)
+    : [];
+
+  const { content } = req.body;
+
+  /* =====================================================
+     1️⃣ FAST FAIL VALIDATION (NO TRANSACTION)
+  ===================================================== */
+  if (!content && uploadedMedia.length === 0) {
+    return res.status(400).json({
+      message: "Post must contain text or media"
+    });
+  }
+
+  const host = await Host.findOne({ where: { user_id: userId } });
+  if (!host) {
+    return res.status(403).json({
+      message: "Only hosts can create posts"
+    });
+  }
+
+  const member = await CommunityMember.findOne({
+    where: { community_id: communityId, user_id: userId }
+  });
+  if (!member) {
+    return res.status(403).json({
+      message: "Join community first"
+    });
+  }
+
+  /* =====================================================
+     2️⃣ TRANSACTION (DB ONLY — NO HTTP RETURNS)
+  ===================================================== */
+  let post;
+  let community;
+
+  const t = await Community.sequelize.transaction();
+
   try {
-    const userId = req.user.id;
-    const communityId = Number(req.params.id);
+    community = await Community.findByPk(communityId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-    const uploadedMedia = Array.isArray(req.files)
-      ? req.files.map(f => f.location)
-      : [];
-
-    const { content } = req.body;
-
-    if (!content && uploadedMedia.length === 0) {
-      return res.status(400).json({
-        message: "Post must contain text or media"
-      });
-    }
-
-    const community = await Community.findByPk(communityId);
     if (!community || community.status !== "active") {
-      return res.status(404).json({
-        message: "Community not found or inactive"
-      });
-    }
-
-    /* HOST-ONLY POSTING */
-    const host = await Host.findOne({
-      where: { user_id: userId }
-    });
-
-    if (!host) {
-      return res.status(403).json({
-        message: "Only hosts can create posts"
-      });
-    }
-
-    /* MEMBERSHIP CHECK (O(1) INDEXED) */
-    const member = await CommunityMember.findOne({
-      where: { community_id: communityId, user_id: userId },
-      attributes: ["role"]
-    });
-
-    if (!member) {
-      return res.status(403).json({
-        message: "Join community first"
-      });
+      throw new Error("COMMUNITY_INACTIVE");
     }
 
     let mediaType = "text";
     if (uploadedMedia.length && content) mediaType = "mixed";
     else if (uploadedMedia.length) mediaType = "image";
 
-    const created = await CommunityPost.create({
-      community_id: communityId,
-      user_id: userId,
-      content: content || null,
-      media_urls: uploadedMedia,
-      media_type: mediaType
-    });
+    post = await CommunityPost.create(
+      {
+        community_id: communityId,
+        user_id: userId,
+        content: content || null,
+        media_urls: uploadedMedia,
+        media_type: mediaType
+      },
+      { transaction: t }
+    );
 
-    const post = await CommunityPost.findByPk(created.id, {
+    await Community.increment(
+      "posts_count",
+      { by: 1, where: { id: communityId }, transaction: t }
+    );
+
+    await t.commit();
+
+  } catch (err) {
+    await t.rollback();
+
+    if (err.message === "COMMUNITY_INACTIVE") {
+      return res.status(404).json({
+        message: "Community not found or inactive"
+      });
+    }
+
+    console.error("CREATE POST TX ERROR:", err);
+    return res.status(500).json({
+      message: "Failed to create post"
+    });
+  }
+
+  /* =====================================================
+     3️⃣ AUDIT (NON-BLOCKING)
+  ===================================================== */
+  logAudit({
+    action: "COMMUNITY_POST_CREATED",
+    actor: { id: userId, role: "user" },
+    target: { type: "community_post", id: post.id },
+    severity: "LOW",
+    req
+  }).catch(console.error);
+
+  /* =====================================================
+     4️⃣ ANALYTICS (NON-BLOCKING)
+  ===================================================== */
+  trackCommunityEvent({
+    event_type: "COMMUNITY_POST_CREATED",
+    user_id: userId,
+    community_id: community.id,
+    country: community.country,
+    state: community.state,
+    metadata: { media_type: post.media_type }
+  }).catch(console.error);
+
+  /* =====================================================
+     5️⃣ RESPONSE POPULATION (OPTIONAL)
+  ===================================================== */
+  let populatedPost = post;
+
+  try {
+    populatedPost = await CommunityPost.findByPk(post.id, {
       include: [
         {
           model: User,
           as: "author",
-          attributes: ["id","profile_image"],   // keep user minimal
+          attributes: ["id", "profile_image"],
           include: [
             {
               model: Host,
@@ -107,23 +168,21 @@ export const createPost = async (req, res) => {
         }
       ]
     });
-
-
-    await Community.increment("posts_count", {
-      where: { id: communityId }
-    });
-
-    await deleteCacheByPrefix(`community:${communityId}:feed:`);
-
-    return res.json({ success: true, post });
-
   } catch (err) {
-    console.error("CREATE POST ERROR:", err);
-    return res.status(500).json({
-      message: "Failed to create post"
-    });
+    console.warn("POST POPULATION FAILED:", err.message);
   }
+
+  /* =====================================================
+     6️⃣ CACHE INVALIDATION
+  ===================================================== */
+  await deleteCacheByPrefix(`community:${communityId}:feed:`);
+
+  return res.json({
+    success: true,
+    post: populatedPost
+  });
 };
+
 
 
 
@@ -209,6 +268,24 @@ export const deletePost = async (req, res) => {
     await Community.decrement("posts_count", {
       where: { id: post.community_id }
     });
+   /* ✅ AUDIT */
+    logAudit({
+      action: "COMMUNITY_POST_DELETED",
+      actor: { id: userId, role: "user" },
+      target: { type: "community_post", id: post.id },
+      severity: "MEDIUM",
+      req
+    }).catch(console.error);
+
+    /* ✅ ANALYTICS */
+    trackCommunityEvent({
+      event_type: "COMMUNITY_POST_DELETED",
+      user_id: userId,
+      community_id: community.id,
+      country: community.country,
+      state: community.state
+    }).catch(console.error);
+
 
     /* 🔥 REDIS INVALIDATION */
     await deleteCacheByPrefix(`community:${post.community_id}:feed:`);
@@ -267,6 +344,23 @@ export const addResource = async (req, res) => {
       resource_type,
       resource_value
     });
+ logAudit({
+      action: "COMMUNITY_RESOURCE_ADDED",
+      actor: { id: userId, role: "user" },
+      target: { type: "community_resource", id: resource.id },
+      severity: "LOW",
+      req
+    }).catch(console.error);
+
+    trackCommunityEvent({
+      event_type: "COMMUNITY_RESOURCE_ADDED",
+      user_id: userId,
+      community_id: community.id,
+      country: community.country,
+      state: community.state,
+      metadata: { resource_type }
+    }).catch(console.error);
+
 
     await deleteCache(`community:${communityId}:resources`);
 
@@ -332,6 +426,22 @@ export const deleteResource = async (req, res) => {
 
     resource.status = "deleted";
     await resource.save();
+  logAudit({
+      action: "COMMUNITY_RESOURCE_DELETED",
+      actor: { id: userId, role: "user" },
+      target: { type: "community_resource", id: resource.id },
+      severity: "HIGH",
+      req
+    }).catch(console.error);
+
+    trackCommunityEvent({
+      event_type: "COMMUNITY_RESOURCE_DELETED",
+      user_id: userId,
+      community_id: community.id,
+      country: community.country,
+      state: community.state
+    }).catch(console.error);
+
 
     /* 🔥 REDIS INVALIDATION */
     await deleteCache(`community:${resource.community_id}:resources`);

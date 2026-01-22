@@ -4,6 +4,7 @@ import CommunityMember from "../../model/community/CommunityMember.js";
 import { setCache, getCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
 import { logAudit } from "../../services/auditLogger.js";
 import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
+import { trackCommunityEvent } from "../../services/communityAnalytics.js";
 /* CREATE COMMUNITY */
 export const createCommunity = async (req, res) => {
   try {
@@ -37,6 +38,14 @@ export const createCommunity = async (req, res) => {
       members_count: 1,
       status: "pending" // ✅ IMPORTANT
     });
+    
+
+await trackCommunityEvent({
+  event_type: "COMMUNITY_CREATED",
+  user_id: userId,
+  community
+});
+
 
     await deleteCacheByPrefix("communities:list:");
 
@@ -104,7 +113,7 @@ export const updateCommunityProfile = async (req, res) => {
 };
 
 
-/* GET COMMUNITY DETAILS */
+
 /* =========================================
    GET COMMUNITY DETAILS (PRODUCTION SAFE)
    ========================================= */
@@ -221,6 +230,13 @@ export const joinCommunity = async (req, res) => {
     await community.save({ transaction: t });
 
     await t.commit();
+    trackCommunityEvent({
+  event_type: "COMMUNITY_JOINED",
+  user_id: userId,
+  community,
+  metadata: { role: "member" }
+});
+
 
     // 🔥 Cache invalidation (CRITICAL)
     await deleteCache(`community:id:${communityId}`);
@@ -276,6 +292,12 @@ export const leaveCommunity = async (req, res) => {
     await community.save({ transaction: t });
 
     await t.commit();
+    trackCommunityEvent({
+  event_type: "COMMUNITY_LEFT",
+  user_id: userId,
+  community
+});
+
 
     // 🔥 Cache invalidation
     await deleteCache(`community:id:${communityId}`);
@@ -386,20 +408,20 @@ export const approveCommunity = async (req, res) => {
 
   community.status = "active";
   await community.save();
-   // 🔐 AUDIT (mandatory)
-    logAudit({
-      action: "COMMUNITY_APPROVED",
-      actor: { id: req.admin.id, role: "admin" },
-      target: { type: "community", id: community.id },
-      severity: "MEDIUM",
-      req
-    }).catch(console.error);
+ logAudit({
+  action: "COMMUNITY_APPROVED",
+  actor: { id: req.admin.id, role: "admin" },
+  target: { type: "community", id: community.id },
+  severity: "MEDIUM",
+  req
+}).catch(console.error);
 
-    // 📊 ANALYTICS (dashboard)
-    AnalyticsEvent.create({
-      event_type: "COMMUNITY_APPROVED",
-      user_id: req.admin.id
-    }).catch(console.error);
+trackCommunityEvent({
+  event_type: "COMMUNITY_APPROVED",
+  user_id: req.admin.id,
+  community
+});
+
 
   res.json({
     success: true,

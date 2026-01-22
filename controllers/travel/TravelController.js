@@ -78,6 +78,23 @@ export const createTrip = async (req, res) => {
       age,
       languages
     });
+    await deleteCacheByPrefix("travel:public:browse:");
+await deleteCacheByPrefix("travel:public:search:");
+
+AnalyticsEvent.create({
+  event_type: "TRAVEL_TRIP_CREATED",
+  host_id: host.id,
+  country: from_country
+}).catch(console.error);
+
+logAudit({
+  action: "TRAVEL_TRIP_CREATED",
+  actor: { id: userId, role: "host" },
+  target: { type: "travel_trip", id: trip.id },
+  severity: "LOW",
+  req
+}).catch(console.error);
+
 
     return res.json({
       success: true,
@@ -324,9 +341,17 @@ export const travelMatchAction = async (req, res) => {
 
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
 
-      AnalyticsEvent.create({
+    AnalyticsEvent.create({
         event_type: "TRAVEL_MATCH_REQUESTED",
         host_id: host.id
+      }).catch(console.error);
+
+      logAudit({
+        action: "TRAVEL_MATCH_REQUESTED",
+        actor: { id: userId, role: "host" },
+        target: { type: "travel_match", id: match.id },
+        severity: "LOW",
+        req
       }).catch(console.error);
 
       return res.json({ success: true, status: "pending" });
