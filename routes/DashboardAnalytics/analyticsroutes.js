@@ -5,7 +5,7 @@ import {
   getAnalyticsByLocation
 } from "../../controllers/DashboardAnalytics/adminAnalyticsController.js";
 
-import  adminAuth  from "../../middleware/adminAuth.js";
+import adminAuth from "../../middleware/adminAuth.js";
 
 const router = express.Router();
 

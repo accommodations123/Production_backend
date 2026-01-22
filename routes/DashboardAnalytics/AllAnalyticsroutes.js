@@ -2,21 +2,18 @@ import express from "express";
 import adminAuth from "../../middleware/adminAuth.js";
 import {
   analyticsOverview,
-  domainSummary,
-  analyticsTimeSeries,
-  funnelAnalytics,
-  geoAnalytics
+  analyticsDaily,
+  analyticsTopEvents,
+  analyticsByLocation
 } from "../../controllers/DashboardAnalytics/AnalyticsController.js";
 
 const router = express.Router();
 
-// 🔐 SINGLE SOURCE OF TRUTH
 router.use(adminAuth);
 
-router.get("/overview", analyticsOverview);
-router.get("/domain/:domain", domainSummary);
-router.get("/timeseries", analyticsTimeSeries);
-router.get("/funnel/:domain", funnelAnalytics);
-router.get("/geo", geoAnalytics);
+router.get("/overview",adminAuth, analyticsOverview);
+router.get("/daily",adminAuth, analyticsDaily);
+router.get("/top-events",adminAuth, analyticsTopEvents);
+router.get("/by-location",adminAuth, analyticsByLocation);
 
 export default router;
