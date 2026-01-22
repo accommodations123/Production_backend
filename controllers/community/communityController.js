@@ -37,13 +37,14 @@ export const createCommunity = async (req, res) => {
       members_count: 1,
       status: "pending" // ✅ IMPORTANT
     });
-    
 
-await trackCommunityEvent({
-  event_type: "COMMUNITY_CREATED",
-  user_id: userId,
-  community
-});
+
+    await trackCommunityEvent({
+      event_type: "COMMUNITY_CREATED",
+      user_id: userId,
+      community
+    });
+
 
 
     await deleteCacheByPrefix("communities:list:");
@@ -230,11 +231,11 @@ export const joinCommunity = async (req, res) => {
 
     await t.commit();
     trackCommunityEvent({
-  event_type: "COMMUNITY_JOINED",
-  user_id: userId,
-  community,
-  metadata: { role: "member" }
-});
+      event_type: "COMMUNITY_JOINED",
+      user_id: userId,
+      community,
+      metadata: { role: "member" }
+    });
 
 
     // 🔥 Cache invalidation (CRITICAL)
@@ -292,10 +293,10 @@ export const leaveCommunity = async (req, res) => {
 
     await t.commit();
     trackCommunityEvent({
-  event_type: "COMMUNITY_LEFT",
-  user_id: userId,
-  community
-});
+      event_type: "COMMUNITY_LEFT",
+      user_id: userId,
+      community
+    });
 
 
     // 🔥 Cache invalidation
@@ -407,19 +408,19 @@ export const approveCommunity = async (req, res) => {
 
   community.status = "active";
   await community.save();
- logAudit({
-  action: "COMMUNITY_APPROVED",
-  actor: { id: req.admin.id, role: "admin" },
-  target: { type: "community", id: community.id },
-  severity: "MEDIUM",
-  req
-}).catch(console.error);
+  logAudit({
+    action: "COMMUNITY_APPROVED",
+    actor: { id: req.admin.id, role: "admin" },
+    target: { type: "community", id: community.id },
+    severity: "MEDIUM",
+    req
+  }).catch(console.error);
 
-trackCommunityEvent({
-  event_type: "COMMUNITY_APPROVED",
-  user_id: req.admin.id,
-  community
-});
+  trackCommunityEvent({
+    event_type: "COMMUNITY_APPROVED",
+    user_id: req.admin.id,
+    community
+  });
 
 
   res.json({
@@ -438,18 +439,20 @@ export const rejectCommunity = async (req, res) => {
 
   community.status = "deleted";
   await community.save();
-   logAudit({
-      action: "COMMUNITY_REJECTED",
-      actor: { id: req.admin.id, role: "admin" },
-      target: { type: "community", id: community.id },
-      severity: "HIGH",
-      req
-    }).catch(console.error);
+  logAudit({
+    action: "COMMUNITY_REJECTED",
+    actor: { id: req.admin.id, role: "admin" },
+    target: { type: "community", id: community.id },
+    severity: "HIGH",
+    req
+  }).catch(console.error);
 
-    AnalyticsEvent.create({
-      event_type: "COMMUNITY_REJECTED",
-      user_id: req.admin.id
-    }).catch(console.error);
+  await trackCommunityEvent({
+    event_type: "COMMUNITY_REJECTED",
+    user_id: req.admin.id,
+    community
+  });
+
 
   res.json({
     success: true,
@@ -467,18 +470,20 @@ export const suspendCommunity = async (req, res) => {
 
   community.status = "suspended";
   await community.save();
-   logAudit({
-      action: "COMMUNITY_SUSPENDED",
-      actor: { id: req.admin.id, role: "admin" },
-      target: { type: "community", id: community.id },
-      severity: "CRITICAL",
-      req
-    }).catch(console.error);
+  logAudit({
+    action: "COMMUNITY_SUSPENDED",
+    actor: { id: req.admin.id, role: "admin" },
+    target: { type: "community", id: community.id },
+    severity: "CRITICAL",
+    req
+  }).catch(console.error);
 
-    AnalyticsEvent.create({
-      event_type: "COMMUNITY_SUSPENDED",
-      user_id: req.admin.id
-    }).catch(console.error);
+  await trackCommunityEvent({
+    event_type: "COMMUNITY_SUSPENDED",
+    user_id: req.admin.id,
+    community
+  });
+
 
   res.json({
     success: true,

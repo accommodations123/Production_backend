@@ -83,8 +83,7 @@ export const createTrip = async (req, res) => {
 
     trackEvent({
       event_type: "TRAVEL_TRIP_CREATED",
-      domain: "travel",
-      actor: { user_id: userId, role: "host" },
+      actor: { user_id: userId, host_id:host.id },
       entity: { type: "travel_trip", id: trip.id },
       location: {
         country: from_country,
@@ -100,12 +99,12 @@ export const createTrip = async (req, res) => {
 
 
     logAudit({
-      action: "TRAVEL_TRIP_CREATED",
-      actor: { id: userId, role: "host" },
-      target: { type: "travel_trip", id: trip.id },
-      severity: "LOW",
-      req
-    }).catch(console.error);
+  action: "TRAVEL_TRIP_CREATED",
+  actor: { user_id: userId, host_id: host.id },
+  target: { type: "travel_trip", id: trip.id },
+  req
+}).catch(console.error);
+
 
 
     return res.json({
@@ -355,8 +354,7 @@ export const travelMatchAction = async (req, res) => {
 
      trackEvent({
   event_type: "TRAVEL_MATCH_REQUESTED",
-  domain: "travel",
-  actor: { user_id: userId, role: "host" },
+  actor: { user_id: userId,host_id:host.id },
   entity: { type: "travel_match", id: match.id },
   metadata: {
     trip_id,
@@ -367,7 +365,7 @@ export const travelMatchAction = async (req, res) => {
 
       logAudit({
         action: "TRAVEL_MATCH_REQUESTED",
-        actor: { id: userId, role: "host" },
+        actor: { user_id: userId, host_id:host.id },
         target: { type: "travel_match", id: match.id },
         severity: "LOW",
         req
@@ -401,8 +399,7 @@ export const travelMatchAction = async (req, res) => {
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
       trackEvent({
   event_type: "TRAVEL_MATCH_ACCEPTED",
-  domain: "travel",
-  actor: { user_id: userId, role: "host" },
+  actor: { user_id: userId,host_id:host.id },
   entity: { type: "travel_match", id: match.id }
 }).catch(console.error);
 
@@ -431,8 +428,7 @@ export const travelMatchAction = async (req, res) => {
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
       trackEvent({
   event_type: "TRAVEL_MATCH_REJECTED",
-  domain: "travel",
-  actor: { user_id: userId, role: "host" },
+  actor: { user_id: userId, host_id:host.id },
   entity: { type: "travel_match", id: match.id }
 }).catch(console.error);
 
@@ -457,8 +453,7 @@ export const travelMatchAction = async (req, res) => {
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
       trackEvent({
   event_type: "TRAVEL_MATCH_CANCELLED",
-  domain: "travel",
-  actor: { user_id: userId, role: "host" },
+  actor: { user_id: userId, host_id:host.id },
   entity: { type: "travel_match", id: match.id }
 }).catch(console.error);
 
@@ -739,19 +734,17 @@ export const publicSearchTrips = async (req, res) => {
         time: trip.departure_time
       };
     });
-    trackEvent({
+  trackEvent({
   event_type: "TRAVEL_TRIP_SEARCHED",
-  domain: "travel",
-  actor: req.user
-    ? { user_id: req.user.id, role: "user" }
-    : { user_id: null, role: "guest" },
+  actor: req.user ? { user_id: req.user.id } : {},
   metadata: {
     from_country,
     to_country,
     date,
     results_count: trips.length
   }
-}).catch(console.error);
+});
+
 
 
     return res.json({
@@ -795,18 +788,16 @@ export const publicTripPreview = async (req, res) => {
     if (!trip) {
       return res.status(404).json({ message: "Trip not found" });
     }
-    trackEvent({
+trackEvent({
   event_type: "TRAVEL_TRIP_VIEWED",
-  domain: "travel",
-  actor: req.user
-    ? { user_id: req.user.id, role: "user" }
-    : { user_id: null, role: "guest" },
+  actor: req.user ? { user_id: req.user.id } : {},
   entity: { type: "travel_trip", id: trip.id },
   location: {
     country: trip.from_country,
-    city: trip.from_city
+    state: null
   }
-}).catch(console.error);
+});
+
 
 
     return res.json({
@@ -877,18 +868,18 @@ export const adminCancelTrip = async (req, res) => {
 
     trip.status = "cancelled";
     await trip.save();
-    logAudit({
-      action: "ADMIN_CANCELLED_TRIP",
-      actor: { id: req.admin.id, role: "admin" },
-      target: { type: "travel_trip", id: trip.id },
-      severity: "HIGH",
-      req
-    }).catch(console.error);
+logAudit({
+  action: "ADMIN_CANCELLED_TRIP",
+  actor: { admin_id: req.admin.id },
+  target: { type: "travel_trip", id: trip.id },
+  severity: "HIGH",
+  req
+}).catch(console.error);
+
 
  trackEvent({
   event_type: "ADMIN_CANCELLED_TRIP",
-  domain: "travel",
-  actor: { user_id: req.admin.id, role: "admin" },
+  actor: { user_id: req.admin.id, },
   entity: { type: "travel_trip", id: trip.id }
 }).catch(console.error);
 
@@ -970,19 +961,19 @@ export const adminBlockHost = async (req, res) => {
     host.status = "rejected";
     host.rejection_reason = "Blocked by admin";
     await host.save();
-    logAudit({
-      action: "ADMIN_BLOCKED_HOST",
-      actor: { id: req.admin.id, role: "admin" },
-      target: { type: "host", id: host.id },
-      severity: "CRITICAL",
-      req
-    }).catch(console.error);
+   logAudit({
+  action: "ADMIN_BLOCKED_HOST",
+  actor: { admin_id: req.admin.id },
+  target: { type: "host", id: host.id },
+  severity: "CRITICAL",
+  req
+}).catch(console.error);
+
 
  trackEvent({
   event_type: "HOST_BLOCKED",
-  domain: "travel",
-  actor: { user_id: req.admin.id, role: "admin" },
-  entity: { type: "host", id: host.id },
+ actor: { user_id: req.admin.id },
+  entity: { type:"host", id: host.id },
   location: { country: host.country }
 }).catch(console.error);
 

@@ -38,16 +38,15 @@ export const createDraft = async (req, res) => {
       privacy_type: privacyType,
       status: "draft"
     });
-    await trackEvent({
+    AnalyticsEvent.create({
       event_type: "PROPERTY_DRAFT_CREATED",
-      domain: "buy_sell",
-      actor: { user_id: userId, role: "host" },
-      entity: { type: "property", id: property.id },
-      location: {
-        country: req.headers["x-country"] || null
-      }
-    }).catch(console.error);
-
+      user_id: userId,
+      host_id: host.id,
+      property_id: property.id,
+      country: req.headers["x-country"] || null
+    }).catch(err => {
+      console.error("ANALYTICS EVENT FAILED:", err);
+    });
 
 
 
@@ -333,17 +332,16 @@ export const submitProperty = async (req, res) => {
 
     property.status = "pending";
     await property.save();
-    await trackEvent({
+    AnalyticsEvent.create({
       event_type: "PROPERTY_SUBMITTED",
-      domain: "buy_sell",
-      actor: { user_id: property.user_id, role: "host" },
-      entity: { type: "property", id: property.id },
-      location: {
-        country: property.country,
-        state: property.state
-      }
-    }).catch(console.error);
-
+      user_id: property.user_id,
+      host_id: property.host_id,
+      property_id: property.id,
+      country: req.headers["x-country"] || property.country || null,
+      created_at: new Date()
+    }).catch(err => {
+      console.error("ANALYTICS EVENT FAILED:", err);
+    });
 
 
     await deleteCache(`property:${property.id}`);
@@ -646,20 +644,15 @@ export const getPropertyById = async (req, res) => {
 
     const cached = await getCache(`property:${id}`);
     if (cached) {
-      // 🔍 analytics must still fire
-      trackEvent({
+       // 🔍 analytics must still fire
+      AnalyticsEvent.create({
         event_type: "PROPERTY_VIEWED",
-        domain: "buy_sell",
-        actor: req.user
-          ? { user_id: req.user.id, role: "user" }
-          : { user_id: null, role: "guest" },
-        entity: { type: "property", id },
-        location: {
-          country: req.headers["x-country"] || property.country,
-          state: req.headers["x-state"] || property.state
-        }
-      }).catch(() => { });
-
+        user_id: req.user?.id || null,
+        property_id: id,
+        country: req.headers["x-country"] || null,
+        state: req.headers["x-state"] || null,
+        created_at: new Date()
+      }).catch(() => {});
       return res.json({ success: true, property: cached });
     }
 
@@ -694,14 +687,14 @@ export const getPropertyById = async (req, res) => {
     if (!property) {
       return res.status(404).json({ success: false, message: "Property not found" });
     }
-    AnalyticsEvent.create({
+   AnalyticsEvent.create({
       event_type: "PROPERTY_VIEWED",
       user_id: req.user?.id || null,
       property_id: id,
       country: req.headers["x-country"] || property.country || null,
       state: req.headers["x-state"] || property.state || null,
       created_at: new Date()
-    }).catch(() => { });
+    }).catch(() => {});
 
 
     await setCache(`property:${id}`, property, 30);

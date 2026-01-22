@@ -3,7 +3,7 @@ import User from "../model/User.js";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import axios from "axios";
 import geoip from "geoip-lite";
-import { trackEvent } from "../services/Analytics.js";
+import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { logAudit } from "../services/auditLogger.js";
 
 // Save host details
@@ -107,18 +107,16 @@ export const saveHost = async (req, res) => {
       instagram: req.body.instagram,
       facebook: req.body.facebook,
     });
-    await trackEvent({
+    AnalyticsEvent.create({
       event_type: "HOST_CREATED",
-      domain: "community",
-      actor: { user_id: userId, role: "user" },
-      entity: { type: "host", id: data.id },
-      location: {
-        country: data.country,
-        state: data.state,
-        city: data.city
-      }
-    }).catch(console.error);
+      user_id: userId,
+      host_id: data.id,
+      country: data.country,
+      state: data.state,
 
+    }).catch(err => {
+      console.error("ANALYTICS HOST_CREATED FAILED:", err);
+    });
     logAudit({
       action: "HOST_CREATED",
       actor: req.auditActor,
@@ -168,7 +166,7 @@ export const updateHost = async (req, res) => {
 
     // Ownership check
     if (host.user_id !== userId) {
-      logAudit({
+       logAudit({
         action: "HOST_UPDATE_FORBIDDEN",
         actor: req.auditActor,
         target: { type: "host", id: hostId },
@@ -216,21 +214,20 @@ export const updateHost = async (req, res) => {
         profile_image: req.file.location
       });
     }
-    await trackEvent({
+    AnalyticsEvent.create({
       event_type: "HOST_UPDATED",
-      domain: "community",
-      actor: { user_id: userId, role: "user" },
-      entity: { type: "host", id: host.id },
-      location: {
-        country: host.country,
-        state: host.state
-      },
+      user_id: userId,
+      host_id: host.id,
+      country: host.country,
+      state: host.state,
       metadata: {
         fields_updated: Object.keys(req.body)
-      }
-    }).catch(console.error);
+      },
 
-    logAudit({
+    }).catch(err => {
+      console.error("ANALYTICS HOST_UPDATED FAILED:", err);
+    });
+     logAudit({
       action: "HOST_UPDATED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
@@ -336,7 +333,7 @@ export const getMyHost = async (req, res) => {
 export const getPendingHosts = async (req, res) => {
   try {
     const { country, state } = req.query;
-
+   
 
     // ✅ Location-aware cache key
     const cacheKey = `pending_hosts:${country || "all"}:${state || "all"}`;
@@ -386,18 +383,17 @@ export const approveHost = async (req, res) => {
     host.status = "approved";
     host.rejection_reason = "";
     await host.save();
- await trackEvent({
-  event_type: "HOST_APPROVED",
-  domain: "community",
-  actor: { user_id: req.admin.id, role: "admin" },
-  entity: { type: "host", id: host.id },
-  location: {
-    country: host.country,
-    state: host.state
-  }
-}).catch(console.error);
+    AnalyticsEvent.create({
+      event_type: "HOST_APPROVED",
+      user_id: req.admin?.id || null,   // approving admin
+      host_id: host.id,
+      country: host.country,
+      state: host.state,
 
-    logAudit({
+    }).catch(err => {
+      console.error("ANALYTICS HOST_APPROVED FAILED:", err);
+    });
+     logAudit({
       action: "HOST_APPROVED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
@@ -439,7 +435,7 @@ export const rejectHost = async (req, res) => {
     }).catch(err => {
       console.error("ANALYTICS HOST_REJECTED FAILED:", err);
     });
-    logAudit({
+     logAudit({
       action: "HOST_REJECTED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },

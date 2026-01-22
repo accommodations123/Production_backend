@@ -1,22 +1,27 @@
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 
 
-export async function trackCommunityEvent({
+export const trackCommunityEvent = async ({
   event_type,
-  user_id,
-  community_id,
+  user_id = null,
+  community = null,
   country = null,
   state = null,
   metadata = {}
-}) {
-  if (!event_type || !user_id || !community_id) return;
+}) => {
+  try {
+    await AnalyticsEvent.create({
+      event_type,
+      user_id,
+      country: country ?? community?.country ?? null,
+      state: state ?? community?.state ?? null,
+      metadata: {
+        ...metadata,
+        community_id: community?.id
+      }
+    });
+  } catch (err) {
+    console.error("ANALYTICS ERROR:", err.message);
+  }
+};
 
-  return AnalyticsEvent.create({
-    event_type,
-    user_id,
-    community_id,
-    country,
-    state,
-    metadata
-  });
-}

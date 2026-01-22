@@ -14,10 +14,6 @@ const AnalyticsEvent = sequelize.define(
       type: DataTypes.STRING(64),
       allowNull: false
     },
-    domain: {
-      type: DataTypes.ENUM("buy_sell","community","travel"),
-      allowNull:false
-    },
 
     user_id: {
       type: DataTypes.BIGINT.UNSIGNED,
