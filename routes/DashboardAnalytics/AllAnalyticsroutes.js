@@ -6,7 +6,7 @@ import {
   analyticsTimeSeries,
   funnelAnalytics,
   geoAnalytics
-} from "../../controllers/DashboardAnalytics/buySellAnalyticsController.js";
+} from "../../controllers/DashboardAnalytics/AnalyticsController.js";
 
 const router = express.Router();
 
