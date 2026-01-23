@@ -241,40 +241,31 @@ export const joinCommunity = async (req, res) => {
       });
     }
 
-    /* =========================
-       3️⃣ CHECK HOST STATUS
-       ========================= */
-    const host = await Host.findOne({
-      where: { user_id: userId },
-      attributes: ["id"],
-      transaction: t
-    });
+  /* 3️⃣ CHECK HOST STATUS */
+const host = await Host.findOne({
+  where: { user_id: userId },
+  transaction: t
+});
 
-    const isHost = !!host;
+if (!host) {
+  await t.rollback();
+  return res.status(403).json({
+    message: "Only approved hosts can join this community"
+  });
+}
 
-    /* =========================
-       4️⃣ CREATE MEMBERSHIP
-       ========================= */
-    await CommunityMember.create(
-      {
-        community_id: communityId,
-        user_id: userId,
-        role: "member",
-        is_host: isHost
-      },
-      { transaction: t }
-    );
+/* 4️⃣ CREATE MEMBERSHIP */
+await CommunityMember.create({
+  community_id: communityId,
+  user_id: userId,
+  role: "member",
+  is_host: true
+}, { transaction: t });
 
-    /* =========================
-       5️⃣ UPDATE AGGREGATES
-       ========================= */
-    community.members_count += 1;
+community.members_count += 1;
+community.host_count += 1;
+await community.save({ transaction: t });
 
-    if (isHost) {
-      community.host_count += 1;
-    }
-
-    await community.save({ transaction: t });
 
     /* =========================
        6️⃣ COMMIT
