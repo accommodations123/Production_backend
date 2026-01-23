@@ -308,13 +308,7 @@ await community.save({ transaction: t });
 
 
 /* LEAVE COMMUNITY */
-import Community from "../../model/community/Community.js";
-import CommunityMember from "../../model/community/CommunityMember.js";
-import {
-  deleteCache,
-  deleteCacheByPrefix
-} from "../../services/cacheService.js";
-import { trackCommunityEvent } from "../../services/communityAnalytics.js";
+
 
 export const leaveCommunity = async (req, res) => {
   const userId = req.user.id;
