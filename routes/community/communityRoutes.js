@@ -26,7 +26,7 @@ const router = express.Router();
 router.post("/", userAuth, createCommunity);
 router.put('/:id/update',userAuth,uploadCommunityMedia.fields([{name: "avatar_image", maxcount:1},{name: "cover_image", maxcount:1}]),multerErrorHandler, updateCommunityProfile)
 router.get("/", listCommunities);
-router.get("/:id", getCommunityById);
+router.get("/:id",optionalAuth, getCommunityById);
 router.post("/:id/join", userAuth,optionalAuth, joinCommunity);
 router.post("/:id/leave", userAuth,optionalAuth, leaveCommunity);
 router.get("/:id/nearby-events", getNearbyEvents);
