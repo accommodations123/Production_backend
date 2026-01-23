@@ -14,28 +14,12 @@ const router = express.Router();
    TRAVEL ANALYTICS – ADMIN
 ====================================================== */
 
-router.get(
-  "/analytics/travel/overview",
-  adminAuth,
-  getTravelOverview
-);
+router.get("/analytics/travel/overview",adminAuth,getTravelOverview);
 
-router.get(
-  "/analytics/travel/trend",
-  adminAuth,
-  getTravelDailyTrend
-);
+router.get("/analytics/travel/trend",adminAuth,getTravelDailyTrend);
 
-router.get(
-  "/analytics/travel/countries",
-  adminAuth,
-  getTravelByCountry
-);
+router.get("/analytics/travel/countries",adminAuth,getTravelByCountry);
 
-router.get(
-  "/analytics/travel/match-conversion",
-  adminAuth,
-  getTravelMatchConversion
-);
+router.get("/analytics/travel/match-conversion",adminAuth,getTravelMatchConversion);
 
 export default router;

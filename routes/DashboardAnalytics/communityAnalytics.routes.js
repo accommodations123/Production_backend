@@ -25,24 +25,24 @@ router.get("/communities/overview",adminAuth,getCommunityOverview);
  * DAILY TREND
  * /admin/analytics/communities/trend?range=7d|30d
  */
-router.get("/analytics/communities/trend",adminAuth,getCommunityDailyTrend);
+router.get("/communities/trend",adminAuth,getCommunityDailyTrend);
 
 /**
  * COUNTRY DISTRIBUTION
  * /admin/analytics/communities/countries
  */
-router.get("/analytics/communities/countries",adminAuth,getCommunityByCountry);
+router.get("/communities/countries",adminAuth,getCommunityByCountry);
 
 /**
  * APPROVAL VS REJECTION
  * /admin/analytics/communities/approval-ratio
  */
-router.get("/analytics/communities/approval-ratio",adminAuth,getCommunityApprovalRatio);
+router.get("/communities/approval-ratio",adminAuth,getCommunityApprovalRatio);
 
 /**
  * MEMBERSHIP ACTIVITY (JOIN vs LEAVE)
  * /admin/analytics/communities/memberships
  */
-router.get("/analytics/communities/memberships",adminAuth,getCommunityMembershipActivity);
+router.get("/communities/memberships",adminAuth,getCommunityMembershipActivity);
 
 export default router;
