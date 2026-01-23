@@ -815,18 +815,22 @@ trackEvent({
 
 
 //ADMIN CONTROLLERS
-
+/* ======================================================
+   ADMIN: GET ALL TRIPS
+   ====================================================== */
 export const adminGetAllTrips = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status } = req.query;
+    const page = Math.max(Number(req.query.page || 1), 1);
+    const limit = Math.min(Number(req.query.limit || 20), 50);
     const offset = (page - 1) * limit;
+    const { status } = req.query;
 
     const where = {};
     if (status) where.status = status;
 
     const trips = await TravelTrip.findAll({
       where,
-      limit: Number(limit),
+      limit,
       offset,
       order: [["created_at", "DESC"]],
       include: [
@@ -846,145 +850,255 @@ export const adminGetAllTrips = async (req, res) => {
 
     return res.json({
       success: true,
-      page: Number(page),
+      page,
       results: trips
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("ADMIN GET TRIPS ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-
+/* ======================================================
+   ADMIN: CANCEL TRIP (CASCADE SAFE)
+   ====================================================== */
 export const adminCancelTrip = async (req, res) => {
   try {
-    const { trip_id } = req.params;
+    const tripId = Number(req.params.trip_id);
+    if (!Number.isInteger(tripId)) {
+      return res.status(400).json({ message: "Invalid trip id" });
+    }
 
-    const trip = await TravelTrip.findByPk(trip_id);
+    const trip = await TravelTrip.findByPk(tripId);
     if (!trip) {
       return res.status(404).json({ message: "Trip not found" });
     }
 
+    if (trip.status === "cancelled") {
+      return res.status(400).json({ message: "Trip already cancelled" });
+    }
+
+    // 🔴 Cancel trip
     trip.status = "cancelled";
     await trip.save();
-logAudit({
-  action: "ADMIN_CANCELLED_TRIP",
-  actor: { admin_id: req.admin.id },
-  target: { type: "travel_trip", id: trip.id },
-  severity: "HIGH",
-  req
-}).catch(console.error);
 
+    // 🔴 Cascade cancel ALL related matches
+    await TravelMatch.update(
+      { status: "cancelled" },
+      {
+        where: {
+          [Op.or]: [
+            { trip_id: trip.id },
+            { matched_trip_id: trip.id }
+          ]
+        }
+      }
+    );
 
- trackEvent({
-  event_type: "ADMIN_CANCELLED_TRIP",
-  actor: { user_id: req.admin.id, },
-  entity: { type: "travel_trip", id: trip.id }
-}).catch(console.error);
+    // 🔐 Audit
+    logAudit({
+      action: "ADMIN_CANCELLED_TRIP",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "travel_trip", id: trip.id },
+      severity: "HIGH",
+      req
+    }).catch(console.error);
 
+    // 📊 Analytics
+    AnalyticsEvent.create({
+      event_type: "ADMIN_CANCELLED_TRIP",
+      user_id: req.admin.id
+    }).catch(console.error);
+
+    // 🧹 Cache
+    await deleteCacheByPrefix("travel:");
+    await deleteCacheByPrefix("host:");
+    await deleteCacheByPrefix("admin:");
 
     return res.json({
       success: true,
-      message: "Trip cancelled by admin"
+      message: "Trip and related matches cancelled"
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("ADMIN CANCEL TRIP ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-
-
+/* ======================================================
+   ADMIN: GET ALL MATCHES
+   ====================================================== */
 export const adminGetAllMatches = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status } = req.query;
+    const page = Math.max(Number(req.query.page || 1), 1);
+    const limit = Math.min(Number(req.query.limit || 20), 50);
     const offset = (page - 1) * limit;
+    const { status } = req.query;
 
     const where = {};
     if (status) where.status = status;
 
     const matches = await TravelMatch.findAll({
       where,
-      limit: Number(limit),
+      limit,
       offset,
-      order: [["created_at", "DESC"]]
+      order: [["created_at", "DESC"]],
+      include: [
+        {
+          model: TravelTrip,
+          as: "requesterTrip",
+          attributes: ["id", "from_city", "to_city"]
+        },
+        {
+          model: TravelTrip,
+          as: "receiverTrip",
+          attributes: ["id", "from_city", "to_city"]
+        }
+      ]
     });
 
     return res.json({
       success: true,
-      page: Number(page),
+      page,
       results: matches
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("ADMIN GET MATCHES ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-
+/* ======================================================
+   ADMIN: CANCEL MATCH
+   ====================================================== */
 export const adminCancelMatch = async (req, res) => {
   try {
-    const { match_id } = req.params;
+    const matchId = Number(req.params.match_id);
+    if (!Number.isInteger(matchId)) {
+      return res.status(400).json({ message: "Invalid match id" });
+    }
 
-    const match = await TravelMatch.findByPk(match_id);
+    const match = await TravelMatch.findByPk(matchId);
     if (!match) {
       return res.status(404).json({ message: "Match not found" });
+    }
+
+    if (match.status === "cancelled") {
+      return res.status(400).json({ message: "Match already cancelled" });
     }
 
     match.status = "cancelled";
     await match.save();
 
+    // 🔐 Audit
+    logAudit({
+      action: "ADMIN_CANCELLED_MATCH",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "travel_match", id: match.id },
+      severity: "MEDIUM",
+      req
+    }).catch(console.error);
+
+    // 📊 Analytics
+    AnalyticsEvent.create({
+      event_type: "ADMIN_CANCELLED_MATCH",
+      user_id: req.admin.id
+    }).catch(console.error);
+
+    // 🧹 Cache
+    await deleteCacheByPrefix("travel:");
+    await deleteCacheByPrefix("host:");
+
     return res.json({
       success: true,
-      message: "Match cancelled by admin"
+      message: "Match cancelled"
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("ADMIN CANCEL MATCH ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-
+/* ======================================================
+   ADMIN: BLOCK HOST (NUCLEAR OPTION)
+   ====================================================== */
 export const adminBlockHost = async (req, res) => {
   try {
-    const { host_id } = req.params;
+    const hostId = Number(req.params.host_id);
+    if (!Number.isInteger(hostId)) {
+      return res.status(400).json({ message: "Invalid host id" });
+    }
 
-    const host = await Host.findByPk(host_id);
+    const host = await Host.findByPk(hostId);
     if (!host) {
       return res.status(404).json({ message: "Host not found" });
     }
 
+    // 🔴 Block host
     host.status = "rejected";
     host.rejection_reason = "Blocked by admin";
     await host.save();
-   logAudit({
-  action: "ADMIN_BLOCKED_HOST",
-  actor: { admin_id: req.admin.id },
-  target: { type: "host", id: host.id },
-  severity: "CRITICAL",
-  req
-}).catch(console.error);
 
+    // 🔴 Cancel ALL host trips
+    const trips = await TravelTrip.findAll({
+      where: { host_id: host.id }
+    });
 
- trackEvent({
-  event_type: "HOST_BLOCKED",
- actor: { user_id: req.admin.id },
-  entity: { type:"host", id: host.id },
-  location: { country: host.country }
-}).catch(console.error);
+    const tripIds = trips.map(t => t.id);
 
+    await TravelTrip.update(
+      { status: "cancelled" },
+      { where: { host_id: host.id } }
+    );
+
+    // 🔴 Cancel ALL related matches
+    if (tripIds.length > 0) {
+      await TravelMatch.update(
+        { status: "cancelled" },
+        {
+          where: {
+            [Op.or]: [
+              { trip_id: tripIds },
+              { matched_trip_id: tripIds }
+            ]
+          }
+        }
+      );
+    }
+
+    // 🔐 Audit
+    logAudit({
+      action: "ADMIN_BLOCKED_HOST",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "host", id: host.id },
+      severity: "CRITICAL",
+      req
+    }).catch(console.error);
+
+    // 📊 Analytics
+    AnalyticsEvent.create({
+      event_type: "HOST_BLOCKED",
+      user_id: req.admin.id,
+      country: host.country || null
+    }).catch(console.error);
+
+    // 🧹 Cache
+    await deleteCacheByPrefix("travel:");
+    await deleteCacheByPrefix("host:");
+    await deleteCacheByPrefix("admin:");
 
     return res.json({
       success: true,
-      message: "Host blocked successfully"
+      message: "Host, trips, and matches blocked"
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("ADMIN BLOCK HOST ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
