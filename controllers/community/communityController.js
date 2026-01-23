@@ -308,7 +308,6 @@ await community.save({ transaction: t });
 
 
 /* LEAVE COMMUNITY */
-
 export const leaveCommunity = async (req, res) => {
   const t = await Community.sequelize.transaction();
 
@@ -321,23 +320,15 @@ export const leaveCommunity = async (req, res) => {
       return res.status(400).json({ message: "Invalid community id" });
     }
 
-    /* =========================
-       1️⃣ LOCK MEMBERSHIP
-       ========================= */
     const member = await CommunityMember.findOne({
-      where: {
-        community_id: communityId,
-        user_id: userId
-      },
+      where: { community_id: communityId, user_id: userId },
       transaction: t,
       lock: t.LOCK.UPDATE
     });
 
     if (!member) {
       await t.rollback();
-      return res.status(400).json({
-        message: "You are not a member of this community"
-      });
+      return res.status(400).json({ message: "You are not a member" });
     }
 
     if (member.role === "owner") {
@@ -347,72 +338,47 @@ export const leaveCommunity = async (req, res) => {
       });
     }
 
-    /* =========================
-       2️⃣ LOCK COMMUNITY
-       ========================= */
     const community = await Community.findByPk(communityId, {
       transaction: t,
       lock: t.LOCK.UPDATE
     });
 
-    if (!community) {
-      await t.rollback();
-      return res.status(404).json({
-        message: "Community not found"
-      });
-    }
-
-    /* =========================
-       3️⃣ DELETE MEMBERSHIP
-       ========================= */
     await member.destroy({ transaction: t });
 
-    /* =========================
-       4️⃣ UPDATE AGGREGATES
-       ========================= */
     community.members_count = Math.max(0, community.members_count - 1);
-
     if (member.is_host) {
       community.host_count = Math.max(0, community.host_count - 1);
     }
 
     await community.save({ transaction: t });
 
-    /* =========================
-       5️⃣ COMMIT
-       ========================= */
+    // ✅ Commit DB state first
     await t.commit();
-
-    /* =========================
-       6️⃣ ANALYTICS
-       ========================= */
-    trackCommunityEvent({
-      event_type: "COMMUNITY_LEFT",
-      user_id: userId,
-      community,
-      metadata: { was_host: member.is_host }
-    }).catch(console.error);
-
-    /* =========================
-       7️⃣ CACHE INVALIDATION
-       ========================= */
-    await deleteCache(`community:id:${communityId}`);
-    await deleteCacheByPrefix("communities:list:");
-
-    return res.json({
-      success: true,
-      message: "Left community successfully"
-    });
 
   } catch (err) {
     await t.rollback();
     console.error("LEAVE COMMUNITY ERROR:", err);
-
-    return res.status(500).json({
-      message: "Failed to leave community"
-    });
+    return res.status(500).json({ message: "Failed to leave community" });
   }
+
+  // =========================
+  // POST-COMMIT SIDE EFFECTS
+  // =========================
+  trackCommunityEvent({
+    event_type: "COMMUNITY_LEFT",
+    user_id: req.user.id,
+    metadata: { role: "member" }
+  }).catch(console.error);
+
+  deleteCache(`community:id:${req.params.id}`).catch(console.error);
+  deleteCacheByPrefix("communities:list:").catch(console.error);
+
+  return res.json({
+    success: true,
+    message: "Left community successfully"
+  });
 };
+
 
 
 
