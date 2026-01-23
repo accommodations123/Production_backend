@@ -1,11 +1,40 @@
+
+import { Op } from "sequelize";
+import Community from "../model/community/Community.js";
 import CommunityMember from "../model/community/CommunityMember.js";
 
-/* MEMBER REQUIRED */
+/* =====================================================
+   REQUIRE COMMUNITY MEMBER
+===================================================== */
 export const requireCommunityMember = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const communityId = Number(req.params.id);
 
+    if (!Number.isInteger(communityId)) {
+      return res.status(400).json({ message: "Invalid community id" });
+    }
+
+    /* =========================
+       1️⃣ COMMUNITY CHECK
+       ========================= */
+    const community = await Community.findOne({
+      where: {
+        id: communityId,
+        status: "active"
+      },
+      attributes: ["id"]
+    });
+
+    if (!community) {
+      return res.status(404).json({
+        message: "Community not found or inactive"
+      });
+    }
+
+    /* =========================
+       2️⃣ MEMBERSHIP CHECK
+       ========================= */
     const member = await CommunityMember.findOne({
       where: {
         community_id: communityId,
@@ -19,26 +48,61 @@ export const requireCommunityMember = async (req, res, next) => {
       });
     }
 
-    req.communityMember = member; // attach for later use
+    /* =========================
+       3️⃣ ATTACH CONTEXT
+       ========================= */
+    req.community = community;
+    req.communityMember = member;
+
     next();
+
   } catch (err) {
+    console.error("COMMUNITY MEMBER AUTH ERROR:", err);
     return res.status(500).json({
-      message: "Community auth failed"
+      message: "Community authorization failed"
     });
   }
 };
 
-/* ADMIN OR OWNER REQUIRED */
+/* =====================================================
+   REQUIRE ADMIN OR OWNER
+===================================================== */
 export const requireAdminOrOwner = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const communityId = Number(req.params.id);
 
+    if (!Number.isInteger(communityId)) {
+      return res.status(400).json({ message: "Invalid community id" });
+    }
+
+    /* =========================
+       1️⃣ COMMUNITY CHECK
+       ========================= */
+    const community = await Community.findOne({
+      where: {
+        id: communityId,
+        status: "active"
+      },
+      attributes: ["id"]
+    });
+
+    if (!community) {
+      return res.status(404).json({
+        message: "Community not found or inactive"
+      });
+    }
+
+    /* =========================
+       2️⃣ ROLE CHECK (CORRECT)
+       ========================= */
     const member = await CommunityMember.findOne({
       where: {
         community_id: communityId,
         user_id: userId,
-        role: ["admin", "owner"]
+        role: {
+          [Op.in]: ["admin", "owner"]
+        }
       }
     });
 
@@ -48,11 +112,19 @@ export const requireAdminOrOwner = async (req, res, next) => {
       });
     }
 
+    /* =========================
+       3️⃣ ATTACH CONTEXT
+       ========================= */
+    req.community = community;
     req.communityMember = member;
+
     next();
-  } catch {
+
+  } catch (err) {
+    console.error("COMMUNITY ADMIN AUTH ERROR:", err);
     return res.status(500).json({
-      message: "Community auth failed"
+      message: "Community authorization failed"
     });
   }
 };
+

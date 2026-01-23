@@ -1,5 +1,6 @@
 import Community from "../../model/community/Community.js";
 import Event from "../../model/Events.models.js";
+import Host from "../../model/Host.js";
 import CommunityMember from "../../model/community/CommunityMember.js";
 import { setCache, getCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
 import { logAudit } from "../../services/auditLogger.js";
