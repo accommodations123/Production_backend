@@ -51,10 +51,14 @@ export default defineConfig({
         }
       },
       '/socket.io': {
-        target: 'http://localhost:5000',
+        target: 'http://3.147.226.49:5000',
         changeOrigin: true,
         secure: false,
         ws: true,
+        headers: {
+          'Host': 'accomodation.api.test.nextkinlife.live',
+          'Origin': 'https://accomodation.test.nextkinlife.live'
+        },
         configure: (proxy, _options) => {
           proxy.on('proxyRes', (proxyRes, req, res) => {
             const setCookie = proxyRes.headers['set-cookie'];
