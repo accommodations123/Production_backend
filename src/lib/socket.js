@@ -20,7 +20,7 @@ export const getSocket = () => {
         // In Production, use the full URL from env or fallback
         const socketUrl = import.meta.env.DEV
             ? "/"
-            : (import.meta.env.VITE_SOCKET_URL || "https://accomodation.api.test.nextkinlife.live");
+            : (import.meta.env.VITE_SOCKET_URL || "https://accomodation.test.nextkinlife.live");
         socket = io(socketUrl, {
             withCredentials: true,
             auth: {
