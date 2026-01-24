@@ -3,8 +3,8 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 import sequelize from "../config/db.js";
 import EventParticipant from "../model/EventParticipant.js";
-import { getIO } from "../services/socket.js";
-import { sendEventApprovedEmail } from '../services/emailService.js'
+import { notifyAndEmail } from "../services/notificationDispatcher.js";
+import { NOTIFICATION_TYPES } from "../services/emailService.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 // ======================================================
@@ -500,11 +500,15 @@ export const approveEvent = async (req, res) => {
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
+    // ✅ IDMPOTENCY CHECK FIRST
+    if (event.status === "approved") {
+      return res.status(400).json({ message: "Event already approved" });
+    }
 
     event.status = "approved";
     event.rejection_reason = "";
     await event.save();
-     AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_APPROVED",
       user_id: req.admin.id,
       host_id: event.host_id,
@@ -521,22 +525,19 @@ export const approveEvent = async (req, res) => {
     await deleteCacheByPrefix("approved_events");
     await deleteCache(`event:${event.id}`);
 
-    // 🔔 WebSocket notification
-    const io = getIO();
-    io.to(`user:${event.Host.user_id}`).emit("notification", {
-      type: "EVENT_APPROVED",
-      title: "Event Approved",
-      message: "Your event has been approved and is now live",
-      entityType: "event",
-      entityId: event.id
+    // ✅ ONE LINE — persistent + socket + email
+    await notifyAndEmail({
+      userId: event.Host.user_id,           // IMPORTANT: user_id, not host_id
+      email: event.Host.User.email,
+      type: NOTIFICATION_TYPES.EVENT_APPROVED,
+      title: "Event approved",
+      message: "Your event has been approved and is now live.",
+      metadata: {
+        eventId: event.id,
+        title: event.title
+      }
     });
 
-    // 📧 Email notification
-    await sendEventApprovedEmail({
-      to: event.Host.User.email,
-      name: "Host", // since full_name does not exist
-      eventTitle: event.title
-    });
 
     return res.json({
       success: true,
@@ -555,14 +556,24 @@ export const approveEvent = async (req, res) => {
 // ======================================================
 export const rejectEvent = async (req, res) => {
   try {
-    const event = await Event.findByPk(req.params.id);
+    const event = await Event.findByPk(req.params.id, {
+      include: [{
+        model: Host,
+        include: [{ model: User, attributes: ["email"] }]
+      }]
+    });
+
 
     if (!event) return res.status(404).json({ message: "Event not found" });
+    // ✅ IDMPOTENCY CHECK FIRST
+    if (event.status === "rejected") {
+      return res.status(400).json({ message: "Event already rejected" });
+    }
 
     event.status = "rejected";
     event.rejection_reason = req.body.reason || "";
     await event.save();
-     AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_REJECTED",
       user_id: req.admin?.id || null,
       host_id: event.host_id,
@@ -576,6 +587,19 @@ export const rejectEvent = async (req, res) => {
     await deleteCacheByPrefix(`host_events:${event.host_id}`);
     await deleteCacheByPrefix("pending_events:");
     await deleteCache(`event:${event.id}`);
+    // ✅ notify host
+    await notifyAndEmail({
+      userId: event.Host.user_id,
+      email: event.Host.User.email,
+      type: NOTIFICATION_TYPES.EVENT_REJECTED,
+      title: "Event rejected",
+      message: "Your event was rejected. Please review the reason.",
+      metadata: {
+        eventId: event.id,
+        title: event.title,
+        reason
+      }
+    });
 
     return res.json({ success: true, message: "Event rejected" });
 
@@ -836,28 +860,26 @@ export const joinEvent = async (req, res) => {
     await deleteCacheByPrefix(`host_events:${event.host_id}`);
 
 
-    // 🔔 Notify only at milestones
-    const milestones = [1, 10, 25, 50, 100];
-    const io = getIO()
-
-    if (milestones.includes(newCount)) {
-      try {
-        io.to(`user:${event.host_id}`).emit("notification", {
+    // 🔔 Notify HOST (not joining user)
+    const host = await Host.findByPk(event.host_id);
+    if (host) {
+      const milestones = [1, 10, 25, 50, 100];
+      if (milestones.includes(event.attendees_count)) {
+        const io = getIO();
+        io.to(`user:${host.user_id}`).emit("notification", {
           type: "EVENT_MILESTONE",
-          title: "Event Update",
-          message: `${newCount} people have joined your event`,
+          title: "Event update",
+          message: `${event.attendees_count} people have joined your event`,
           eventId: event.id,
-          attendees_count: newCount
-        })
-      } catch (err) {
-        console.error("NOTIFICATION ERROR:", err);
+          attendees_count: event.attendees_count
+        });
       }
     }
 
     return res.json({
       success: true,
       message: "Joined event",
-      attendees_count: newCount
+      attendees_count: event.attendees_count
     });
 
   } catch (err) {
@@ -927,7 +949,10 @@ export const leaveEvent = async (req, res) => {
           message = `Attendee count dropped to ${newCount}`;
         }
 
-        io.to(`user:${event.host_id}`).emit("notification", {
+        const host = await Host.findByPk(event.host_id);
+
+        io.to(`user:${host.user_id}`).emit("notification", {
+
           type: "EVENT_LEAVE_MILESTONE",
           title: "Event update",
           message,

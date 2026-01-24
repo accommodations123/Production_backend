@@ -21,6 +21,11 @@ const CommunityMember = sequelize.define(
     role: {
       type: DataTypes.ENUM("owner", "admin", "member"),
       defaultValue: "member"
+    },
+     is_host: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
     }
   },
   {
@@ -29,7 +34,7 @@ const CommunityMember = sequelize.define(
     indexes: [
       { unique: true, fields: ["community_id", "user_id"] },
       { fields: ["community_id"] },
-      { fields: ["user_id"] }
+     { fields: ["community_id", "is_host"] }
     ]
   }
 );

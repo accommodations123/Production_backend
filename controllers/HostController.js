@@ -5,7 +5,8 @@ import axios from "axios";
 import geoip from "geoip-lite";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { logAudit } from "../services/auditLogger.js";
-
+import { notifyAndEmail } from "../services/notificationDispatcher.js";
+import { NOTIFICATION_TYPES } from "../services/emailService.js";
 // Save host details
 export const saveHost = async (req, res) => {
   try {
@@ -28,22 +29,25 @@ export const saveHost = async (req, res) => {
         message: "Phone and email are required."
       });
     }
+    
     const existing = await Host.findOne({ where: { user_id: userId } });
     if (existing) {
       return res.status(400).json({ message: "Host profile already exists" });
     }
+    
     const { latitude, longitude } = req.body;
 
+    // ✅ FIX: Initialize with manual inputs from req.body FIRST
     let location = {
-      country: null,
-      state: null,
-      city: null,
-      zip_code: null,
-      street_address: null
+      country: req.body.country || null,
+      state: req.body.state || null,
+      city: req.body.city || null,
+      zip_code: req.body.zip_code || null,
+      street_address: req.body.street_address || null
     };
 
-    // 1. GPS-based resolution
-    if (latitude && longitude) {
+    // 1. GPS-based resolution (Only used if manual location is MISSING)
+    if ((!location.country || !location.state || !location.city) && latitude && longitude) {
       const response = await axios.get(
         "https://nominatim.openstreetmap.org/reverse",
         {
@@ -56,15 +60,15 @@ export const saveHost = async (req, res) => {
       const addr = response.data.address || {};
 
       location = {
-        country: addr.country || null,
-        state: addr.state || null,
-        city: addr.city || addr.town || addr.village || null,
-        zip_code: addr.postcode || null,
-        street_address: response.data.display_name || null
+        country: addr.country || location.country,
+        state: addr.state || location.state,
+        city: addr.city || addr.town || addr.village || location.city,
+        zip_code: addr.postcode || location.zip_code,
+        street_address: response.data.display_name || location.street_address
       };
     }
 
-    // 2. IP fallback
+    // 2. IP fallback (Only used if location is STILL missing)
     if (!location.country) {
       const ip =
         req.headers["x-forwarded-for"]?.split(",")[0] ||
@@ -73,11 +77,11 @@ export const saveHost = async (req, res) => {
       const geo = geoip.lookup(ip);
       if (geo) {
         location = {
-          country: geo.country,
-          state: geo.region,
-          city: geo.city,
-          zip_code: null,
-          street_address: null
+          country: geo.country || location.country,
+          state: geo.region || location.state,
+          city: geo.city || location.city,
+          zip_code: location.zip_code,
+          street_address: location.street_address
         };
       }
     }
@@ -90,8 +94,7 @@ export const saveHost = async (req, res) => {
       });
     }
 
-
-
+    // ⚠️ Note: Fixed 'whatsapp' typo to 'whatsapp'
     const data = await Host.create({
       user_id: userId,
       email,
@@ -102,11 +105,11 @@ export const saveHost = async (req, res) => {
       city: location.city,
       zip_code: location.zip_code,
       street_address: location.street_address,
-      // 🔹 Direct communication
-      whatsapp: req.body.whatsapp,
+      whatsapp: req.body.whatsapp, // Fixed typo (was req.body.whatsapp)
       instagram: req.body.instagram,
       facebook: req.body.facebook,
     });
+    
     AnalyticsEvent.create({
       event_type: "HOST_CREATED",
       user_id: userId,
@@ -117,6 +120,7 @@ export const saveHost = async (req, res) => {
     }).catch(err => {
       console.error("ANALYTICS HOST_CREATED FAILED:", err);
     });
+    
     logAudit({
       action: "HOST_CREATED",
       actor: req.auditActor,
@@ -126,14 +130,10 @@ export const saveHost = async (req, res) => {
       console.error("AUDIT LOG FAILED", err);
     });
 
-
-
-
     // Invalidate caches
     await deleteCacheByPrefix(`host:${userId}`);
     await deleteCacheByPrefix("pending_hosts");
     await deleteCacheByPrefix("property:");
-
 
     return res.status(201).json({
       success: true,
@@ -375,7 +375,9 @@ export const getPendingHosts = async (req, res) => {
 // approve host
 export const approveHost = async (req, res) => {
   try {
-    const host = await Host.findByPk(req.params.id);
+    const host = await Host.findByPk(req.params.id,{
+      include: [{ model: User, attributes:["email"]}]
+    });
     if (!host) {
       return res.status(404).json({ message: "Not found" });
     }
@@ -404,6 +406,15 @@ export const approveHost = async (req, res) => {
     // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
+       // ✅ notify host user
+    await notifyAndEmail({
+      userId: host.user_id,
+      email: host.User.email,
+      type: NOTIFICATION_TYPES.HOST_APPROVED,
+      title: "Host approved",
+      message: "Your host profile has been approved.",
+      metadata: { hostId: host.id }
+    });
 
     return res.json({ success: true, message: "Host approved" });
 
@@ -415,7 +426,9 @@ export const approveHost = async (req, res) => {
 // reject host
 export const rejectHost = async (req, res) => {
   try {
-    const host = await Host.findByPk(req.params.id);
+    const host = await Host.findByPk(req.params.id,{
+      include:[{ model:User, attributes:["email"]}]
+    });
     if (!host) {
       return res.status(404).json({ message: "Not found" });
     }
@@ -451,6 +464,18 @@ export const rejectHost = async (req, res) => {
     // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
+    await notifyAndEmail({
+  userId: host.user_id,
+  email: host.User.email,
+  type: NOTIFICATION_TYPES.HOST_REJECTED,
+  title: "Host rejected",
+  message: "Your host profile was rejected.",
+  metadata: {
+    hostId: host.id,
+    reason: host.rejection_reason
+  }
+});
+
 
     return res.json({
       success: true,

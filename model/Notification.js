@@ -40,6 +40,10 @@ const Notification = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true
     },
+    metadata: {
+      type: DataTypes.JSON,
+      allowNull: true
+    },
 
     is_read: {
       type: DataTypes.BOOLEAN,

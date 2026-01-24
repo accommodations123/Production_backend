@@ -436,49 +436,39 @@ export const softDeleteProperty = async (req, res) => {
 // FRONTEND APPROVED LISTINGS
 export const getApprovedListings = async (req, res) => {
   try {
-    // ✅ Read from headers FIRST, fallback to query
+    const now = new Date();
+
     const country =
-      req.headers["x-country"] || req.query.country || null
+      req.headers["x-country"] || req.query.country || null;
     const state =
-      req.headers["x-state"] || req.query.state || null   // ✅ ADD
+      req.headers["x-state"] || req.query.state || null;
     const city =
-      req.headers["x-city"] || req.query.city || null
+      req.headers["x-city"] || req.query.city || null;
     const zip_code =
-      req.headers["x-zip-code"] || req.query.zip_code || null
+      req.headers["x-zip-code"] || req.query.zip_code || null;
 
+    const cacheKey =
+      `approved_listings:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}`;
 
-    // ✅ Country-aware cache key
-    const cacheKey = `approved_listings:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}`
-
-    const cached = await getCache(cacheKey)
+    const cached = await getCache(cacheKey);
     if (cached) {
-      console.log("⚡ Cache hit:", cacheKey)
-      return res.json({ success: true, properties: cached })
+      return res.json({ success: true, properties: cached });
     }
 
-    // ✅ Dynamic DB filter
+    // ✅ HARD visibility rules
     const where = {
       is_deleted: false,
-      [Op.or]: [
-        // 🔴 Pending = unverified (always visible)
-        { status: "pending" },
-
-        // 🟢 Approved = visible only within 15 days
-        {
-          status: "approved",
-          is_expired: false,
-          listing_expires_at: {
-            [Op.gt]: new Date()
-          }
-        }
-      ]
+      status: "approved",
+      is_expired: false,
+      listing_expires_at: {
+        [Op.gt]: now
+      }
     };
-    if (country) where.country = country
-    if (state) where.state = state
-    if (city) where.city = city
-    if (zip_code) where.zip_code = zip_code
 
-    console.log("📍 DB Query Filter:", where)
+    if (country) where.country = country;
+    if (state) where.state = state;
+    if (city) where.city = city;
+    if (zip_code) where.zip_code = zip_code;
 
     const properties = await Property.findAll({
       where,
@@ -495,19 +485,18 @@ export const getApprovedListings = async (req, res) => {
         }
       ],
       order: [["created_at", "DESC"]]
+    });
 
-    })
+    await setCache(cacheKey, properties, 300);
 
-    // ✅ Cache per location
-    await setCache(cacheKey, properties, 300)
-
-    return res.json({ success: true, properties })
+    return res.json({ success: true, properties });
 
   } catch (err) {
-    console.error("❌ getApprovedListings error:", err)
-    return res.status(500).json({ message: "Server error" })
+    console.error("❌ getApprovedListings error:", err);
+    return res.status(500).json({ message: "Server error" });
   }
-}
+};
+
 
 
 
@@ -641,22 +630,46 @@ export const getAllPropertiesWithHosts = async (req, res) => {
 export const getPropertyById = async (req, res) => {
   try {
     const id = req.params.id;
+    const now = new Date();
 
+    // ⚠️ NEVER trust cache blindly
     const cached = await getCache(`property:${id}`);
     if (cached) {
-       // 🔍 analytics must still fire
-      AnalyticsEvent.create({
-        event_type: "PROPERTY_VIEWED",
-        user_id: req.user?.id || null,
-        property_id: id,
-        country: req.headers["x-country"] || null,
-        state: req.headers["x-state"] || null,
-        created_at: new Date()
-      }).catch(() => {});
-      return res.json({ success: true, property: cached });
+      if (
+        cached.status !== "approved" ||
+        cached.is_deleted ||
+        cached.is_expired ||
+        !cached.listing_expires_at ||
+        new Date(cached.listing_expires_at) <= now
+      ) {
+        // ❌ Cached but invalid → kill cache
+        await deleteCache(`property:${id}`);
+      } else {
+        // 🔍 Analytics still fires
+        AnalyticsEvent.create({
+          event_type: "PROPERTY_VIEWED",
+          user_id: req.user?.id || null,
+          property_id: id,
+          country: req.headers["x-country"] || null,
+          state: req.headers["x-state"] || null,
+          created_at: new Date()
+        }).catch(() => {});
+
+        return res.json({ success: true, property: cached });
+      }
     }
 
-    const property = await Property.findByPk(id, {
+    // ✅ DB fetch WITH visibility rules
+    const property = await Property.findOne({
+      where: {
+        id,
+        status: "approved",
+        is_deleted: false,
+        is_expired: false,
+        listing_expires_at: {
+          [Op.gt]: now
+        }
+      },
       include: [
         {
           model: Host,
@@ -672,7 +685,7 @@ export const getPropertyById = async (req, res) => {
             "status",
             "whatsapp",
             "instagram",
-            "facebook",
+            "facebook"
           ],
           include: [
             {
@@ -685,9 +698,13 @@ export const getPropertyById = async (req, res) => {
     });
 
     if (!property) {
-      return res.status(404).json({ success: false, message: "Property not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Property expired or not available"
+      });
     }
-   AnalyticsEvent.create({
+
+    AnalyticsEvent.create({
       event_type: "PROPERTY_VIEWED",
       user_id: req.user?.id || null,
       property_id: id,
@@ -696,17 +713,18 @@ export const getPropertyById = async (req, res) => {
       created_at: new Date()
     }).catch(() => {});
 
-
+    // ✅ Cache only VALID data
     await setCache(`property:${id}`, property, 30);
 
     return res.json({ success: true, property });
 
   } catch (err) {
-    console.log("GET PROPERTY ERROR:", err);
+    console.error("GET PROPERTY ERROR:", err);
     return res.status(500).json({
       success: false,
       message: "Server error"
     });
   }
 };
+
 

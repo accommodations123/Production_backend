@@ -5,6 +5,10 @@ import CommunityMember from "../../model/community/CommunityMember.js";
 import { setCache, getCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
 import { logAudit } from "../../services/auditLogger.js";
 import { trackCommunityEvent } from "../../services/communityAnalytics.js";
+import { notifyAndEmail } from "../../services/notificationDispatcher.js";
+import { NOTIFICATION_TYPES } from "../../services/emailService.js";
+import User from "../../model/User.js";
+
 /* CREATE COMMUNITY */
 export const createCommunity = async (req, res) => {
   try {
@@ -501,6 +505,17 @@ export const approveCommunity = async (req, res) => {
     user_id: req.admin.id,
     community
   });
+  const creator = await User.findByPk(community.created_by);
+
+  await notifyAndEmail({
+    userId: creator.id,
+    email: creator.email,
+    type: NOTIFICATION_TYPES.COMMUNITY_APPROVED,
+    title: "Community approved",
+    message: "Your community has been approved.",
+    metadata: { communityId: community.id }
+  });
+
 
 
   res.json({
@@ -532,6 +547,17 @@ export const rejectCommunity = async (req, res) => {
     user_id: req.admin.id,
     community
   });
+  const creator = await User.findByPk(community.created_by);
+
+await notifyAndEmail({
+  userId: creator.id,
+  email: creator.email,
+  type: NOTIFICATION_TYPES.COMMUNITY_REJECTED,
+  title: "Community rejected",
+  message: "Your community was rejected by admin.",
+  metadata: { communityId: community.id }
+});
+
 
 
   res.json({
@@ -542,34 +568,64 @@ export const rejectCommunity = async (req, res) => {
 
 /* SUSPEND COMMUNITY (AFTER APPROVAL) */
 export const suspendCommunity = async (req, res) => {
-  const community = await Community.findByPk(req.params.id);
+  try {
+    const community = await Community.findByPk(req.params.id);
+    if (!community) {
+      return res.status(404).json({ message: "Community not found" });
+    }
 
-  if (!community) {
-    return res.status(404).json({ message: "Community not found" });
+    // Optional but recommended guard
+    if (community.status !== "active") {
+      return res.status(400).json({
+        message: "Only active communities can be suspended"
+      });
+    }
+
+    await community.update({ status: "suspended" });
+
+    logAudit({
+      action: "COMMUNITY_SUSPENDED",
+      actor: { id: req.admin.id, role: "admin" },
+      target: { type: "community", id: community.id },
+      severity: "CRITICAL",
+      req
+    }).catch(console.error);
+
+    await trackCommunityEvent({
+      event_type: "COMMUNITY_SUSPENDED",
+      user_id: req.admin.id,
+      community
+    });
+
+    // 🔔 Notify community owner
+    const owner = await User.findByPk(community.created_by);
+
+    if (owner) {
+      await notifyAndEmail({
+        userId: owner.id,
+        email: owner.email,
+        type: NOTIFICATION_TYPES.COMMUNITY_SUSPENDED,
+        title: "Community suspended",
+        message:
+          "Your community has been suspended by admin. Please contact support for details.",
+        metadata: {
+          communityId: community.id,
+          communityName: community.name
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Community suspended"
+    });
+
+  } catch (err) {
+    console.error("SUSPEND COMMUNITY ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
   }
-
-  community.status = "suspended";
-  await community.save();
-  logAudit({
-    action: "COMMUNITY_SUSPENDED",
-    actor: { id: req.admin.id, role: "admin" },
-    target: { type: "community", id: community.id },
-    severity: "CRITICAL",
-    req
-  }).catch(console.error);
-
-  await trackCommunityEvent({
-    event_type: "COMMUNITY_SUSPENDED",
-    user_id: req.admin.id,
-    community
-  });
-
-
-  res.json({
-    success: true,
-    message: "Community suspended"
-  });
 };
+
 
 /* RE-ACTIVATE COMMUNITY */
 export const activateCommunity = async (req, res) => {

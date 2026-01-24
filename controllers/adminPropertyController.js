@@ -4,8 +4,8 @@ import User from "../model/User.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
-import { getIO } from "../services/socket.js";
-import { sendPropertyApprovedEmail } from "../services/emailService.js";
+import { notifyAndEmail } from "../services/notificationDispatcher.js";
+import { NOTIFICATION_TYPES } from "../services/emailService.js";
 
 export const getPendingProperties = async (req, res) => {
   try {
@@ -128,25 +128,19 @@ export const approveProperty = async (req, res) => {
     await deleteCacheByPrefix("approved_listings:");
     await deleteCacheByPrefix("all_properties:");
 
-    // ✅ WebSocket notification
-    const io = getIO();
-    io.to(`user:${property.Host.user_id}`).emit("notification", {
-      type: "PROPERTY_APPROVED",
-      title: "Property Approved",
-      message: "Your property has been approved and is now visible",
-      entityType: "property",
-      entityId: property.id
+  
+    // ✅ ONE LINE: notification + socket + email
+    await notifyAndEmail({
+      userId: property.Host.user_id,
+      email: property.Host.User.email,
+      type: NOTIFICATION_TYPES.PROPERTY_APPROVED,
+      title: "Property approved",
+      message: "Your property has been approved and is now visible.",
+      metadata: {
+        propertyId: property.id,
+        expiresAt
+      }
     });
-
-    // ✅ Email (safe)
-    try {
-      await sendPropertyApprovedEmail({
-        to: property.Host.User.email,
-        propertyTitle: property.title
-      });
-    } catch (emailErr) {
-      console.error("EMAIL ERROR:", emailErr);
-    }
 
     return res.json({
       success: true,
@@ -197,6 +191,18 @@ export const rejectProperty = async (req, res) => {
     // Invalidate caches
     await deleteCacheByPrefix("pending_properties");
     await deleteCacheByPrefix("property_status_stats");
+      // ✅ notify user (socket + email)
+    await notifyAndEmail({
+      userId: property.Host.user_id,
+      email: property.Host.User.email,
+      type: NOTIFICATION_TYPES.PROPERTY_REJECTED,
+      title: "Property rejected",
+      message: "Your property was rejected. Please review the reason.",
+      metadata: {
+        propertyId: property.id,
+        reason
+      }
+    });
 
     return res.json({ success: true, message: "Property rejected" });
 

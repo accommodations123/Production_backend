@@ -89,17 +89,7 @@ const Community = sequelize.define(
     },
 
     /* MEMBERS (COMPRESSED USER REFERENCES) */
-    members: {
-      type: DataTypes.JSON,
-      defaultValue: []
-      /*
-        [
-          { "user_id": 1, "role": "owner" },
-          { "user_id": 5, "role": "admin" },
-          { "user_id": 18, "role": "member" }
-        ]
-      */
-    },
+  
 
     members_count: {
       type: DataTypes.INTEGER,

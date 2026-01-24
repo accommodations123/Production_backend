@@ -24,11 +24,10 @@ import {
   leaveEvent,
   softDeleteEvent
 } from "../controllers/Event.controllers.js";
-import { verifyEventOwnership } from "../middleware/verifyEventOwnership.js";
 import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
-import { loadEvent } from "../middleware/loadEvent.js";
 import { uploadEventImages } from "../middleware/uploads/event.upload.js";
 import optionalAuth from "../middleware/joinleaveAuth.js";
+import { eventWriteGuard,eventParticipationGuard } from "../middleware/eventWriteGuard.js";
 const router = express.Router();
 
 /* -----------------------------------------
@@ -39,35 +38,35 @@ const router = express.Router();
 router.post("/create-draft", userauth, createEventDraft);
 
 // Update basic info
-router.put("/basic-info/:id", userauth,loadEvent,verifyEventOwnership, updateBasicInfo);
+router.put("/basic-info/:id", userauth,eventWriteGuard, updateBasicInfo);
 
 // Update location
-router.put("/location/:id", userauth,loadEvent,verifyEventOwnership, updateLocation);
+router.put("/location/:id", userauth,eventWriteGuard, updateLocation);
 
 // Update venue + what's included
-router.put("/venue/:id", userauth,loadEvent,verifyEventOwnership, updateVenue);
+router.put("/venue/:id", userauth,eventWriteGuard, updateVenue);
 
 // Update schedule (JSON array)
-router.put("/schedule/:id", userauth,loadEvent,verifyEventOwnership, updateSchedule);
+router.put("/schedule/:id", userauth,eventWriteGuard, updateSchedule);
 
 // Upload banner + gallery
-router.put("/media/:id",userauth,loadEvent,verifyEventOwnership,uploadEventImages.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),multerErrorHandler,updateMedia);
+router.put("/media/:id",userauth,eventWriteGuard,uploadEventImages.fields([{ name: "bannerImage", maxCount: 1 },{ name: "galleryImages", maxCount: 10 }]),multerErrorHandler,updateMedia);
 
 // Update pricing
-router.put("/pricing/:id", userauth,loadEvent,verifyEventOwnership, updatePricing);
+router.put("/pricing/:id", userauth,eventWriteGuard, updatePricing);
 
 // Submit event for admin approval
-router.put("/submit/:id", userauth,loadEvent,verifyEventOwnership, submitEvent);
+router.put("/submit/:id", userauth,eventWriteGuard, submitEvent);
 
 //USER ACTIONS FOR EVENTS
 
-router.post("/:id/join", userauth,loadEvent, joinEvent);
-router.post("/:id/leave", userauth,loadEvent, leaveEvent);
+router.post("/:id/join", userauth,eventParticipationGuard, joinEvent);
+router.post("/:id/leave", userauth,eventParticipationGuard, leaveEvent);
 
 // Host’s own events (My Events)
 router.get("/host/my-events", userauth, getMyEvents);
 // Safe delete event (host only)
-router.delete("/delete/:id",userauth,loadEvent,verifyEventOwnership,softDeleteEvent);
+router.delete("/delete/:id",userauth,eventWriteGuard,softDeleteEvent);
 /* -----------------------------------------
    ADMIN FLOW
 ----------------------------------------- */
