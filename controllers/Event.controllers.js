@@ -23,7 +23,7 @@ export const createEventDraft = async (req, res) => {
       });
     }
 
-    const { title, type, start_date, start_time, event_mode, event_url, online_instructions } = req.body;
+    const { title, type, start_date, start_time, end_date, end_time } = req.body;
 
     if (!title || !start_date || !start_time) {
       return res.status(400).json({
@@ -38,8 +38,11 @@ export const createEventDraft = async (req, res) => {
       type,
       start_date,
       start_time,
+      end_date: end_date ? end_date : null,
+      end_time: end_time ? end_time : null,
       status: "draft"
     });
+
     await AnalyticsEvent.create({
       event_type: "EVENT_DRAFT_CREATED",
       user_id: userId,
@@ -150,12 +153,45 @@ export const updateLocation = async (req, res) => {
 export const updateSchedule = async (req, res) => {
   try {
     const event = req.event;
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
 
-    if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+    const endDate =
+      req.body.end_date !== undefined && req.body.end_date !== ""
+        ? req.body.end_date
+        : event.end_date;
+
+    const endTime =
+      req.body.end_time !== undefined && req.body.end_time !== ""
+        ? req.body.end_time
+        : event.end_time;
+
+    // ❗ Date validation
+    if (endDate && new Date(endDate) < new Date(event.start_date)) {
+      return res.status(400).json({
+        message: "End date cannot be before start date"
+      });
+    }
+
+    // ❗ Time validation (same-day only)
+    if (
+      endDate &&
+      event.start_date === endDate &&
+      endTime &&
+      event.start_time >= endTime
+    ) {
+      return res.status(400).json({
+        message: "End time must be after start time"
+      });
+    }
 
     await event.update({
-      schedule: req.body.schedule || []
+      schedule: req.body.schedule || event.schedule,
+      end_date: endDate,
+      end_time: endTime
     });
+
     await AnalyticsEvent.create({
       event_type: "EVENT_SCHEDULE_UPDATED",
       user_id: req.user.id,
@@ -165,16 +201,16 @@ export const updateSchedule = async (req, res) => {
       state: event.state
     });
 
-
     await deleteCache(`event:${event.id}`);
 
     return res.json({ success: true, event });
 
   } catch (err) {
-    console.log("Schedule update error:", err);
+    console.error("Schedule update error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ======================================================
 // UPDATE VENUE + WHAT'S INCLUDED
@@ -348,7 +384,26 @@ export const submitEvent = async (req, res) => {
 
 
     if (!event) return res.status(404).json({ message: "Event not found" });
+    // VALIDATE FIRST
+    if (
+      event.end_date &&
+      new Date(event.end_date) < new Date(event.start_date)
+    ) {
+      return res.status(400).json({
+        message: "End date cannot be before start date"
+      });
+    }
 
+    if (
+      event.end_date &&
+      event.start_date === event.end_date &&
+      event.end_time &&
+      event.start_time >= event.end_time
+    ) {
+      return res.status(400).json({
+        message: "End time must be after start time"
+      });
+    }
     event.status = "pending";
     await event.save();
     await AnalyticsEvent.create({
@@ -362,6 +417,7 @@ export const submitEvent = async (req, res) => {
 
 
     await deleteCacheByPrefix("pending_events:");
+
 
     return res.json({ success: true, message: "Event submitted to admin." });
 
