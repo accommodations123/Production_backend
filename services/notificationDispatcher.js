@@ -11,6 +11,7 @@ export const notifyAndEmail = async ({
   message,
   metadata = {}
 }) => {
+  // 1️⃣ Persist notification
   const notification = await Notification.create({
     user_id: userId,
     type,
@@ -19,10 +20,10 @@ export const notifyAndEmail = async ({
     metadata
   });
 
-  // Inline socket
+  // 2️⃣ Real-time socket push
   try {
     const io = getIO();
-    io.to(`user:${userId}`).emit("notification:new", {
+    io.to(`user:${userId}`).emit("notification", {
       id: notification.id,
       type,
       title,
@@ -30,9 +31,11 @@ export const notifyAndEmail = async ({
       metadata,
       created_at: notification.createdAt
     });
-  } catch {}
+  } catch (err) {
+    console.error("SOCKET EMIT FAILED:", err.message);
+  }
 
-  // Email async
+  // 3️⃣ Email (async, non-blocking)
   if (email) {
     await emailQueue.add("send-notification-email", {
       to: email,

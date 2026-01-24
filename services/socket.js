@@ -6,7 +6,10 @@ import { createAdapter } from "@socket.io/redis-adapter";
 
 let io;
 
-export const initSocket = async (server) => {
+/* =========================================================
+   INITIALIZE SOCKET.IO
+========================================================= */
+export const initSocket = async (httpServer) => {
   const allowedOrigins = [
     "https://accomodation.test.nextkinlife.live",
     "https://accomodation.admin.test.nextkinlife.live",
@@ -15,23 +18,36 @@ export const initSocket = async (server) => {
     "http://localhost:5000"
   ];
 
-  io = new Server(server, {
+  io = new Server(httpServer, {
     cors: {
       origin: allowedOrigins,
       credentials: true
     },
-    transports: ["websocket"], // 🔒 mandatory
-    upgrade: false
+
+    // ✅ Production-safe transport strategy
+    transports: ["websocket", "polling"],
+    upgrade: true,
+
+    // Avoid long-hanging dead connections
+    pingInterval: 25000,
+    pingTimeout: 20000
   });
 
-  /* ================= REDIS ADAPTER ================= */
+  /* =========================================================
+     REDIS ADAPTER (HORIZONTAL SCALING)
+  ========================================================= */
   const pubClient = createClient({
     url: process.env.REDIS_URL || "redis://127.0.0.1:6379"
   });
+
   const subClient = pubClient.duplicate();
 
-  pubClient.on("error", (e) => console.error("Redis pub error", e));
-  subClient.on("error", (e) => console.error("Redis sub error", e));
+  pubClient.on("error", (err) =>
+    console.error("❌ Redis pub error:", err)
+  );
+  subClient.on("error", (err) =>
+    console.error("❌ Redis sub error:", err)
+  );
 
   await pubClient.connect();
   await subClient.connect();
@@ -40,52 +56,60 @@ export const initSocket = async (server) => {
 
   console.log("✅ Socket.IO Redis adapter connected");
 
-  /* ================= AUTH MIDDLEWARE ================= */
+  /* =========================================================
+     SOCKET AUTH MIDDLEWARE
+  ========================================================= */
   io.use((socket, next) => {
     try {
-      const cookieHeader = socket.handshake.headers.cookie;
-      if (!cookieHeader) {
-        return next(new Error("AUTH_REQUIRED"));
+      let token = socket.handshake.auth?.token;
+
+      // 🔐 Cookie fallback (browser clients)
+      if (!token && socket.handshake.headers.cookie) {
+        const cookies = cookie.parse(socket.handshake.headers.cookie);
+        token = cookies.access_token;
       }
 
-      const cookies = cookie.parse(cookieHeader);
-      const token = cookies.access_token;
       if (!token) {
-        return next(new Error("AUTH_REQUIRED"));
+        return next(new Error("Authentication token missing"));
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+      // 🔒 Hard role validation
+      if (!["user", "admin"].includes(decoded.role)) {
+        return next(new Error("Invalid role"));
+      }
+
       socket.user = {
         id: decoded.id,
-        role: decoded.role,
-        exp: decoded.exp
+        role: decoded.role
       };
 
-      return next();
-    } catch {
-      return next(new Error("AUTH_INVALID"));
+      next();
+    } catch (err) {
+      console.error("❌ Socket auth error:", err.message);
+      next(new Error("Authentication failed"));
     }
   });
 
-  /* ================= CONNECTION ================= */
+  /* =========================================================
+     CONNECTION HANDLER
+  ========================================================= */
   io.on("connection", (socket) => {
-    console.log("📡 Socket connected:", socket.user.id);
+    const userId = socket.user?.id;
 
-    socket.join(`user:${socket.user.id}`);
+    if (userId) {
+      const room = `user:${userId}`;
+      socket.join(room);
 
-    // 🔒 Kill socket when JWT expires
-    const ttl = socket.user.exp * 1000 - Date.now();
-    if (ttl > 0) {
-      setTimeout(() => socket.disconnect(true), ttl);
+      console.log(
+        `📡 Socket connected | user:${userId} | socket:${socket.id}`
+      );
     }
 
     socket.on("disconnect", (reason) => {
       console.log(
-        "🔌 Socket disconnected:",
-        socket.user.id,
-        "| reason:",
-        reason
+        `🔌 Socket disconnected | socket:${socket.id} | reason:${reason}`
       );
     });
   });
@@ -93,7 +117,12 @@ export const initSocket = async (server) => {
   return io;
 };
 
+/* =========================================================
+   SAFE ACCESSOR
+========================================================= */
 export const getIO = () => {
-  if (!io) throw new Error("Socket not initialized");
+  if (!io) {
+    throw new Error("Socket.IO not initialized");
+  }
   return io;
 };
