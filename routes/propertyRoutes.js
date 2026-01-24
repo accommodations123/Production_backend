@@ -17,7 +17,7 @@ import {
   getAllPropertiesWithHosts
 } from "../controllers/propertyController.js";
 import userauth from "../middleware/userAuth.js";
-import {uploadPropertyImages,uploadPropertyDocs,uploadPropertyVideos} from "../middleware/uploads/property.upload.js";
+import {uploadPropertyImages,uploadPropertyVideos} from "../middleware/uploads/property.upload.js";
 import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
 import { verifyPropertyOwnership } from "../middleware/verifyPropertyOwnership.js"
 
