@@ -81,7 +81,7 @@ export function Navbar({ minimal = false, onMenuClick }) {
         socketRef.current = socket;
 
         const onConnect = () => {
-            // Socket connected
+            console.log("✅ Socket Connected Successfully!");
         };
 
         const onConnectError = (err) => {
