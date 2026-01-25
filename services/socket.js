@@ -37,25 +37,38 @@ export const initSocket = async (httpServer) => {
   /* =========================================================
      REDIS ADAPTER (HORIZONTAL SCALING)
   ========================================================= */
-  const pubClient = createClient({
-    url: process.env.REDIS_URL || "redis://127.0.0.1:6379"
-  });
-
-  const subClient = pubClient.duplicate();
-
+ /* =========================================================
+   REDIS ADAPTER (HORIZONTAL SCALING)
+========================================================= */
+ 
+const redisHost = process.env.REDIS_HOST;
+const redisPort = process.env.REDIS_PORT || 6379;
+ 
+let pubClient;
+let subClient;
+ 
+if (!redisHost) {
+  console.warn("⚠️ REDIS_HOST not set — Socket.IO running WITHOUT Redis");
+} else {
+  const redisUrl = `redis://${redisHost}:${redisPort}`;
+ 
+  pubClient = createClient({ url: redisUrl });
+  subClient = pubClient.duplicate();
+ 
   pubClient.on("error", (err) =>
-    console.error("❌ Redis pub error:", err)
+    console.error("❌ Redis pub error:", err.message)
   );
   subClient.on("error", (err) =>
-    console.error("❌ Redis sub error:", err)
+    console.error("❌ Redis sub error:", err.message)
   );
-
+ 
   await pubClient.connect();
   await subClient.connect();
-
+ 
   io.adapter(createAdapter(pubClient, subClient));
-
-  console.log("✅ Socket.IO Redis adapter connected");
+ 
+  console.log("✅ Socket.IO Redis adapter connected:", redisUrl);
+}
 
   /* =========================================================
      SOCKET AUTH MIDDLEWARE
