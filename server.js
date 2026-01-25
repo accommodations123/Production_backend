@@ -31,6 +31,7 @@ import EventAnalytics from './routes/DashboardAnalytics/eventanalyticsroutes.js'
 import buySellanalytics from './routes/DashboardAnalytics/buySellAnalyticsroutes.js'
 import communityanalytics from './routes/DashboardAnalytics/communityAnalytics.routes.js'
 import travelanalytics from './routes/DashboardAnalytics/travelAnalytics.routes.js'
+import './services/workers/emailWorker.js'
  (async () => {
   try {
     await sequelize.authenticate();
