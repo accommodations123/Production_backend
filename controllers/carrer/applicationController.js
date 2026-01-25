@@ -3,6 +3,8 @@ import Application from "../../model/carrer/Application.js";
 import ApplicationStatusHistory from '../../model/carrer/ApplicationStatusHistory.js'
 import Job from "../../model/carrer/Job.js";
 import User from "../../model/User.js";
+import Notification from "../../model/Notification.js";
+import { notifyAndEmail } from "../../services/notificationDispatcher.js";
 const VALID_STATUSES = [
   "new",
   "reviewing",
@@ -256,4 +258,60 @@ export const getAdminApplicationById = async (req, res) => {
     success: true,
     application
   });
+};
+
+
+
+
+export const notifyApplicationUser = async (req, res) => {
+  try {
+    const { subject, message, template, status } = req.body;
+
+    if (!subject || !message) {
+      return res.status(400).json({ message: "Subject and message required" });
+    }
+
+    const application = await Application.findByPk(req.params.id, {
+      include: [{ model: User, as: "user" }]
+    });
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    if (!application.user) {
+      return res.status(400).json({ message: "Application has no user" });
+    }
+
+    // Optional: update status if provided
+    if (status && application.status !== status) {
+      application.status = status;
+      application.status_updated_at = new Date();
+      await application.save();
+    }
+
+    // 🔔 ONE CALL DOES EVERYTHING
+    await notifyAndEmail({
+      userId: application.user.id,
+      email: application.user.email,
+      type: "APPLICATION_UPDATE",
+      title: subject,
+      message,
+      metadata: {
+        applicationId: application.id,
+        jobId: application.job_id,
+        status: application.status,
+        template
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: "Notification and email sent successfully"
+    });
+
+  } catch (err) {
+    console.error("APPLICATION NOTIFY ERROR:", err);
+    return res.status(500).json({ message: "Failed to send notification" });
+  }
 };
