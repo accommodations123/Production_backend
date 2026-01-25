@@ -25,7 +25,7 @@ export const applyJob = async (req, res) => {
       phone,
       linkedin_url,
       portfolio_url,
-      availability_date
+      experience
     } = req.body;
 
     if (!job_id || !first_name || !last_name || !email) {
@@ -63,7 +63,7 @@ export const applyJob = async (req, res) => {
         phone,
         linkedin_url,
         portfolio_url,
-        availability_date,
+        experience: experience || [],
         resume_url: req.file?.location || null,
         status: "submitted"
       },
@@ -85,6 +85,7 @@ export const applyJob = async (req, res) => {
     return res.status(500).json({ message: "Failed to apply for job" });
   }
 };
+
 
 
 export const getMyApplications = async (req, res) => {
