@@ -84,7 +84,7 @@ import './services/workers/emailWorker.js'
     app.use('/buysellanalytics', buySellanalytics)
     app.use('/communityanalytics',communityanalytics)
     app.use('/travelanalytics',travelanalytics)
-    app.use("/notification",notification)
+    app.use("/notification",notification);
 
     const server = http.createServer(app)
     initSocket(server)
