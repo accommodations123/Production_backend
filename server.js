@@ -31,6 +31,7 @@ import EventAnalytics from './routes/DashboardAnalytics/eventanalyticsroutes.js'
 import buySellanalytics from './routes/DashboardAnalytics/buySellAnalyticsroutes.js'
 import communityanalytics from './routes/DashboardAnalytics/communityAnalytics.routes.js'
 import travelanalytics from './routes/DashboardAnalytics/travelAnalytics.routes.js'
+import notification from './routes/notification.routes.js'
 import './services/workers/emailWorker.js'
  (async () => {
   try {
@@ -83,6 +84,7 @@ import './services/workers/emailWorker.js'
     app.use('/buysellanalytics', buySellanalytics)
     app.use('/communityanalytics',communityanalytics)
     app.use('/travelanalytics',travelanalytics)
+    app.use("/notification",notification)
 
     const server = http.createServer(app)
     initSocket(server)
