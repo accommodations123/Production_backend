@@ -43,6 +43,7 @@ import './services/workers/emailWorker.js'
     const app = express();
     /* ================= CORS (REST + COOKIES) ================= */
     const allowedOrigins = [
+      "https://accomodation.api.test.nextkinlife.live",
       "https://accomodation.test.nextkinlife.live",
       "https://accomodation.admin.test.nextkinlife.live",
       "http://localhost:5173",

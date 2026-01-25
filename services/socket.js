@@ -11,6 +11,7 @@ let io;
 ========================================================= */
 export const initSocket = async (httpServer) => {
   const allowedOrigins = [
+    "https://accomodation.api.test.nextkinlife.live",
     "https://accomodation.test.nextkinlife.live",
     "https://accomodation.admin.test.nextkinlife.live",
     "https://admin.test.nextkinlife.live",
