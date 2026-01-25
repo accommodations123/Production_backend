@@ -15,6 +15,7 @@ import { MyListings } from "@/components/dashboard/MyListings";
 import { Settings } from "@/components/dashboard/Settings";
 import { PersonalInfo } from "@/components/dashboard/PersonalInfo";
 import { Trips } from "@/components/dashboard/Trips";
+import { MyApplications } from "@/components/dashboard/MyApplications";
 import { cn } from "@/lib/utils";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -282,6 +283,13 @@ export default function NewDashboard() {
           </div>
         );
 
+      case "applications":
+        return (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+            <MyApplications />
+          </div>
+        );
+
       default:
         return null;
     }
@@ -317,6 +325,7 @@ export default function NewDashboard() {
               { id: 'overview', label: 'Overview', icon: User },
               { id: 'personal', label: 'Profile', icon: User },
               { id: 'listings', label: 'Listings', icon: Home },
+              { id: 'applications', label: 'Applications', icon: MapPin },
               { id: 'trips', label: 'Trips', icon: MapPin },
               { id: 'settings', label: 'Settings', icon: SettingsIcon },
             ].map((item) => (
@@ -347,14 +356,14 @@ export default function NewDashboard() {
             <div className="sticky top-24 space-y-6">
               <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-              <div className="p-5 bg-gradient-to-br from-primary to-secondary rounded-2xl text-white">
+              {/* <div className="p-5 bg-gradient-to-br from-primary to-secondary rounded-2xl text-white">
                 <LifeBuoy className="w-8 h-8 mb-3 opacity-80" />
                 <h4 className="font-bold">Need Help?</h4>
                 <p className="text-xs text-white/60 mb-3">Our team is here to assist you.</p>
                 <button className="w-full py-2 bg-white text-primary text-sm font-bold rounded-lg hover:bg-neutral/90 transition-colors">
                   Contact Support
                 </button>
-              </div>
+              </div> */}
             </div>
           </div>
 

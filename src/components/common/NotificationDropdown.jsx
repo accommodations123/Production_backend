@@ -1,32 +1,41 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Bell, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import { getSocket } from "@/lib/socket";
 import { useNavigate } from "react-router-dom";
+import {
+    useGetNotificationsQuery,
+    useMarkNotificationAsReadMutation,
+    useMarkAllNotificationsAsReadMutation,
+    hostApi
+} from "@/store/api/hostApi";
+import { useDispatch } from "react-redux";
 
 export function NotificationDropdown({ minimal = false }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useClickOutside(() => setIsOpen(false));
     const navigate = useNavigate();
+    const dispatch = useDispatch();
 
-    // Mock initial notifications (optional)
-    useEffect(() => {
-        // TODO: Fetch existing unread notifications from API if available
-    }, []);
+    // Fetch notifications from API
+    const { data: notifications = [], isLoading, refetch } = useGetNotificationsQuery();
+    const [markAsRead] = useMarkNotificationAsReadMutation();
+    const [markAllAsRead] = useMarkAllNotificationsAsReadMutation();
 
-    // Socket Listener
+    // Calculate unread count
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+
+    // Socket Listener for real-time notifications
     useEffect(() => {
         try {
             const socket = getSocket();
 
             const handleNotification = (payload) => {
-                console.log("🔔 Notification received:", payload);
-                setNotifications((prev) => [payload, ...prev]);
-                setUnreadCount((prev) => prev + 1);
+                console.log("🔔 Real-time notification received:", payload);
+                // Refetch notifications to get the latest data
+                refetch();
             };
 
             socket.on("notification", handleNotification);
@@ -37,19 +46,22 @@ export function NotificationDropdown({ minimal = false }) {
         } catch (err) {
             console.error("Socket not ready for notifications:", err);
         }
-    }, []);
+    }, [refetch]);
 
-    const handleMarkAsRead = (id) => {
-        // In a real app, call API to mark read
-        setNotifications((prev) =>
-            prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+    const handleMarkAsRead = async (id) => {
+        try {
+            await markAsRead(id).unwrap();
+        } catch (err) {
+            console.error("Failed to mark notification as read:", err);
+        }
     };
 
-    const handleClearAll = () => {
-        setNotifications([]);
-        setUnreadCount(0);
+    const handleClearAll = async () => {
+        try {
+            await markAllAsRead().unwrap();
+        } catch (err) {
+            console.error("Failed to mark all as read:", err);
+        }
     };
 
     return (
@@ -76,19 +88,24 @@ export function NotificationDropdown({ minimal = false }) {
                         {/* Header */}
                         <div className="px-4 py-3 border-b border-white/5 bg-white/5 flex items-center justify-between">
                             <h3 className="text-sm font-bold text-white">Notifications</h3>
-                            {notifications.length > 0 && (
+                            {unreadCount > 0 && (
                                 <button
                                     onClick={handleClearAll}
                                     className="text-xs text-white/50 hover:text-white transition-colors"
                                 >
-                                    Clear all
+                                    Mark all as read
                                 </button>
                             )}
                         </div>
 
                         {/* List */}
                         <div className="max-h-[60vh] overflow-y-auto scrollbar-hide p-2 space-y-1">
-                            {notifications.length === 0 ? (
+                            {isLoading ? (
+                                <div className="py-8 text-center text-white/40 text-sm">
+                                    <div className="w-6 h-6 border-2 border-white/20 border-t-accent rounded-full animate-spin mx-auto mb-2" />
+                                    Loading...
+                                </div>
+                            ) : notifications.length === 0 ? (
                                 <div className="py-8 text-center text-white/40 text-sm">
                                     <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
                                     No new notifications
@@ -108,7 +125,7 @@ export function NotificationDropdown({ minimal = false }) {
                                                 <p className="text-sm font-bold truncate">{notif.title}</p>
                                                 <p className="text-xs text-white/70 line-clamp-2 mt-0.5">{notif.message}</p>
                                                 <p className="text-[10px] text-white/40 mt-1.5">
-                                                    {notif.created_at ? new Date(notif.created_at).toLocaleTimeString() : 'Just now'}
+                                                    {notif.created_at ? new Date(notif.created_at).toLocaleString() : 'Just now'}
                                                 </p>
                                             </div>
                                             {!notif.is_read && (

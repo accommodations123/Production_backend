@@ -29,6 +29,9 @@ export const getSocket = () => {
             reconnectionAttempts: Infinity,
             reconnectionDelay: 2000,
         });
+
+        // Explicitly connect
+        socket.connect();
     }
     return socket;
 };

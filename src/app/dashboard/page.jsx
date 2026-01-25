@@ -1,5 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Navbar } from "../../components/layout/Navbar"
 // import { Footer } from "@/components/layout/Footer"
 import { Sidebar } from "../../components/layout/Sidebar"
@@ -11,12 +12,16 @@ import { Notifications } from "@/components/dashboard/Notifications"
 import { Settings } from "@/components/dashboard/Settings"
 import { Support } from "@/components/dashboard/Support"
 import { ProfileOverview } from "@/components/dashboard/ProfileOverview"
+import { MyApplications } from "@/components/dashboard/MyApplications"
 import { useGetHostProfileQuery, useUpdateHostMutation } from "@/store/api/hostApi"
 
 import { User, Home, Bell, Settings as SettingsIcon, LifeBuoy, LayoutDashboard, Briefcase, Heart, Calendar, CreditCard } from "lucide-react" // Added LayoutDashboard, Briefcase, Heart, Calendar, CreditCard
 import { cn } from "@/lib/utils"
 
 export default function DashboardPage() {
+    const [searchParams] = useSearchParams()
+    const tabFromUrl = searchParams.get("tab")
+
     const [userData, setUserData] = useState(null)
     const [userRoleOverride, setUserRoleOverride] = useState(null)
     const [verificationState, setVerificationState] = useState({
@@ -24,7 +29,14 @@ export default function DashboardPage() {
         id: false,
     })
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-    const [active, setActive] = useState("overview")
+    const [active, setActive] = useState(tabFromUrl || "overview")
+
+    // Update active when URL tab changes
+    useEffect(() => {
+        if (tabFromUrl) {
+            setActive(tabFromUrl)
+        }
+    }, [tabFromUrl])
 
     const menuItems = [
         { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -32,6 +44,7 @@ export default function DashboardPage() {
         { id: "listings", label: "Listings", icon: Home },
         { id: "bookings_host", label: "Bookings", icon: Calendar },
         { id: "payouts", label: "Payouts", icon: CreditCard },
+        { id: "applications", label: "My Applications", icon: Briefcase },
         { id: "trips", label: "Trips", icon: Briefcase },
         { id: "wishlist", label: "Wishlist", icon: Heart },
         { id: "notifications", label: "Inbox", icon: Bell },
@@ -132,6 +145,8 @@ export default function DashboardPage() {
                 return <Settings />
             case 'support':
                 return <Support />
+            case "applications":
+                return <MyApplications />
             case "trips":
                 return <div className="p-8"><h3 className="text-2xl font-bold mb-4">Trips & Bookings</h3><p className="text-neutral/60">No upcoming trips found.</p></div>
             case "wishlist":

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Home, MapPin, Heart, Bell, LifeBuoy, Settings, HelpCircle } from 'lucide-react';
+import { User, Home, MapPin, Heart, Bell, LifeBuoy, Settings, HelpCircle, Briefcase } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, onTabChange }) => {
     const menuItems = [
@@ -9,11 +9,12 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
         // Actually user said "when i click on my profile [get these sections]".
         // Let's keep them in sidebar for now as "shortcuts" but make Profile the main view.
         { id: 'listings', label: 'My Listings', icon: Home },
+        { id: 'applications', label: 'My Applications', icon: Briefcase },
         { id: 'trips', label: 'Trips', icon: MapPin },
-        { id: 'wishlists', label: 'Wishlists', icon: Heart },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
-        { id: 'support', label: 'Support', icon: LifeBuoy },
-        { id: 'settings', label: 'Settings', icon: Settings },
+        // { id: 'wishlists', label: 'Wishlists', icon: Heart },
+        // { id: 'notifications', label: 'Notifications', icon: Bell },
+        // { id: 'support', label: 'Support', icon: LifeBuoy },
+        // { id: 'settings', label: 'Settings', icon: Settings },
     ];
 
     return (
@@ -34,17 +35,7 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
                 ))}
             </nav>
 
-            <div className="mt-8 pt-4 border-t border-gray-200">
-                <button className="w-full flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md">
-                    <HelpCircle className="mr-3 h-5 w-5 text-gray-400" />
-                    Help
-                </button>
-                <div className="mt-2 px-4 text-xs text-gray-400 flex items-center gap-2">
-                    <span>Language</span>
-                    <span>•</span>
-                    <span>More</span>
-                </div>
-            </div>
+
         </div>
     );
 };

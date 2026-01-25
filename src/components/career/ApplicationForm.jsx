@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { useApplyForJobMutation } from '@/store/api/hostApi';
 import { toast } from 'sonner';
-import { Loader2, Upload, FileText, X, CheckCircle } from 'lucide-react';
+import { Loader2, Upload, FileText, X, CheckCircle, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const ApplicationForm = ({ jobId, jobTitle, onSuccess, onCancel }) => {
+    const navigate = useNavigate();
     const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm();
     const [applyForJob, { isLoading }] = useApplyForJobMutation();
     const [resumeFile, setResumeFile] = useState(null);
@@ -24,7 +26,7 @@ export const ApplicationForm = ({ jobId, jobTitle, onSuccess, onCancel }) => {
                 return;
             }
             setResumeFile(file);
-            setValue('resume', file); // Manually set for react-hook-form validation if needed
+            setValue('resume', file);
         }
     };
 
@@ -35,17 +37,26 @@ export const ApplicationForm = ({ jobId, jobTitle, onSuccess, onCancel }) => {
         }
 
         const formData = new FormData();
-        formData.append('jobId', jobId); // Sending Job ID
-        formData.append('name', data.name);
+        // Backend expects these field names
+        formData.append('job_id', jobId);
+        formData.append('first_name', data.first_name);
+        formData.append('last_name', data.last_name);
         formData.append('email', data.email);
-        formData.append('phone', data.phone);
-        formData.append('linkedin', data.linkedin || '');
+        formData.append('phone', data.phone || '');
+        formData.append('linkedin_url', data.linkedin_url || '');
+        formData.append('portfolio_url', data.portfolio_url || '');
+        formData.append('availability_date', data.availability_date || '');
         formData.append('resume', resumeFile);
 
         try {
             await applyForJob(formData).unwrap();
-            toast.success("Application submitted successfully!");
+            toast.success("Application submitted successfully! Redirecting to your applications...");
+            // Close the modal first
             if (onSuccess) onSuccess();
+            // Redirect to dashboard with applications tab
+            setTimeout(() => {
+                navigate('/account-v2?tab=applications');
+            }, 500);
         } catch (error) {
             console.error("Application failed:", error);
             toast.error(error?.data?.message || "Failed to submit application. Please try again.");
@@ -60,18 +71,31 @@ export const ApplicationForm = ({ jobId, jobTitle, onSuccess, onCancel }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* First Name */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Full Name</label>
+                    <label className="text-sm font-medium text-gray-700">First Name *</label>
                     <input
-                        {...register('name', { required: "Name is required" })}
+                        {...register('first_name', { required: "First name is required" })}
                         className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                        placeholder="John Doe"
+                        placeholder="Bhargav"
                     />
-                    {errors.name && <span className="text-xs text-red-500">{errors.name.message}</span>}
+                    {errors.first_name && <span className="text-xs text-red-500">{errors.first_name.message}</span>}
                 </div>
 
+                {/* Last Name */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Email Address</label>
+                    <label className="text-sm font-medium text-gray-700">Last Name *</label>
+                    <input
+                        {...register('last_name', { required: "Last name is required" })}
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                        placeholder="Reddy"
+                    />
+                    {errors.last_name && <span className="text-xs text-red-500">{errors.last_name.message}</span>}
+                </div>
+
+                {/* Email */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Email Address *</label>
                     <input
                         type="email"
                         {...register('email', {
@@ -79,33 +103,58 @@ export const ApplicationForm = ({ jobId, jobTitle, onSuccess, onCancel }) => {
                             pattern: { value: /^\S+@\S+$/i, message: "Invalid email format" }
                         })}
                         className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                        placeholder="john@example.com"
+                        placeholder="bhargav@example.com"
                     />
                     {errors.email && <span className="text-xs text-red-500">{errors.email.message}</span>}
                 </div>
 
+                {/* Phone */}
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Phone Number</label>
                     <input
-                        {...register('phone', { required: "Phone number is required" })}
+                        {...register('phone')}
                         className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                        placeholder="+91 98765 43210"
+                        placeholder="+91 9876543210"
                     />
                     {errors.phone && <span className="text-xs text-red-500">{errors.phone.message}</span>}
                 </div>
 
+                {/* LinkedIn URL */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">LinkedIn/Portfolio (Optional)</label>
+                    <label className="text-sm font-medium text-gray-700">LinkedIn Profile</label>
                     <input
-                        {...register('linkedin')}
+                        {...register('linkedin_url')}
                         className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                        placeholder="https://linkedin.com/in/johndoe"
+                        placeholder="https://linkedin.com/in/username"
                     />
+                </div>
+
+                {/* Portfolio URL */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Portfolio Website</label>
+                    <input
+                        {...register('portfolio_url')}
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                        placeholder="https://yourportfolio.com"
+                    />
+                </div>
+
+                {/* Availability Date */}
+                <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700">Earliest Start Date</label>
+                    <div className="relative">
+                        <input
+                            type="date"
+                            {...register('availability_date')}
+                            className="w-full h-11 px-4 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                        />
+                    </div>
                 </div>
             </div>
 
+            {/* Resume Upload */}
             <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Resume/CV</label>
+                <label className="text-sm font-medium text-gray-700">Resume/CV *</label>
                 <div className={`relative border-2 border-dashed rounded-xl p-8 transition-colors text-center ${resumeFile ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'}`}>
                     {resumeFile ? (
                         <div className="flex items-center justify-center gap-4">

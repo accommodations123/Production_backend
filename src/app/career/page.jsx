@@ -60,14 +60,16 @@ export default function CareerPage() {
     // Filter jobs
     const filteredJobs = useMemo(() => {
         return jobs.filter(job => {
-            // Search query
-            const matchesSearch =
-                job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                job.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                job.skills?.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()))
+            // Search query - safely handle undefined fields
+            const searchLower = searchQuery.toLowerCase();
+            const matchesSearch = !searchQuery ||
+                (job.title?.toLowerCase() || '').includes(searchLower) ||
+                (job.company?.toLowerCase() || '').includes(searchLower) ||
+                (job.department?.toLowerCase() || '').includes(searchLower) ||
+                (job.description?.toLowerCase() || '').includes(searchLower) ||
+                job.skills?.some(skill => (skill?.toLowerCase() || '').includes(searchLower))
 
-            // Filters
+            // Filters - safely handle undefined fields
             const matchesLocation = selectedFilters.locations.length === 0 || selectedFilters.locations.includes(job.location)
             const matchesExperience = selectedFilters.experience.length === 0 || selectedFilters.experience.includes(job.experience)
             const matchesSalary = selectedFilters.salary.length === 0 || selectedFilters.salary.includes(job.salary)
@@ -379,28 +381,16 @@ export default function CareerPage() {
                             </div>
                         </motion.div>
 
-                        <motion.div
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible"
-                            className="space-y-6"
-                        >
+                        <div className="space-y-6">
                             {filteredJobs.length > 0 ? (
                                 filteredJobs.map((job, index) => (
-                                    <motion.div
-                                        key={job.id}
-                                        variants={itemVariants}
-                                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                                        onHoverStart={() => setHoveredJobId(job.id)}
-                                        onHoverEnd={() => setHoveredJobId(null)}
-                                        whileTap={{ scale: 0.98 }}
-                                    >
+                                    <div key={job.id || index}>
                                         <JobCard
                                             job={job}
                                             onViewDetails={handleViewDetails}
                                             isHovered={hoveredJobId === job.id}
                                         />
-                                    </motion.div>
+                                    </div>
                                 ))
                             ) : (
                                 <motion.div
@@ -419,7 +409,7 @@ export default function CareerPage() {
                                     </Button>
                                 </motion.div>
                             )}
-                        </motion.div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -68,7 +68,7 @@ const baseQueryWithLogger = async (args, api, extraOptions) => {
 export const hostApi = createApi({
     reducerPath: "hostApi",
     baseQuery: baseQueryWithLogger,
-    tagTypes: ["Property", "Host", "Event", "Community", "BuySell", "Review", "Job", "Trips", "Match"],
+    tagTypes: ["Property", "Host", "Event", "Community", "BuySell", "Review", "Job", "Trips", "Match", "Notification"],
     endpoints: (builder) => ({
         saveHost: builder.mutation({
             query: (hostData) => ({
@@ -529,19 +529,60 @@ export const hostApi = createApi({
             transformResponse: (response) => {
                 const jobs = response?.jobs || response?.data || response || [];
                 if (!Array.isArray(jobs)) return [];
+
+                // Helper function defined BEFORE use
+                const getTimeAgo = (date) => {
+                    if (!date) return "Recently";
+                    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+                    if (seconds < 60) return "Just now";
+                    if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+                    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+                    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+                    return new Date(date).toLocaleDateString();
+                };
+
+                // Helper to normalize work_style values
+                const normalizeWorkStyle = (val) => {
+                    if (!val) return "Not specified";
+                    const map = { remote: "Remote", hybrid: "Hybrid", onsite: "On-site" };
+                    return map[val.toLowerCase()] || val;
+                };
+
+                // Helper to normalize employment_type values
+                const normalizeType = (val) => {
+                    if (!val) return "Full-time";
+                    const map = { full_time: "Full-time", part_time: "Part-time", contract: "Contract", internship: "Internship" };
+                    return map[val.toLowerCase()] || val;
+                };
+
+                // Helper to normalize experience_level values
+                const normalizeExperience = (val) => {
+                    if (!val) return "Not specified";
+                    const map = { junior: "Entry Level", mid: "2-4 years", senior: "5+ years", lead: "7+ years" };
+                    return map[val.toLowerCase()] || val;
+                };
+
                 return jobs.map(job => ({
                     ...job,
                     id: job.id || job._id,
-                    experience: job.experience_level || job.experience,
-                    type: job.employment_type || job.type,
-                    workStyle: job.work_style || job.workStyle,
-                    salary: job.salary_range || job.salary,
-                    postedDate: job.createdAt || job.postedDate,
-                    applicants: job.applications_count || job.applicants,
+                    title: job.title || "Untitled Position",
+                    company: job.company || "Company",
+                    description: job.description || "",
+                    department: job.department || "General",
+                    location: job.location || "Remote",
+                    experience: normalizeExperience(job.experience_level),
+                    type: normalizeType(job.employment_type),
+                    workStyle: normalizeWorkStyle(job.work_style),
+                    salary: job.salary_range || job.salary || "Competitive",
+                    postedDate: job.createdAt || job.created_at || new Date().toISOString(),
+                    posted: getTimeAgo(job.createdAt || job.created_at),
+                    applicants: job.applications_count || job.applicants || 0,
                     responsibilities: job.responsibilities || [],
                     requirements: job.requirements || [],
                     benefits: job.benefits || [],
-                    isNew: (new Date() - new Date(job.createdAt || 0)) < 7 * 24 * 60 * 60 * 1000,
+                    skills: job.skills || [],
+                    featured: job.featured || false,
+                    isNew: (new Date() - new Date(job.createdAt || job.created_at || 0)) < 7 * 24 * 60 * 60 * 1000,
                 }));
             },
         }),
@@ -569,10 +610,36 @@ export const hostApi = createApi({
         }),
         applyForJob: builder.mutation({
             query: (formData) => ({
-                url: "carrer/apply",
+                url: "carrer/applications",
                 method: "POST",
                 body: formData,
             }),
+            invalidatesTags: ["MyApplications", "Job"],
+        }),
+        getMyApplications: builder.query({
+            query: ({ page = 1, limit = 10 } = {}) => `carrer/applications/me?page=${page}&limit=${limit}`,
+            providesTags: ["MyApplications"],
+            transformResponse: (response) => {
+                const applications = response?.applications || response?.data || [];
+                return {
+                    applications: applications.map(app => ({
+                        ...app,
+                        id: app.id || app._id,
+                        status: app.status,
+                        createdAt: app.created_at || app.createdAt,
+                        job: app.job ? {
+                            id: app.job.id || app.job._id,
+                            title: app.job.title,
+                            company: app.job.company,
+                            location: app.job.location,
+                            type: app.job.employment_type,
+                            workStyle: app.job.work_style,
+                        } : null,
+                    })),
+                    page: response?.page || 1,
+                    limit: response?.limit || 10,
+                };
+            },
         }),
 
         // Travel Endpoints
@@ -617,6 +684,32 @@ export const hostApi = createApi({
                 body: data
             }),
             invalidatesTags: ["Match", "Trips"]
+        }),
+
+        // Notifications
+        getNotifications: builder.query({
+            query: () => "notification/",
+            providesTags: ["Notification"],
+            transformResponse: (response) => {
+                const items = response?.notifications || response?.data || response || [];
+                return Array.isArray(items) ? items : [];
+            },
+        }),
+
+        markNotificationAsRead: builder.mutation({
+            query: (id) => ({
+                url: `notification/${id}/read`,
+                method: "PATCH",
+            }),
+            invalidatesTags: ["Notification"],
+        }),
+
+        markAllNotificationsAsRead: builder.mutation({
+            query: () => ({
+                url: "notification/read-all",
+                method: "PATCH",
+            }),
+            invalidatesTags: ["Notification"],
         }),
     }),
 });
@@ -681,4 +774,8 @@ export const {
     useCreateTripMutation,
     useGetMatchesQuery,
     useTravelMatchActionMutation,
+    useGetNotificationsQuery,
+    useMarkNotificationAsReadMutation,
+    useMarkAllNotificationsAsReadMutation,
+    useGetMyApplicationsQuery,
 } = hostApi;

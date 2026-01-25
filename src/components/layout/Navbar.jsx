@@ -445,6 +445,14 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                                     Personal Info
                                                 </Link>
                                                 <Link
+                                                    to="/account-v2?tab=applications"
+                                                    className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                                    onClick={() => setIsProfileOpen(false)}
+                                                >
+                                                    <Briefcase className="h-4 w-4 opacity-70" />
+                                                    My Applications
+                                                </Link>
+                                                <Link
                                                     to="/account-v2?tab=listings"
                                                     className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
                                                     onClick={() => setIsProfileOpen(false)}
@@ -460,14 +468,14 @@ export function Navbar({ minimal = false, onMenuClick }) {
                                                     <Plane className="h-4 w-4 opacity-70" />
                                                     My Trips
                                                 </Link>
-                                                <Link
+                                                {/* <Link
                                                     to="/account-v2?tab=settings"
                                                     className="flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all"
                                                     onClick={() => setIsProfileOpen(false)}
                                                 >
                                                     <SettingsIcon className="h-4 w-4 opacity-70" />
                                                     Settings
-                                                </Link>
+                                                </Link> */}
                                             </div>
 
                                             <div className="mt-2 pt-2 border-t border-white/5 px-2">
