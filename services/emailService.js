@@ -170,6 +170,7 @@ export const sendNotificationEmail = async ({ to, type, data }) => {
   }
 
   const { subject, html } = template(data || {});
+
   return transporter.sendMail({
     from: `"Accommodations" <${process.env.EMAIL_USER}>`,
     to,

@@ -1,7 +1,7 @@
 // src/services/notificationDispatcher.js
 import Notification from "../model/Notification.js";
-import { getIO } from "../services/socket.js";
-import emailQueue from "../services/queues/emailQueue.js";
+import { getIO } from "./socket.js";
+import { createJob } from "../services/queues/emailQueue.js";
 
 export const notifyAndEmail = async ({
   userId,
@@ -35,12 +35,12 @@ export const notifyAndEmail = async ({
     console.error("SOCKET EMIT FAILED:", err.message);
   }
 
-  // 3️⃣ Email (async, non-blocking)
+  // 3️⃣ Email (async, non-blocking, QUEUED CORRECTLY)
   if (email) {
-    await emailQueue.add("send-notification-email", {
+    await createJob(type, {
+      type,            // 👈 explicit
       to: email,
-      type,
-      data: metadata
+      data: metadata   // 👈 matches emailService contract
     });
   }
 
