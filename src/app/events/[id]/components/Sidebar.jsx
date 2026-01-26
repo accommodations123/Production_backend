@@ -62,14 +62,13 @@ export const Sidebar = memo(({ event }) => {
                     <Users className="h-5 w-5 text-accent" />
                     Who's Going
                 </h3>
-                <div className="flex -space-x-4 mb-6">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="w-12 h-12 bg-accent rounded-full border-3 border-white shadow-lg"></div>
-                    ))}
-                    <div className="w-12 h-12 bg-accent rounded-full border-3 border-white shadow-lg flex items-center justify-center text-white font-bold">
-                        +{Math.max(0, (event?.attendeesCount || 0) - 5)}
+                {(event?.attendeesCount || 0) > 0 && (
+                    <div className="flex -space-x-4 mb-6 justify-center">
+                        <div className="w-12 h-12 bg-accent rounded-full border-3 border-white shadow-lg flex items-center justify-center text-white font-bold">
+                            {event.attendeesCount}
+                        </div>
                     </div>
-                </div>
+                )}
                 <p className="text-sm text-gray-600 mb-6 text-center">{event?.attendeesCount || 0} people attending</p>
                 <Button className="w-full gap-2 bg-accent text-white hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-lg rounded-2xl">
                     <UserPlus className="h-4 w-4" />

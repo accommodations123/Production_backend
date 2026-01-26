@@ -5,9 +5,17 @@ import { Button } from "@/components/ui/button"
 import { HeroEventSlider } from "@/components/events/HeroEventSlider"
 import { getHostPath } from "@/lib/navigationUtils"
 
+import { useGetMeQuery } from "@/store/api/authApi"
+
 export const EventsHero = memo(({ totalEvents, searchQuery, setSearchQuery, featuredEvents, isLoading }) => {
-    const isAuthenticated = !!localStorage.getItem("user")
-    const hostPath = getHostPath('event', isAuthenticated)
+    // Robust Auth Check matching Navbar
+    const { data: userData, isError: isAuthError } = useGetMeQuery()
+    const isAuthenticated = !!userData && !isAuthError
+
+    // Fallback to localStorage to prevent hydration mismatch/flicker if query is loading but local data exists
+    const effectiveAuth = isAuthenticated || !!localStorage.getItem("user");
+
+    const hostPath = getHostPath('event', effectiveAuth)
 
     return (
         <div className="relative bg-[#00152d] pt-28 pb-20 px-4 overflow-hidden">

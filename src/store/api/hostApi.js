@@ -164,8 +164,26 @@ export const hostApi = createApi({
         }),
 
         getPropertyById: builder.query({
-            query: (id) => `property/${id}`,
-            transformResponse: (response) => response?.property ? response : { property: response, host: {} },
+            query: (id) => {
+                const countryData = localStorage.getItem("selectedCountry");
+                let countryName = "";
+                if (countryData) {
+                    try {
+                        const c = JSON.parse(countryData);
+                        if (c.name) countryName = c.name;
+                    } catch (e) { }
+                }
+                return {
+                    url: `property/${id}`,
+                    params: countryName ? { country: countryName } : undefined,
+                    headers: countryName ? { "X-Country": countryName } : undefined
+                };
+            },
+            transformResponse: (response) => {
+                const property = response?.property || response?.data?.property || response?.data || response;
+                const host = response?.host || response?.data?.host || {};
+                return { property, host };
+            },
         }),
 
         getApprovedEvents: builder.query({

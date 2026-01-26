@@ -42,10 +42,10 @@ export default function EventDetailsPage() {
     const event = useMemo(() => {
         if (!apiEvent) return null
         return {
-            id: apiEvent.id,
+            id: apiEvent.id || apiEvent._id,
             title: apiEvent.title,
             description: apiEvent.description,
-            image: apiEvent.banner_image || (apiEvent.gallery_images?.[0]) || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30",
+            image: apiEvent.banner_image || (apiEvent.gallery_images?.[0]) || null,
             date: apiEvent.start_date,
             time: apiEvent.start_time,
             end_date: apiEvent.end_date,

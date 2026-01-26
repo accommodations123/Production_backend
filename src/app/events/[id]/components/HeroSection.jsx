@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button"
 import { ShareMenu } from "./ShareMenu"
 
 export const HeroSection = memo(({ event, isSaved, onSave, shareOpen, onShare, copied, onCopy }) => (
-    <div className="relative h-[70vh] overflow-hidden">
+    <div className={`relative h-[70vh] overflow-hidden ${!event.image ? 'bg-slate-800' : ''}`}>
         <div className="absolute inset-0">
-            <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+            {event.image && (
+                <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+            )}
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent"></div>
         <div className="absolute top-6 left-6 right-6 flex justify-between items-start z-10">

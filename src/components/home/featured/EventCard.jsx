@@ -83,12 +83,18 @@ export const EventCard = ({ event, viewMode = "grid", onViewDetails }) => {
             }`}>
             {/* Event Image */}
             {viewMode !== "list" && (
-                <div className="relative h-48 overflow-hidden">
-                    <img
-                        src={event.banner_image || event.image || "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=400&h=200&fit=crop"}
-                        alt={event.title}
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-                    />
+                <div className={`relative h-48 overflow-hidden ${!(event.banner_image || event.image) ? 'bg-gradient-to-br from-slate-700 to-slate-900' : ''}`}>
+                    {(event.banner_image || event.image) ? (
+                        <img
+                            src={event.banner_image || event.image}
+                            alt={event.title}
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Calendar className="w-10 h-10 text-white/20" />
+                        </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#00142E]/80 via-transparent to-transparent"></div>
 
                     {/* Date Block Overlay */}

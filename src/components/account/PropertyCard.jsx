@@ -8,7 +8,7 @@ import { Edit, Trash2, Eye, FileText, Video, AlertCircle, Wifi, Car, Utensils, T
 
 export function PropertyCard({ property, onDelete }) {
     const [isDeleting, setIsDeleting] = useState(false)
-    const [timeLeft, setTimeLeft] = useState("")
+    // const [timeLeft, setTimeLeft] = useState("") // Removed
 
     if (!property) return null
 
@@ -89,39 +89,7 @@ export function PropertyCard({ property, onDelete }) {
             ? `${formatPriceDisplay(property.price_per_night)} / night`
             : "Price on request";
 
-    // Calculate time remaining
-    React.useEffect(() => {
-        if (!property.listing_expires_at || status !== 'approved') {
-            setTimeLeft("");
-            return;
-        }
-
-        const calculateTimeLeft = () => {
-            const expires = new Date(property.listing_expires_at).getTime();
-            const now = new Date().getTime();
-            const distance = expires - now;
-
-            if (distance < 0) {
-                setTimeLeft("Expired");
-                return;
-            }
-
-            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-            if (days > 0) {
-                setTimeLeft(`${days}d ${hours}h`);
-            } else {
-                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                setTimeLeft(`${hours}h ${minutes}m`);
-            }
-        };
-
-        calculateTimeLeft();
-        const timer = setInterval(calculateTimeLeft, 60000); // Update every minute
-
-        return () => clearInterval(timer);
-    }, [property.listing_expires_at, status]);
+    // Expiration logic removed as expired items are filtered out from the list
 
     // ... statusBadge logic
 
@@ -153,18 +121,7 @@ export function PropertyCard({ property, onDelete }) {
                     {statusBadge.text}
                 </div>
 
-                {/* Expiration Countdown Badge */}
-                {timeLeft && !isDeleted && (
-                    <div className={cn(
-                        "absolute top-3 right-24 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm z-10 flex items-center gap-1 backdrop-blur-md",
-                        timeLeft === "Expired"
-                            ? "bg-red-500/90 text-white"
-                            : "bg-black/60 text-white"
-                    )}>
-                        <Clock className="w-3 h-3" />
-                        {timeLeft === "Expired" ? "Expired" : `${timeLeft} left`}
-                    </div>
-                )}
+                {/* Expiration Countdown Badge - Removed as expired items are hidden */}
 
                 {/* ... rest of the component */}
                 <div className="absolute top-3 left-3 flex items-center gap-2">
@@ -258,7 +215,7 @@ export function PropertyCard({ property, onDelete }) {
                 {/* Actions Footer */}
                 <div className="pt-3 border-t border-gray-100 flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1 h-9 text-xs font-semibold hover:border-accent hover:text-accent" asChild>
-                        <Link to={`/rooms/${id}`}>
+                        <Link to={`/rooms/${id}`} state={{ property }}>
                             <Eye className="w-3.5 h-3.5 mr-1.5" />
                             View
                         </Link>

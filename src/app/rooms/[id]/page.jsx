@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from "@/components/layout/Navbar";
 import { useCountry } from "@/context/CountryContext";
 import { Footer } from "@/components/layout/Footer";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ContactModal } from "@/components/contact/ContactModal";
 import {
     MapPin, Star, Heart, Share2, ArrowLeft, CheckCircle,
@@ -16,7 +16,7 @@ import {
     Calendar, Clock, User, X, Copy, CopyCheck,
     Instagram, Facebook, Linkedin, Twitter, Youtube, Globe, Monitor, ExternalLink
 } from "lucide-react";
-import { useGetPropertyByIdQuery } from '@/store/api/hostApi';
+import { useGetPropertyByIdQuery, useGetMyListingsQuery, useGetHostProfileQuery } from '@/store/api/hostApi';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -37,7 +37,43 @@ export default function RoomPage() {
     const [copiedPhone, setCopiedPhone] = useState(false);
     const [showPhoneNumber, setShowPhoneNumber] = useState(false);
 
-    const { data, isLoading, isError, refetch } = useGetPropertyByIdQuery(id, { skip: !id });
+    const location = useLocation();
+
+    // 1. Try fetching public data (fails for unverified)
+    const { data: apiData, isLoading: isApiLoading, isError: isApiError, refetch } = useGetPropertyByIdQuery(id, { skip: !id });
+
+    // 2. Fetch owner options (in case user is the owner viewing unverified content)
+    const { data: myListings } = useGetMyListingsQuery();
+    const { data: hostProfile } = useGetHostProfileQuery();
+
+    // 3. Resolve Data Priority: API -> Location State -> My Listings Finding
+    const resolvedData = React.useMemo(() => {
+        // A. If API worked, use it.
+        if (apiData?.property) return apiData;
+
+        // B. If not, try location state (from dashboard click)
+        if (location.state?.property) return { property: location.state.property, host: hostProfile };
+
+        // C. If not, try finding in My Listings (robust against refresh)
+        if (myListings && Array.isArray(myListings)) {
+            console.log("🔍 Searching MyListings for ID:", id, "Available:", myListings.map(p => p.id || p._id));
+            const found = myListings.find(p => String(p._id) === String(id) || String(p.id) === String(id));
+            if (found) return { property: found, host: hostProfile };
+        }
+
+        return null;
+    }, [apiData, location.state, myListings, id, hostProfile]);
+
+    const data = resolvedData;
+    const isLoading = (isApiLoading && !data) || (!data && !isApiError && !myListings); // Keep loading if we are waiting for myListings
+    const isError = isApiError && !data && myListings; // Error only if API failed AND myListings loaded but didn't have it
+
+    console.log("📊 RoomPage Data Resolution:", {
+        source: apiData ? 'API' : (location.state?.property ? 'State' : (data ? 'MyListings' : 'None')),
+        data,
+        isApiLoading,
+        myListingsLen: myListings?.length
+    });
 
     // Refresh data on mount
     useEffect(() => {
@@ -219,7 +255,9 @@ export default function RoomPage() {
     const { activeCountry } = useCountry();
 
     if (isLoading) return <div className="min-h-screen bg-white flex items-center justify-center"><div className="w-10 h-10 border-4 border-[#CB2A25] border-t-transparent rounded-full animate-spin" /></div>;
-    if (isError || !listing) return <div className="min-h-screen flex items-center justify-center">Property not found</div>;
+    // logic: if we have data (either from API or state), we show it. 
+    // If we have NO data and (isError is true OR we attempted to load), then show not found.
+    if ((!data && isError) || !listing) return <div className="min-h-screen flex items-center justify-center">Property not found</div>;
 
     // Strict Country Check
     if (activeCountry && listing.location.country !== activeCountry.name) {

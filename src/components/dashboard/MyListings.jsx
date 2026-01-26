@@ -38,7 +38,10 @@ export const MyListings = () => {
         const id = p._id || p.id
         if (deletingIds.has(id)) return false
         const isDeleted = p.is_deleted === true || (p.status || "").toLowerCase() === "deleted"
+        // Check for expiration
         const isExpired = p.listing_expires_at && new Date(p.listing_expires_at) < new Date()
+
+        // Hide if deleted OR expired
         return !isDeleted && !isExpired
     })
 

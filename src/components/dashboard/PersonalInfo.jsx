@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react"
 import {
     User, Phone, Mail, Globe,
-    MapPin, Edit2, Share2, ExternalLink, Check, X, ChevronDown
+    MapPin, Edit2, Share2, ExternalLink, Check, X, ChevronDown, Building2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Facebook, Instagram, MessageCircle } from "lucide-react"
@@ -74,14 +74,25 @@ const InfoField = ({
             {label}
         </label>
         {isEditing ? (
-            <input
-                type={type}
-                name={name}
-                value={value}
-                onChange={onChange}
-                placeholder={placeholder || label}
-                className="w-full bg-white border-2 border-neutral/30 p-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all font-medium text-primary placeholder:text-primary/30"
-            />
+            type === "textarea" ? (
+                <textarea
+                    name={name}
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder || label}
+                    rows={4}
+                    className="w-full bg-white border-2 border-neutral/30 p-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all font-medium text-primary placeholder:text-primary/30 min-h-[120px]"
+                />
+            ) : (
+                <input
+                    type={type}
+                    name={name}
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder || label}
+                    className="w-full bg-white border-2 border-neutral/30 p-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all font-medium text-primary placeholder:text-primary/30"
+                />
+            )
         ) : (
             <div className="relative group">
                 <div className="p-4 bg-neutral/10 rounded-xl border border-neutral/20 font-semibold text-primary truncate flex items-center justify-between hover:bg-neutral/15 transition-colors">
@@ -111,11 +122,12 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
         personal: false,
         location: false,
         social: false,
+        host: false,
     })
 
     // ... (existing state)
     const [formData, setFormData] = useState({
-        full_name: initialData?.full_name || "",
+        full_name: initialData?.full_name || initialData?.name || "",
         email: initialData?.email || "",
         phone: initialData?.phone || "",
         country: initialData?.country || "",
@@ -125,14 +137,18 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
         zip: initialData?.zip || "",
         whatsapp: initialData?.whatsapp || "",
         facebook: initialData?.facebook || "",
-        instagram: initialData?.instagram || ""
+        instagram: initialData?.instagram || "",
+        occupation: initialData?.occupation || "",
+        languages: initialData?.languages || "",
+        description: initialData?.description || initialData?.bio || ""
     })
 
     useEffect(() => {
+        console.log("🔍 PersonalInfo: initialData changed:", initialData);
         if (initialData) {
             setFormData(prev => ({
                 ...prev,
-                full_name: initialData.full_name || prev.full_name || "",
+                full_name: initialData.full_name || initialData.name || prev.full_name || "",
                 email: initialData.email || prev.email || "",
                 phone: initialData.phone || prev.phone || "",
                 country: initialData.country || prev.country || "",
@@ -143,6 +159,9 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
                 whatsapp: initialData.whatsapp || prev.whatsapp || "",
                 facebook: initialData.facebook || prev.facebook || "",
                 instagram: initialData.instagram || prev.instagram || "",
+                occupation: initialData.occupation || prev.occupation || "",
+                languages: initialData.languages || prev.languages || "",
+                description: initialData.description || initialData.bio || prev.description || "",
             }))
         }
     }, [initialData])
@@ -246,7 +265,24 @@ export const PersonalInfo = ({ initialData, verificationState, onUpdate, isUpdat
                     <div className="md:col-span-2">
                         <InfoField label="Full Name" name="full_name" value={formData.full_name} isEditing={editStates.personal} onChange={handleChange} />
                     </div>
+                    <InfoField label="Email Address" name="email" type="email" value={formData.email} isEditing={editStates.personal} onChange={handleChange} />
                     <InfoField label="Phone Number" name="phone" type="tel" value={formData.phone} isEditing={editStates.personal} onChange={handleChange} />
+                </DetailCard>
+
+                {/* Host Information Card */}
+                <DetailCard
+                    title="Host Information"
+                    description="Tell guests more about yourself"
+                    icon={Building2}
+                    isEditing={editStates.host}
+                    onEdit={() => toggleEdit('host')}
+                    isUpdating={isUpdating && editStates.host}
+                >
+                    <InfoField label="Occupation / Title" name="occupation" value={formData.occupation} isEditing={editStates.host} onChange={handleChange} placeholder="e.g. Software Engineer, Student" />
+                    <InfoField label="Languages" name="languages" value={formData.languages} isEditing={editStates.host} onChange={handleChange} placeholder="e.g. English, Hindi, Telugu" />
+                    <div className="md:col-span-2">
+                        <InfoField label="About Me" name="description" type="textarea" value={formData.description} isEditing={editStates.host} onChange={handleChange} placeholder="Share a little bit about yourself, your hosting style, or your interests..." />
+                    </div>
                 </DetailCard>
 
                 {/* Location & Address Card */}

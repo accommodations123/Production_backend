@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { hostEventService, compressImage } from "../services/hostEventService"
+import { useGetMyEventsQuery, useGetEventByIdQuery } from "@/store/api/hostApi"
 
 export const useHostEvent = () => {
     const [searchParams] = useSearchParams()
@@ -45,80 +46,85 @@ export const useHostEvent = () => {
         what_is_not_included: ""
     })
 
+    // Data Fetching
+    const { data: myEvents } = useGetMyEventsQuery(undefined, { skip: !editId });
+    const { data: publicEventData } = useGetEventByIdQuery(editId, { skip: !editId || !!myEvents });
+
     // Fetch event data for editing
     useEffect(() => {
-        const fetchEvent = async () => {
-            if (!editId) return;
-            try {
-                const response = await hostEventService.getEventById(editId);
-                const event = response.event || response.data || response;
+        if (!editId) return;
 
-                if (event) {
-                    console.log("📝 Editing Event:", event);
-                    setEventId(editId); // Ensure ID is set
+        let event = null;
 
-                    // Check status for read-only mode
-                    if (event.status === 'approved') {
-                        setIsReadOnly(true);
-                        setError("This event is approved and cannot be modified.");
-                    }
+        // 1. Try finding in My Events (Private - includes drafts)
+        if (myEvents && Array.isArray(myEvents)) {
+            event = myEvents.find(e => String(e.id) === String(editId) || String(e._id) === String(editId));
+        }
 
-                    // Populate form
-                    setFormData(prev => ({
-                        ...prev,
-                        title: event.title || "",
-                        description: event.description || "",
-                        event_type: event.event_type || "meetup",
-                        event_mode: event.event_mode || "offline",
+        // 2. Fallback to public API (Public - approved only)
+        if (!event && publicEventData) {
+            event = publicEventData.event || publicEventData.data || publicEventData;
+        }
 
-                        // Date/Time (handling potential ISO strings)
-                        date: event.start_date ? new Date(event.start_date).toISOString().split('T')[0] : "",
-                        end_date: event.end_date ? new Date(event.end_date).toISOString().split('T')[0] : "",
-                        time: event.start_time || "",
-                        end_time: event.end_time || "",
+        if (event) {
+            console.log("📝 Editing Event:", event);
+            setEventId(editId); // Ensure ID is set
 
-                        // Location
-                        country: event.country || "US",
-                        state: event.state || "",
-                        city: event.city || "",
-                        zip_code: event.zip_code || "",
-                        location: event.street_address || event.location || "",
-                        landmark: event.landmark || "",
-
-                        // Venue
-                        venue_name: event.venue_name || "",
-                        venue_description: event.venue_description || "",
-                        parking_info: event.parking_info || "",
-                        accessibility_info: event.accessibility_info || "",
-
-                        // Online
-                        event_url: event.event_url || "",
-                        online_instructions: event.online_instructions || "",
-
-                        // Extras
-                        price: event.price || "",
-                        what_is_included: event.what_is_included || "",
-                        what_is_not_included: event.what_is_not_included || "",
-
-                        // Images (Store URLs for reference, although upload usually requires File objects)
-                        // existingBannerUrl: event.banner_image,
-                        // existingGalleryUrls: event.gallery_images || []
-                    }));
-
-                    // Set Previews
-                    setPreviewImages({
-                        banner: event.banner_image || null,
-                        gallery: event.gallery_images || []
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to fetch event for editing:", err);
-                setError("Failed to load event details");
+            // Check status for read-only mode, but allow editing if it's the owner (which it is if found in myEvents/edit flow)
+            // Logic: If approved, maybe warn strictly? Or just alert.
+            // For now, mirroring property logic: allow editing unless strictly locked, but usually approved items are locked.
+            // However, the previous logic locked it. Let's keep it but maybe loosen for owner if needed.
+            // Actually, approved events usually CAN be edited? The old logic locked it. I will keep the lock conformant to old logic.
+            if (event.status === 'approved') {
+                setIsReadOnly(true);
+                setError("This event is approved and cannot be modified.");
             }
-        };
 
-        fetchEvent();
-    }, [editId]);
+            // Populate form
+            setFormData(prev => ({
+                ...prev,
+                title: event.title || "",
+                description: event.description || "",
+                event_type: event.event_type || "meetup",
+                event_mode: event.event_mode || "offline",
+
+                // Date/Time (handling potential ISO strings)
+                date: event.start_date ? new Date(event.start_date).toISOString().split('T')[0] : "",
+                end_date: event.end_date ? new Date(event.end_date).toISOString().split('T')[0] : "",
+                time: event.start_time || "",
+                end_time: event.end_time || "",
+
+                // Location
+                country: event.country || "US",
+                state: event.state || "",
+                city: event.city || "",
+                zip_code: event.zip_code || "",
+                location: event.street_address || event.location || "",
+                landmark: event.landmark || "",
+
+                // Venue
+                venue_name: event.venue_name || "",
+                venue_description: event.venue_description || "",
+                parking_info: event.parking_info || "",
+                accessibility_info: event.accessibility_info || "",
+
+                // Online
+                event_url: event.event_url || "",
+                online_instructions: event.online_instructions || "",
+
+                // Extras
+                price: event.price || "",
+                what_is_included: event.what_is_included || "",
+                what_is_not_included: event.what_is_not_included || "",
+            }));
+
+            // Set Previews
+            setPreviewImages({
+                banner: event.banner_image || null,
+                gallery: event.gallery_images || []
+            });
+        }
+    }, [editId, myEvents, publicEventData]);
 
     const handleInputChange = useCallback((field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }))

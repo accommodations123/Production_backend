@@ -45,8 +45,10 @@ export const HorizontalEventCard = memo(({ event, onViewDetails, index }) => {
         if (event.image) return event.image;
         if (event.banner_image) return event.banner_image;
         if (event.gallery_images && event.gallery_images.length > 0) return event.gallery_images[0];
-        return "https://images.unsplash.com/photo-1492684223066-81342ee5ff30";
+        return null;
     };
+
+    const eventImage = getEventImage();
 
     return (
         <div
@@ -55,13 +57,19 @@ export const HorizontalEventCard = memo(({ event, onViewDetails, index }) => {
         >
             <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm bg-white h-full transition-all duration-300 hover:shadow-md">
                 {/* Event Image */}
-                <div className="relative h-40 sm:h-48 overflow-hidden">
-                    <img
-                        src={getEventImage()}
-                        alt={event.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                    />
+                <div className={`relative h-40 sm:h-48 overflow-hidden ${!eventImage ? 'bg-gradient-to-br from-slate-700 to-slate-900' : ''}`}>
+                    {eventImage ? (
+                        <img
+                            src={eventImage}
+                            alt={event.title}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Calendar className="w-10 h-10 text-white/20" />
+                        </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     <div className="absolute top-3 left-3">
                         <span className="px-2 sm:px-3 py-1 bg-[#ff0000] text-white text-xs font-bold rounded-full shadow-lg">

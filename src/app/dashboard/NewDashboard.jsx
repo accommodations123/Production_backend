@@ -65,13 +65,17 @@ export default function NewDashboard() {
   }, []);
 
   const currentUser = useMemo(() => {
-    return {
+    const user = {
       ...userData,
       ...hostProfile,
       profile_image: hostProfile?.profile_image
         ? `${hostProfile.profile_image}?v=${refreshKey}`
         : userData?.profile_image
-    }
+    };
+    console.log("🔍 Dashboard: userData:", userData);
+    console.log("🔍 Dashboard: hostProfile:", hostProfile);
+    console.log("🔍 Dashboard: currentUser:", user);
+    return user;
   }, [userData, hostProfile, refreshKey]);
 
   const handleUpdatePersonalInfo = async (payload) => {

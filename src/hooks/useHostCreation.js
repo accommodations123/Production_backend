@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useCountry } from '@/context/CountryContext';
@@ -19,6 +20,7 @@ import {
     useUpdatePropertyVideoMutation,
     useSubmitPropertyMutation,
     useGetPropertyByIdQuery,
+    useGetMyListingsQuery,
     hostApi
 } from '@/store/api/hostApi';
 
@@ -255,15 +257,31 @@ export function useHostCreation() {
     // === EDIT MODE LOGIC ===
     const [searchParams] = useSearchParams();
     const editId = searchParams.get('edit');
-    const { data: existingPropertyData, isFetching: isPropertyFetching } = useGetPropertyByIdQuery(editId, {
+
+    // FETCH DATA FROM MY LISTINGS (OWNER VIEW) INSTEAD OF PUBLIC API
+    const { data: myListings } = useGetMyListingsQuery(undefined, {
         skip: !editId || contributionType !== 'property'
     });
 
+    // Fallback to public API (Only works for Approved)
+    const { data: publicPropertyData } = useGetPropertyByIdQuery(editId, {
+        skip: !editId || contributionType !== 'property' || !!myListings // Skip if we have myListings
+    });
+
     useEffect(() => {
-        if (editId && existingPropertyData) {
-            // Robustly find the property object
-            const rawProp = existingPropertyData;
-            const prop = rawProp.property || rawProp.data || rawProp;
+        if (editId) {
+            let prop = null;
+
+            // 1. Try finding in MyListings (Best for unverified/drafts)
+            if (myListings && Array.isArray(myListings)) {
+                prop = myListings.find(p => String(p.id) === String(editId) || String(p._id) === String(editId));
+            }
+
+            // 2. Fallback to public API
+            if (!prop && publicPropertyData) {
+                // Handle different response structures
+                prop = publicPropertyData.property || publicPropertyData.data || publicPropertyData;
+            }
 
             if (prop) {
                 // Check if property is approved (read-only)
@@ -313,26 +331,26 @@ export function useHostCreation() {
                 }));
             }
         }
-    }, [existingPropertyData, editId]);
+    }, [myListings, publicPropertyData, editId]);
 
     // Handlers
     const handleSendOtp = async (e) => {
         if (e) e.preventDefault();
         if (!formData.email) {
-            alert("Please enter a valid email address.");
+            toast.error("Please enter a valid email address.");
             return;
         }
         try {
             await hostService.sendOtp({ email: formData.email, phone: formData.phone || "0000000000" });
             setShowOtpModal(true);
-            alert("OTP sent to your email!");
+            toast.success("OTP sent to your email!");
         } catch (error) {
             console.error("Failed to send OTP:", error);
             const msg = error.message || "";
             if (msg.includes("429") || msg.toLowerCase().includes("too many")) {
-                alert("Too many OTP requests. Please wait a few minutes before trying again.");
+                toast.error("Too many OTP requests. Please wait a few minutes before trying again.");
             } else {
-                alert("Failed to send OTP. Please try again.");
+                toast.error("Failed to send OTP. Please try again.");
             }
         }
     };
@@ -347,24 +365,24 @@ export function useHostCreation() {
                     const safeUser = { ...userData, id: userData.id || userData._id };
                     localStorage.setItem("user", JSON.stringify(safeUser));
                 }
-                alert("Verification Successful! You are logged in.");
+                toast.success("Verification Successful! You are logged in.");
                 setIsEmailVerified(true);
                 // Invalidate getMe query to update global auth state
                 dispatch(authApi.util.invalidateTags(['User']));
                 setShowOtpModal(false);
             } else {
                 if (response.message === "Email verified successfully" || response.success) {
-                    alert("Email verified.");
+                    toast.success("Email verified.");
                     setIsEmailVerified(true);
                     dispatch(authApi.util.invalidateTags(['User']));
                     setShowOtpModal(false);
                 } else {
-                    alert(`Verification failed: ${response.message}`);
+                    toast.error(`Verification failed: ${response.message}`);
                 }
             }
         } catch (error) {
             console.error("Failed to verify OTP:", error);
-            alert("Invalid OTP. Please try again.");
+            toast.error("Invalid OTP. Please try again.");
         }
     };
 
@@ -457,7 +475,7 @@ export function useHostCreation() {
             setDirection(1);
             setCurrentStep(prev => Math.min(prev + 1, STEPS.length));
         } else {
-            alert("Please fill in all required fields for this step.");
+            toast.error("Please fill in all required fields for this step.");
         }
     };
 
@@ -498,15 +516,18 @@ export function useHostCreation() {
             await updatePropertyRules({ id: propertyId, rules: finalRules }).unwrap();
         }
 
-        if (formData.images.length > 0) {
+        // Filter for NEW images only (those with a file object)
+        const newImages = formData.images.filter(img => img.file);
+        if (newImages.length > 0) {
             const photoFd = new FormData();
-            formData.images.forEach(img => {
-                if (img.file) photoFd.append('photo', img.file);
+            newImages.forEach(img => {
+                photoFd.append('photo', img.file);
             });
             await updatePropertyMedia({ id: propertyId, formData: photoFd }).unwrap();
         }
 
-        if (formData.video) {
+        // Only upload video if it is a new File object (not an existing URL object)
+        if (formData.video && formData.video instanceof File) {
             const videoFd = new FormData();
             videoFd.append('video', formData.video);
             await updatePropertyVideo({ id: propertyId, formData: videoFd }).unwrap();
@@ -561,12 +582,12 @@ export function useHostCreation() {
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         if (isReadOnly) {
-            alert("This property is approved and cannot be modified.");
+            toast.warning("This property is approved and cannot be modified.");
             return;
         }
 
         if (!termsAccepted) {
-            alert("Please accept the terms to continue.");
+            toast.warning("Please accept the terms to continue.");
             return;
         }
 
@@ -580,7 +601,6 @@ export function useHostCreation() {
 
             if (!effectiveUser) throw new Error("User not authenticated. Session verification failed.");
 
-            console.log("📝 Submit Context - User:", effectiveUser);
 
             let userId = effectiveUser.id || effectiveUser._id || effectiveUser.user_id || effectiveUser.user?.id || effectiveUser.user?._id;
 
@@ -634,7 +654,6 @@ export function useHostCreation() {
 
             // 5. Save Host Profile if not existing
             if (!isExistingHost) {
-                console.log("📝 Registering new Host profile before property creation...");
                 await saveHost(hostPayload).unwrap();
                 // RTK Query will update isExistingHost automatically via invalidateTags
             }
@@ -727,13 +746,13 @@ export function useHostCreation() {
 
             // Differentiate success message
             const actionText = editId ? "Updated" : "Submitted";
-            alert(`${getContributionTypeLabel(contributionType)} ${actionText} Successfully!`);
+            toast.success(`${getContributionTypeLabel(contributionType)} ${actionText} Successfully!`);
             navigate("/");
 
         } catch (error) {
             console.error("❌ Submission Workflow Error:", error);
             const msg = error.message || "Unknown error occurred.";
-            alert(`Submission Failed: ${msg}`);
+            toast.error(`Submission Failed: ${msg}`);
         } finally {
             setIsLoading(false);
         }
