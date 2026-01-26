@@ -5,12 +5,8 @@ import User from "../../model/User.js";
 import { Op } from "sequelize";
 import { logAudit } from "../../services/auditLogger.js";
 import { trackEvent } from "../../services/Analytics.js";
-import {
-  getCache,
-  setCache,
-  deleteCache,
-  deleteCacheByPrefix
-} from "../../services/cacheService.js";
+import {getCache,setCache,deleteCache,deleteCacheByPrefix} from "../../services/cacheService.js";
+import { notifyAndEmail } from "../../services/notificationDispatcher.js";
 import "../../model/associations.js"
 export const createTrip = async (req, res) => {
   try {
@@ -349,6 +345,20 @@ export const travelMatchAction = async (req, res) => {
         matched_trip_id,
         status: "pending"
       });
+      // 🔔 Notify receiver host
+const receiverHost = await Host.findByPk(tripB.host_id, {
+  include: [{ model: User, attributes: ["email"] }]
+});
+
+notifyAndEmail({
+  userId: receiverHost.user_id,
+  email: receiverHost.User.email,
+  type: "TRAVEL_MATCH_REQUESTED",
+  title: "New travel match request",
+  message: "You have received a new travel match request.",
+  metadata: { trip_id, matched_trip_id }
+}).catch(console.error);
+
 
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
 
@@ -394,6 +404,20 @@ export const travelMatchAction = async (req, res) => {
       match.status = "accepted";
       match.consent_given = true;
       await match.save();
+      // 🔔 Notify requester host
+const requesterHost = await Host.findByPk(tripA.host_id, {
+  include: [{ model: User, attributes: ["email"] }]
+});
+
+notifyAndEmail({
+  userId: requesterHost.user_id,
+  email: requesterHost.User.email,
+  type: "TRAVEL_MATCH_ACCEPTED",
+  title: "Travel match accepted",
+  message: "Your travel match request has been accepted.",
+  metadata: { trip_id, matched_trip_id }
+}).catch(console.error);
+
 
       await deleteCache(`travel:matches:received:${tripA.host_id}`);
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
@@ -423,6 +447,20 @@ export const travelMatchAction = async (req, res) => {
 
       match.status = "rejected";
       await match.save();
+      // 🔔 Notify requester host
+const requesterHost = await Host.findByPk(tripA.host_id, {
+  include: [{ model: User, attributes: ["email"] }]
+});
+
+notifyAndEmail({
+  userId: requesterHost.user_id,
+  email: requesterHost.User.email,
+  type: "TRAVEL_MATCH_REJECTED",
+  title: "Travel match rejected",
+  message: "Your travel match request was rejected.",
+  metadata: { trip_id, matched_trip_id }
+}).catch(console.error);
+
 
       await deleteCache(`travel:matches:received:${tripA.host_id}`);
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
@@ -448,6 +486,23 @@ export const travelMatchAction = async (req, res) => {
 
       match.status = "cancelled";
       await match.save();
+      // 🔔 Notify the OTHER host
+const otherHostId =
+  host.id === tripA.host_id ? tripB.host_id : tripA.host_id;
+
+const otherHost = await Host.findByPk(otherHostId, {
+  include: [{ model: User, attributes: ["email"] }]
+});
+
+notifyAndEmail({
+  userId: otherHost.user_id,
+  email: otherHost.User.email,
+  type: "TRAVEL_MATCH_CANCELLED",
+  title: "Travel match cancelled",
+  message: "A travel match you were connected to has been cancelled.",
+  metadata: { trip_id, matched_trip_id }
+}).catch(console.error);
+
 
       await deleteCache(`travel:matches:received:${tripA.host_id}`);
       await deleteCache(`travel:matches:received:${tripB.host_id}`);
@@ -866,8 +921,8 @@ export const adminGetAllTrips = async (req, res) => {
 export const adminCancelTrip = async (req, res) => {
   try {
     const tripId = Number(req.params.trip_id);
-    if (!Number.isInteger(tripId)) {
-      return res.status(400).json({ message: "Invalid trip id" });
+    if (!Number.isInteger(tripId) || tripId <= 0) {
+      return res.status(400).json({ message: "Invalid Trip ID" });
     }
 
     const trip = await TravelTrip.findByPk(tripId);
@@ -879,24 +934,94 @@ export const adminCancelTrip = async (req, res) => {
       return res.status(400).json({ message: "Trip already cancelled" });
     }
 
-    // 🔴 Cancel trip
-    trip.status = "cancelled";
-    await trip.save();
+    /* ============================
+       🔴 TRANSACTION (ATOMIC)
+       ============================ */
+    await TravelTrip.sequelize.transaction(async (t) => {
+      await trip.update(
+        { status: "cancelled" },
+        { transaction: t }
+      );
 
-    // 🔴 Cascade cancel ALL related matches
-    await TravelMatch.update(
-      { status: "cancelled" },
-      {
-        where: {
-          [Op.or]: [
-            { trip_id: trip.id },
-            { matched_trip_id: trip.id }
-          ]
+      await TravelMatch.update(
+        { status: "cancelled" },
+        {
+          where: {
+            [Op.or]: [
+              { trip_id: trip.id },
+              { matched_trip_id: trip.id }
+            ]
+          },
+          transaction: t
         }
-      }
-    );
+      );
+    });
 
-    // 🔐 Audit
+    /* ============================
+       🔔 ASYNC EMAIL NOTIFICATIONS
+       ============================ */
+
+    // 1️⃣ Notify trip owner
+    const ownerHost = await Host.findByPk(trip.host_id, {
+      include: [{ model: User, attributes: ["email"] }]
+    });
+
+    if (ownerHost?.User?.email) {
+      notifyAndEmail({
+        userId: ownerHost.user_id,
+        email: ownerHost.User.email,
+        type: "TRAVEL_TRIP_CANCELLED",
+        title: "Your trip was cancelled",
+        message: "Your travel trip was cancelled by an administrator.",
+        metadata: { trip_id: trip.id }
+      }).catch(console.error);
+    }
+
+    // 2️⃣ Notify other affected hosts (DEDUPED)
+    const cancelledMatches = await TravelMatch.findAll({
+      where: {
+        status: "cancelled",
+        [Op.or]: [
+          { trip_id: trip.id },
+          { matched_trip_id: trip.id }
+        ]
+      }
+    });
+
+    const notifiedHosts = new Set();
+
+    for (const match of cancelledMatches) {
+      const otherTripId =
+        match.trip_id === trip.id
+          ? match.matched_trip_id
+          : match.trip_id;
+
+      const otherTrip = await TravelTrip.findByPk(otherTripId);
+      if (!otherTrip) continue;
+
+      if (notifiedHosts.has(otherTrip.host_id)) continue;
+      notifiedHosts.add(otherTrip.host_id);
+
+      const otherHost = await Host.findByPk(otherTrip.host_id, {
+        include: [{ model: User, attributes: ["email"] }]
+      });
+
+      if (!otherHost?.User?.email) continue;
+
+      notifyAndEmail({
+        userId: otherHost.user_id,
+        email: otherHost.User.email,
+        type: "TRAVEL_MATCH_CANCELLED",
+        title: "Travel match cancelled",
+        message:
+          "A travel match was cancelled because a related trip was removed by an administrator.",
+        metadata: { trip_id: trip.id }
+      }).catch(console.error);
+    }
+
+    /* ============================
+       🔐 AUDIT & ANALYTICS
+       ============================ */
     logAudit({
       action: "ADMIN_CANCELLED_TRIP",
       actor: { id: req.admin.id, role: "admin" },
@@ -905,13 +1030,15 @@ export const adminCancelTrip = async (req, res) => {
       req
     }).catch(console.error);
 
-    // 📊 Analytics
-    AnalyticsEvent.create({
+    trackEvent({
       event_type: "ADMIN_CANCELLED_TRIP",
-      user_id: req.admin.id
+      actor: { admin_id: req.admin.id },
+      entity: { type: "travel_trip", id: trip.id }
     }).catch(console.error);
 
-    // 🧹 Cache
+    /* ============================
+       🧹 CACHE INVALIDATION
+       ============================ */
     await deleteCacheByPrefix("travel:");
     await deleteCacheByPrefix("host:");
     await deleteCacheByPrefix("admin:");
@@ -926,6 +1053,8 @@ export const adminCancelTrip = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+
 
 /* ======================================================
    ADMIN: GET ALL MATCHES
