@@ -9,7 +9,7 @@ router.post('/send-test-email', async (req, res) => {
 
     // Add a job to the BullMQ queue
     const job = await emailQueue.add({
-      to: "your-email@example.com", // ⚠️ CHANGE THIS to your real email
+      to: "bhargavreddy.mettu333@gmail.com", // ⚠️ CHANGE THIS to your real email
       type: "HOST_APPROVED", // Ensure this type exists in emailService.js
       data: {
         title: "Test Email from Server",
