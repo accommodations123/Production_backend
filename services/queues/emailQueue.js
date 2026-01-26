@@ -1,22 +1,22 @@
-/* src/queues/emailQueue.js */
 import { Queue } from "bullmq";
-import dotenv from "dotenv";
 
-// Load environment variables if not already loaded
-dotenv.config();
+// ✅ FIX: Combine host and port into a single connection string
+const redisUrl = `redis://${process.env.REDIS_HOST || "127.0.0.1"}:${process.env.REDIS_PORT || 6379}`;
 
-// Redis connection configuration
-const redisConnection = {
-  host: process.env.REDIS_HOST || "127.0.0.1",
-  port: Number(process.env.REDIS_PORT) || 6379,
-  // Optional: Add password if your production Redis requires it
-  // password: process.env.REDIS_PASSWORD || undefined
-};
+console.log("🔗 Connecting to Redis via:", redisUrl);
 
 const emailQueue = new Queue("email-queue", {
-  connection: redisConnection
+  connection: redisUrl,
+  // ✅ FIX: Force Standalone Mode (Disable Clustering)
+  defaultJobOptions: {
+    removeOnComplete: true,
+    attempts: 3
+  },
+  // ✅ FIX: Retry settings (Prevents hanging connection attempts that cause Lua errors)
+  settings: {
+    maxRetriesPerRequest: 0, // Important for stable Redis
+    retryStrategy: "reconnect" 
+  }
 });
-
-console.log(`🔌 Email Queue connected to Redis at ${redisConnection.host}:${redisConnection.port}`);
 
 export default emailQueue;
