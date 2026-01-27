@@ -690,7 +690,7 @@ export const getPropertyById = async (req, res) => {
           include: [
             {
               model: User,
-              attributes: ["id", "email"]
+              attributes: ["id", "email","profile_image"]
             }
           ]
         }

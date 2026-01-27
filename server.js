@@ -32,7 +32,6 @@ import buySellanalytics from './routes/DashboardAnalytics/buySellAnalyticsroutes
 import communityanalytics from './routes/DashboardAnalytics/communityAnalytics.routes.js'
 import travelanalytics from './routes/DashboardAnalytics/travelAnalytics.routes.js'
 import notification from './routes/notification.routes.js'
-import testRoutes from './routes/testRoutes.js';
 import './services/workers/emailWorker.js'
  (async () => {
   try {
@@ -86,7 +85,6 @@ import './services/workers/emailWorker.js'
     app.use('/communityanalytics',communityanalytics)
     app.use('/travelanalytics',travelanalytics)
     app.use("/notification",notification);
-    app.use('/api/test', testRoutes);
 
     const server = http.createServer(app)
     initSocket(server)
