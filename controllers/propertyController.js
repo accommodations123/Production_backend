@@ -472,14 +472,16 @@ export const getApprovedListings = async (req, res) => {
 
     const properties = await Property.findAll({
       where,
-      include: [
+         include: [
         {
           model: Host,
-          attributes: ["id", "full_name", "phone"],
+          // ADD "whatsapp", "instagram", "facebook" here
+          attributes: ["id", "full_name", "phone", "whatsapp", "instagram", "facebook"],
           include: [
             {
               model: User,
-              attributes: ["id", "email"]
+              // ADD "profile_image" here
+              attributes: ["id", "email", "profile_image"]
             }
           ]
         }
@@ -573,14 +575,16 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     // -------------------------
     const { rows, count } = await Property.findAndCountAll({
       where,
-      include: [
+         include: [
         {
           model: Host,
-          attributes: ["id", "full_name", "phone"],
+          // ADD "whatsapp", "instagram", "facebook" here
+          attributes: ["id", "full_name", "phone", "whatsapp", "instagram", "facebook"], 
           include: [
             {
               model: User,
-              attributes: ["id", "email"]
+              // ADD "profile_image" here
+              attributes: ["id", "email", "profile_image"] 
             }
           ]
         }
@@ -687,7 +691,7 @@ export const getPropertyById = async (req, res) => {
             "instagram",
             "facebook"
           ],
-          include: [
+          include: [   
             {
               model: User,
               attributes: ["id", "email","profile_image"]
