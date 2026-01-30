@@ -6,6 +6,7 @@ import { Op, Sequelize } from "sequelize";
 import { getCache, setCache } from "../services/cacheService.js";
 
 
+
 /* ─────────────────────────────
    UTILS
 ───────────────────────────── */
@@ -34,54 +35,52 @@ export const getApprovedList = async (req, res) => {
       return res.json({ success: true, data: cached });
     }
 
-    /* ───────── SAFE JSON FILTERS ───────── */
     const where = {};
-
-    const andConditions = [];
+    const and = [];
 
     if (country) {
-      andConditions.push(
+      and.push(
         Sequelize.where(
-          Sequelize.json("property_snapshot.country"),
+          Sequelize.fn("JSON_EXTRACT", Sequelize.col("property_snapshot"), "$.country"),
           country
         )
       );
     }
 
     if (state) {
-      andConditions.push(
+      and.push(
         Sequelize.where(
-          Sequelize.json("property_snapshot.state"),
+          Sequelize.fn("JSON_EXTRACT", Sequelize.col("property_snapshot"), "$.state"),
           state
         )
       );
     }
 
     if (city) {
-      andConditions.push(
+      and.push(
         Sequelize.where(
-          Sequelize.json("property_snapshot.city"),
+          Sequelize.fn("JSON_EXTRACT", Sequelize.col("property_snapshot"), "$.city"),
           city
         )
       );
     }
 
     if (zip_code) {
-      andConditions.push(
+      and.push(
         Sequelize.where(
-          Sequelize.json("property_snapshot.zip_code"),
+          Sequelize.fn("JSON_EXTRACT", Sequelize.col("property_snapshot"), "$.zip_code"),
           zip_code
         )
       );
     }
 
-    if (andConditions.length) {
-      where[Op.and] = andConditions;
+    if (and.length) {
+      where[Op.and] = and;
     }
 
     const list = await ApprovedHost.findAll({
       where,
-      order: [["created_at", "DESC"]] // ⚠️ use DB column name, not createdAt
+      order: [["created_at", "DESC"]]
     });
 
     const formatted = list.map(item => ({
@@ -103,11 +102,12 @@ export const getApprovedList = async (req, res) => {
 
     return res.json({ success: true, data: formatted });
 
-  } catch (error) {
-    console.error("APPROVED LIST ERROR:", error);
+  } catch (err) {
+    console.error("APPROVED LIST ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // GET approved properties with live host details
