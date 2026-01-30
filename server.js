@@ -60,18 +60,16 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // server-to-server / health checks
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(null, false); // ❗ NEVER throw
-    },
+    origin: allowedOrigins,  // ✅ Simpler syntax - pass the array directly
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: ["Content-Type", "Authorization", "x-country"]
   })
 );
 
-app.use(cors());
+// ❌ DO NOT add another app.use(cors()) here
+
+// app.use(cors());
 
 /* ===================== ROUTES ===================== */
 app.use("/otp", otpRoutes);
