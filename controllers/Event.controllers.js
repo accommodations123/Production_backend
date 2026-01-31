@@ -804,7 +804,7 @@ export const getEventById = async (req, res) => {
         include: [
           {
             model: Host,
-            attributes: ["id", "full_name", "country", "state", "city"],
+            attributes: ["id", "full_name", "whatsapp","country", "state", "city"],
             include: [
               {
                 model: User,

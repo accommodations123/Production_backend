@@ -63,7 +63,7 @@ app.use(
     origin: allowedOrigins,  // ✅ Simpler syntax - pass the array directly
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-country"]
+    allowedHeaders: ["Content-Type", "Authorization", "x-country", "x-country-code" ]
   })
 );
 
