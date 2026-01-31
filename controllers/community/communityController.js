@@ -673,32 +673,41 @@ export const getSuspendedCommunities = async (req, res) => {
 };
 
 
-
 /* =====================================================
-   GET COMMUNITY HOST MEMBERS
+   GET COMMUNITY HOST MEMBERS (READ-ONLY, SAFE)
 ===================================================== */
-export const getCommunityHosts = async (req, res) => {
+export const getCommunityHostMembers = async (req, res) => {
   const communityId = Number(req.params.id);
 
   if (!Number.isInteger(communityId)) {
-    return res.status(400).json({ message: "Invalid community id" });
+    return res.status(400).json({
+      message: "Invalid community id"
+    });
   }
 
+  // Pagination (hard limited)
   const page = Math.max(1, Number(req.query.page || 1));
   const limit = Math.min(20, Number(req.query.limit || 10));
   const offset = (page - 1) * limit;
 
   try {
     /* =========================
-       1️⃣ COMMUNITY EXISTS
+       1️⃣ COMMUNITY VALIDATION
        ========================= */
     const community = await Community.findByPk(communityId, {
-      attributes: ["id", "status"]
+      attributes: ["id", "status", "visibility"]
     });
 
     if (!community || community.status !== "active") {
       return res.status(404).json({
         message: "Community not found or inactive"
+      });
+    }
+
+    // Optional privacy guard (safe default)
+    if (community.visibility !== "public" && !req.user) {
+      return res.status(403).json({
+        message: "This community is private"
       });
     }
 
@@ -711,11 +720,16 @@ export const getCommunityHosts = async (req, res) => {
         is_host: true
       },
       attributes: ["user_id"],
+      limit,
+      offset,
+      order: [["id", "DESC"]], // deterministic without timestamps
       include: [
         {
           model: Host,
           required: true,
-          where: { status: "approved" },
+          where: {
+            status: "approved"
+          },
           attributes: ["full_name", "country", "state", "city"],
           include: [
             {
@@ -724,14 +738,11 @@ export const getCommunityHosts = async (req, res) => {
             }
           ]
         }
-      ],
-      limit,
-      offset,
-      order: [["id", "DESC"]]
+      ]
     });
 
     /* =========================
-       3️⃣ SHAPE RESPONSE
+       3️⃣ RESPONSE SHAPING
        ========================= */
     const hosts = rows.map(row => ({
       user_id: row.user_id,
@@ -750,9 +761,10 @@ export const getCommunityHosts = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("GET COMMUNITY HOSTS ERROR:", err);
+    console.error("GET COMMUNITY HOST MEMBERS ERROR:", err);
     return res.status(500).json({
-      message: "Failed to fetch community hosts"
+      message: "Failed to fetch community host members"
     });
   }
 };
+
