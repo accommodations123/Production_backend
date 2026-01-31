@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
 import sequelize from "./config/db.js";
 import { initSocket } from "./services/socket.js";
 
@@ -17,23 +18,23 @@ import "./model/Property.js";
 /* ===================== ROUTES ===================== */
 import otpRoutes from "./routes/otp.routes.js";
 import adminRoutes from "./routes/adminroutes.js";
-import HostRoutes from "./routes/HostRoutes.js";
+import hostRoutes from "./routes/HostRoutes.js";
 import propertyRoutes from "./routes/propertyRoutes.js";
 import adminPropertyRoutes from "./routes/adminPropertyRoutes.js";
 import adminApprovedRoutes from "./routes/approved.js";
-import EventsRoutes from "./routes/Events.routes.js";
+import eventsRoutes from "./routes/Events.routes.js";
 import eventReviewRoutes from "./routes/EventsReviews.Routes.js";
 import buySellRoutes from "./routes/buySellRoutes.js";
-import communities from "./routes/community/communityRoutes.js";
+import communityRoutes from "./routes/community/communityRoutes.js";
 import communityContentRoutes from "./routes/community/communityContentRoutes.js";
 import authRoutes from "./routes/auth/googleAuthroutes.js";
 import travelRoutes from "./routes/travel/travelRoutes.js";
 import careerRoutes from "./routes/carrer/careers.routes.js";
 import analyticsRoutes from "./routes/DashboardAnalytics/analyticsroutes.js";
-import EventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
-import buySellanalytics from "./routes/DashboardAnalytics/buySellAnalyticsroutes.js";
-import communityanalytics from "./routes/DashboardAnalytics/communityAnalytics.routes.js";
-import travelanalytics from "./routes/DashboardAnalytics/travelAnalytics.routes.js";
+import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
+import buySellAnalytics from "./routes/DashboardAnalytics/buySellAnalyticsroutes.js";
+import communityAnalytics from "./routes/DashboardAnalytics/communityAnalytics.routes.js";
+import travelAnalytics from "./routes/DashboardAnalytics/travelAnalytics.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 
 /* ===================== WORKERS ===================== */
@@ -43,54 +44,80 @@ import "./services/workers/emailWorker.js";
 const app = express();
 const server = http.createServer(app);
 
-/* ===================== SECURITY ===================== */
-app.use(helmet());
-
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-
-/* ===================== CORS ===================== */
+/* ===================== CORS (MUST BE FIRST) ===================== */
 const allowedOrigins = [
   "https://accomodation.test.nextkinlife.live",
   "https://accomodation.admin.test.nextkinlife.live",
+  "https://accomodation.api.test.nextkinlife.live",
   "http://localhost:5173",
   "http://localhost:5000"
 ];
 
 app.use(
   cors({
-    origin: allowedOrigins,  // ✅ Simpler syntax - pass the array directly
+    origin(origin, callback) {
+      if (!origin) return callback(null, true); // server-to-server
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-country", "x-country-code" ]
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Cache-Control",
+      "cache-control",
+      "Pragma",
+      "pragma",
+      "x-country",
+      "x-country-code"
+    ]
   })
 );
 
-// ❌ DO NOT add another app.use(cors()) here
+/* ===================== TRUST PROXY ===================== */
+app.set("trust proxy", 1);
 
-// app.use(cors());
+/* ===================== SECURITY ===================== */
+app.use(helmet());
+
+/* ===================== RATE LIMITING ===================== */
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false
+  })
+);
+
+/* ===================== BODY PARSERS ===================== */
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
 
 /* ===================== ROUTES ===================== */
 app.use("/otp", otpRoutes);
 app.use("/admin", adminRoutes);
-app.use("/host", HostRoutes);
+app.use("/host", hostRoutes);
 app.use("/property", propertyRoutes);
 app.use("/adminproperty", adminPropertyRoutes);
 app.use("/admin/approved", adminApprovedRoutes);
-app.use("/events", EventsRoutes);
+app.use("/events", eventsRoutes);
 app.use("/events/reviews", eventReviewRoutes);
 app.use("/buy-sell", buySellRoutes);
-app.use("/community", communities);
+app.use("/community", communityRoutes);
 app.use("/community", communityContentRoutes);
 app.use("/auth", authRoutes);
 app.use("/travel", travelRoutes);
 app.use("/career", careerRoutes);
 app.use("/analytics", analyticsRoutes);
-app.use("/eventanalytics", EventAnalytics);
-app.use("/buysellanalytics", buySellanalytics);
-app.use("/communityanalytics", communityanalytics);
-app.use("/travelanalytics", travelanalytics);
+app.use("/eventanalytics", eventAnalytics);
+app.use("/buysellanalytics", buySellAnalytics);
+app.use("/communityanalytics", communityAnalytics);
+app.use("/travelanalytics", travelAnalytics);
 app.use("/notification", notificationRoutes);
 
 /* ===================== HEALTH ===================== */
@@ -103,9 +130,24 @@ app.get("/health", async (req, res) => {
   }
 });
 
-/* ===================== ERROR HANDLER ===================== */
+/* ===================== ERROR HANDLER (LAST) ===================== */
 app.use((err, req, res, next) => {
-  console.error("❌ Error:", err.message);
+  console.error("❌ ERROR:", err);
+
+  if (err.name === "SequelizeValidationError") {
+    return res.status(400).json({
+      success: false,
+      message: err.errors[0].message
+    });
+  }
+
+  if (err.statusCode) {
+    return res.status(err.statusCode).json({
+      success: false,
+      message: err.message
+    });
+  }
+
   res.status(500).json({
     success: false,
     message: "Internal Server Error"
@@ -120,18 +162,24 @@ const PORT = process.env.PORT || 5000;
     await sequelize.authenticate();
     console.log("✅ MySQL connected");
 
-    // ❗ NEVER sync in production
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV === "development") {
       await sequelize.sync();
       console.log("⚠️ Sequelize sync enabled (DEV ONLY)");
     }
   } catch (err) {
     console.error("❌ DB connection failed:", err.message);
+    process.exit(1);
   }
 })();
 
-initSocket(server);
+/* ===================== SOCKET ===================== */
+try {
+  initSocket(server);
+} catch (err) {
+  console.error("❌ Socket init failed:", err);
+}
 
+/* ===================== LISTEN ===================== */
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
