@@ -1,17 +1,37 @@
-FROM node:20-alpine AS build
-WORKDIR /frontend-accommodations
-COPY package.json package-lock.json* yarn.lock* ./
-RUN npm ci --silent
-COPY . .
-RUN npm run build
+# ---------- Stage 1: Build & install dependencies ----------
+FROM node:18-alpine AS build
  
-# Runtime stage (nginx serves the static files)
-FROM nginx:stable-alpine
-RUN rm -rf /usr/share/nginx/html/*
-COPY --from=build /frontend-accommodations/dist /usr/share/nginx/html
-# Optional: copy a small nginx config if you want to override (not required)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 2245
-EXPOSE 80
-EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
+WORKDIR /Production_backend
+ 
+# Copy dependency files
+COPY package.json package-lock.json* ./
+ 
+# Install all deps (including dev-deps if needed for build)
+RUN npm ci --silent
+ 
+# Copy the full source code
+COPY . .
+ 
+# If using TypeScript, build it here (uncomment if needed)
+# RUN npm run build
+ 
+ 
+# ---------- Stage 2: Production image ----------
+FROM node:18-alpine AS production
+ 
+WORKDIR /Production_backend
+ 
+# Copy only package files first for clean prod install
+COPY package.json package-lock.json* ./
+ 
+# Install only production dependencies
+RUN npm ci --silent --only=production
+ 
+# Copy build output or JS source
+COPY --from=build /Production_backend ./
+
+# Expose backend port
+EXPOSE 5000
+ 
+# Start the backend
+CMD ["node", "server.js"]
