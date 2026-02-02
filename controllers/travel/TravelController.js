@@ -637,35 +637,73 @@ export const getReceivedMatchRequests = async (req, res) => {
 };
 
 
-
-
+/* ======================================================
+   PUBLIC: BROWSE TRAVEL PARTNERS (PRODUCTION SAFE)
+   ====================================================== */
 export const publicBrowseTrips = async (req, res) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Math.min(Number(req.query.limit || 10), 10);
+    /* ===============================
+       1️⃣ PAGINATION (HARD LIMITS)
+       =============================== */
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 50);
     const offset = (page - 1) * limit;
 
+    /* ===============================
+       2️⃣ FILTERS (PUBLIC SAFE ONLY)
+       =============================== */
+    const from_country = req.query.from_country?.trim() || null;
+    const to_country = req.query.to_country?.trim() || null;
+
+    // NEVER accept status from client
     const today = new Date().toISOString().slice(0, 10);
     const maxDate = new Date(Date.now() + 30 * 86400000)
       .toISOString()
       .slice(0, 10);
 
+    const where = {
+      status: "active", // 🔒 HARD LOCK (DO NOT EXPOSE)
+      travel_date: {
+        [Op.between]: [today, maxDate]
+      }
+    };
+
+    if (from_country) where.from_country = from_country;
+    if (to_country) where.to_country = to_country;
+
+    /* ===============================
+       3️⃣ CACHE KEY (FILTER AWARE)
+       =============================== */
+    const cacheKey = `travel:public:browse:${from_country || "all"}:${to_country || "all"}:${page}:${limit}`;
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        source: "cache",
+        page,
+        results: cached
+      });
+    }
+
+    /* ===============================
+       4️⃣ DATABASE QUERY
+       =============================== */
     const trips = await TravelTrip.findAll({
-      where: {
-        status: "active",
-        travel_date: { [Op.between]: [today, maxDate] }
-      },
-      order: [["travel_date", "ASC"]],
+      where,
       limit,
       offset,
+      order: [["travel_date", "ASC"]],
       include: [
         {
           model: Host,
           as: "host",
+          required: true,
           attributes: ["id", "full_name", "country", "city"],
           include: [
             {
               model: User,
+              required: false,
               attributes: ["profile_image", "verified"]
             }
           ]
@@ -673,11 +711,15 @@ export const publicBrowseTrips = async (req, res) => {
       ]
     });
 
+    /* ===============================
+       5️⃣ RESPONSE SHAPING (STRICT)
+       =============================== */
     const results = trips.map(t => {
       const trip = t.toJSON();
 
       return {
         id: trip.id,
+        host_id: trip.host_id, // 🔥 Needed by frontend
 
         host: {
           id: trip.host.id,
@@ -689,41 +731,51 @@ export const publicBrowseTrips = async (req, res) => {
         },
 
         trip_meta: {
-          age: trip.age || null,
+          age: trip.age ?? null,
           languages: Array.isArray(trip.languages) ? trip.languages : []
         },
 
+        origin: `${trip.from_city}, ${trip.from_country}`,
+        from_country: trip.from_country,
+        from_city: trip.from_city,
+
         destination: `${trip.to_city}, ${trip.to_country}`,
+        to_country: trip.to_country,
+        to_city: trip.to_city,
+
         date: trip.travel_date,
         time: trip.departure_time,
 
         flight: {
-          airline: trip.airline,
-          flightNumber: trip.flight_number,
+          airline: trip.airline || null,
+          flightNumber: trip.flight_number || null,
           from: trip.from_city,
           to: trip.to_city,
           departureDate: trip.travel_date,
           departureTime: trip.departure_time,
-          arrivalDate: trip.arrival_date,
-          arrivalTime: trip.arrival_time
+          arrivalDate: trip.arrival_date || null,
+          arrivalTime: trip.arrival_time || null
         }
       };
     });
 
+    /* ===============================
+       6️⃣ CACHE WRITE
+       =============================== */
+    await setCache(cacheKey, results, 60);
+
     return res.json({
       success: true,
+      source: "db",
       page,
       results
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("publicBrowseTrips error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
-
-
-
 
 
 
