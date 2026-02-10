@@ -41,6 +41,13 @@ const transporter = nodemailer.createTransport({
 // Generate 4-digit OTP
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 
+const getCountry = (req) => {
+  if (req.headers["x-country"]) return req.headers["x-country"];
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.ip;
+  const geo = geoip.lookup(ip);
+  return geo?.country || null;
+};
+
 /* ============================================================
    SEND OTP
 ============================================================ */
@@ -95,7 +102,7 @@ export const sendOTP = async (req, res) => {
       AnalyticsEvent.create({
         event_type: "USER_REGISTERED",
         user_id: user.id,
-        country: req.headers["x-country"] || null
+         country: getCountry(req)
       }).catch(console.error);
     }
 
@@ -117,7 +124,7 @@ export const sendOTP = async (req, res) => {
     AnalyticsEvent.create({
       event_type: "OTP_SENT",
       user_id: user.id,
-      country: req.headers["x-country"] || null
+       country: getCountry(req)
     }).catch(console.error);
 
     logAudit({
@@ -180,7 +187,7 @@ export const verifyOTP = async (req, res) => {
       AnalyticsEvent.create({
         event_type: "USER_LOGIN",
         user_id: user.id,
-        country: req.headers["x-country"] || null
+         country: getCountry(req)
       }).catch(console.error);
 
       return res.json({
@@ -219,7 +226,7 @@ export const verifyOTP = async (req, res) => {
       AnalyticsEvent.create({
         event_type: "OTP_VERIFICATION_FAILED",
         user_id: user?.id || null,
-        country: req.headers["x-country"] || null
+         country: getCountry(req)
       }).catch(console.error);
 
       return res.status(400).json({ message: "Invalid or expired OTP" });
@@ -266,7 +273,7 @@ export const verifyOTP = async (req, res) => {
     AnalyticsEvent.create({
       event_type: "USER_LOGIN",
       user_id: user.id,
-      country: req.headers["x-country"] || null
+       country: getCountry(req)
     }).catch(console.error);
 
     return res.json({
