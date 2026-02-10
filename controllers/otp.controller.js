@@ -10,6 +10,7 @@ import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
 import { getCache, setCache, deleteCache } from "../services/cacheService.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
+import geoip from "geoip-lite";
 // OTP RATE LIMITER
 let otpLimiter;
 
@@ -266,7 +267,7 @@ export const verifyOTP = async (req, res) => {
     AnalyticsEvent.create({
       event_type: "OTP_VERIFIED",
       user_id: user.id,
-      country: req.headers["x-country"] || null
+      country: getCountry(req)
     }).catch(console.error);
 
     // ✅ Log USER_LOGIN analytics event
