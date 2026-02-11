@@ -196,50 +196,73 @@ export const getFeed = async (req, res) => {
 
 
 
-/* SOFT DELETE POST */
 export const deletePost = async (req, res) => {
+  const t = await Community.sequelize.transaction();
+
   try {
     const userId = req.user.id;
-    const postId = req.params.postId;
+    const postId = Number(req.params.postId);
 
-    const post = await CommunityPost.findByPk(postId);
+    if (!Number.isInteger(postId)) {
+      await t.rollback();
+      return res.status(400).json({ message: "Invalid post id" });
+    }
+
+    const post = await CommunityPost.findByPk(postId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
     if (!post || post.status === "deleted") {
+      await t.rollback();
       return res.status(404).json({ message: "Post not found" });
     }
 
-    const community = await Community.findByPk(post.community_id);
+    const community = await Community.findByPk(post.community_id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
     if (!community) {
+      await t.rollback();
       return res.status(404).json({ message: "Community not found" });
     }
 
-    if (post.user_id !== userId && !isAdminOrOwner(community, userId)) {
+    // ✅ FIXED: Direct Owner Check (Bypasses isAdminOrOwner helper)
+    const isAuthor = Number(post.user_id) === Number(userId);
+    const isOwner = Number(community.created_by) === Number(userId);
+
+    if (!isAuthor && !isOwner) {
+      await t.rollback();
       return res.status(403).json({ message: "Not authorized" });
     }
 
+    // Soft delete
     post.status = "deleted";
-    await post.save();
-    
+    await post.save({ transaction: t });
 
-    /* ✅ AGGREGATION */
-    await Community.decrement("posts_count", {
-      where: { id: post.community_id }
-    });
-    await trackCommunityEvent({
-  event_type: "COMMUNITY_POST_DELETED",
-  user_id: userId,
-  community,
-  metadata: { post_id: post.id }
-});
+    // Safe decrement
+    community.posts_count = Math.max(0, community.posts_count - 1);
+    await community.save({ transaction: t });
 
-    /* 🔥 REDIS INVALIDATION */
-    await deleteCacheByPrefix(`community:${post.community_id}:feed:`);
+    await t.commit();
 
+    /* ✅ MOVED UP: Execute side effects BEFORE returning */
+    // We catch these errors so they don't block the response
+    deleteCacheByPrefix(`community:${post.community_id}:feed:`).catch(console.error);
 
-
+    trackCommunityEvent({
+      event_type: "COMMUNITY_POST_DELETED",
+      user_id: req.user.id,
+      community, // Pass community object for better logging
+      metadata: { post_id: postId }
+    }).catch(console.error);
 
     return res.json({ success: true, message: "Post deleted" });
 
   } catch (err) {
+    await t.rollback();
+    console.error("DELETE POST ERROR:", err);
     return res.status(500).json({ message: "Failed to delete post" });
   }
 };
