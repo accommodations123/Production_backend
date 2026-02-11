@@ -38,7 +38,7 @@ import travelAnalytics from "./routes/DashboardAnalytics/travelAnalytics.routes.
 import carreranalyticsRoutes from "./routes/DashboardAnalytics/carrer.routes.js";
 import useanalytics from './routes/DashboardAnalytics/useranalytics.routes.js'
 import notificationRoutes from "./routes/notification.routes.js";
-
+import wishlistroutes from './routes/wishlistRoutes.js'
 /* ===================== WORKERS ===================== */
 import "./services/workers/emailWorker.js";
 
@@ -123,7 +123,7 @@ app.use("/travelanalytics", travelAnalytics);
 app.use("/carreranalytics",carreranalyticsRoutes)
 app.use("/users",useanalytics)
 app.use("/notification", notificationRoutes);
-
+app.use("/wishlist",wishlistroutes)
 /* ===================== HEALTH ===================== */
 app.get("/health", async (req, res) => {
   try {
