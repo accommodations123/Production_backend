@@ -160,7 +160,7 @@ app.use((err, req, res, next) => {
 });
 
 /* ===================== STARTUP ===================== */
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 5000;
 
 (async () => {
   try {
