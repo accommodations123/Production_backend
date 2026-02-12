@@ -45,6 +45,8 @@ pipeline {
                         eb init nextkinlife_prod --region ${AWS_REGION} --platform docker
                         eb use ${EB_ENV}
                         eb deploy
+                        eb status
+                        eb health
                     """
                 }
             }
