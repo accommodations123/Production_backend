@@ -180,7 +180,7 @@ export const verifyOTP = async (req, res) => {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? "none" : "lax",
-        domain: isProd ? ".test.nextkinlife.live" : undefined,
+        domain: isProd ? ".nextkinlife.live" : undefined,
         maxAge: 7 * 24 * 60 * 60 * 1000
       });
 
@@ -251,7 +251,7 @@ export const verifyOTP = async (req, res) => {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
-      domain: isProd ? ".test.nextkinlife.live" : undefined,
+      domain: isProd ? ".nextkinlife.live" : undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -309,7 +309,7 @@ export const logout = async (req, res) => {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? "none" : "lax",
-    domain: isProd ? ".test.nextkinlife.live" : undefined,
+    domain: isProd ? ".nextkinlife.live" : undefined,
   });
   logAudit({
     action: "USER_LOGOUT",
