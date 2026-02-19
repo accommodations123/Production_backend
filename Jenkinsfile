@@ -30,6 +30,7 @@ pipeline {
                     sh """
                         echo $PASS | docker login -u $USER --password-stdin
                         docker push ${DOCKER_IMAGE}:latest
+                        docker image prune
                     """
                 }
             }
