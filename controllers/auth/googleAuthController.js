@@ -24,7 +24,7 @@ export const googleCallback = async (req, res) => {
   try {
     const { code } = req.query;
     if (!code) {
-      return res.redirect("https://accomodation.test.nextkinlife.live");
+      return res.redirect("https://nextkinlife.live");
     }
 
     const tokenRes = await axios.post(GOOGLE_TOKEN_URL, {
@@ -43,7 +43,7 @@ export const googleCallback = async (req, res) => {
 
     const { id: googleId, email, name, picture } = profileRes.data;
     if (!email) {
-      res.redirect("https://accomodation.test.nextkinlife.live");
+      res.redirect("https://nextkinlife.live");
     }
 
     let user = await User.findOne({ where: { email } });
@@ -73,10 +73,10 @@ export const googleCallback = async (req, res) => {
     });
 
         // ✅ CORRECT FIX
-    res.redirect("https://accomodation.test.nextkinlife.live");
+    res.redirect("https://nextkinlife.live");
   } catch (err) {
     console.error("GOOGLE AUTH ERROR:", err.response?.data || err);
-    res.redirect("https://accomodation.test.nextkinlife.live");
+    res.redirect("https://nextkinlife.live");
   }
 };
 
