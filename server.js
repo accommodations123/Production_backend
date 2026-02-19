@@ -50,7 +50,7 @@ const server = http.createServer(app);
 /* ===================== CORS (MUST BE FIRST) ===================== */
 const allowedOrigins = [
   "https://nextkinlife.live",
-  "https://accomodation.admin.test.nextkinlife.live",
+  "https://admin.nextkinlife.live",
   "https://api.nextkinlife.live",
   "http://localhost:5173",
   "http://localhost:5000"
@@ -121,10 +121,10 @@ app.use("/eventanalytics", eventAnalytics);
 app.use("/buysellanalytics", buySellAnalytics);
 app.use("/communityanalytics", communityAnalytics);
 app.use("/travelanalytics", travelAnalytics);
-app.use("/carreranalytics",carreranalyticsRoutes)
-app.use("/users",useanalytics)
+app.use("/carreranalytics", carreranalyticsRoutes)
+app.use("/users", useanalytics)
 app.use("/notification", notificationRoutes);
-app.use("/wishlist",wishlistroutes)
+app.use("/wishlist", wishlistroutes)
 /* ===================== HEALTH ===================== */
 app.get("/health", async (req, res) => {
   try {
@@ -166,11 +166,9 @@ const PORT = process.env.PORT || 5000;
   try {
     await sequelize.authenticate();
     console.log("✅ MySQL connected");
-
-    if (process.env.NODE_ENV === "development") {
-      await sequelize.sync();
-      console.log("⚠️ Sequelize sync enabled (DEV ONLY)");
-    }
+    // Create tables if they don't exist (safe for production)
+    await sequelize.sync({ alter: false });
+    console.log("✅ Database tables synced");
   } catch (err) {
     console.error("❌ DB connection failed:", err.message);
     process.exit(1);
