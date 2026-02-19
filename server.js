@@ -49,9 +49,9 @@ const server = http.createServer(app);
 
 /* ===================== CORS (MUST BE FIRST) ===================== */
 const allowedOrigins = [
-  "https://accomodation.test.nextkinlife.live",
+  "https://nextkinlife.live",
   "https://accomodation.admin.test.nextkinlife.live",
-  "https://accomodation.api.test.nextkinlife.live",
+  "https://api.nextkinlife.live",
   "http://localhost:5173",
   "http://localhost:5000"
 ];
