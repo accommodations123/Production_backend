@@ -3,7 +3,7 @@ pipeline {
  
     environment {
         DOCKER_IMAGE = "nextkinlife/prodnextkinlife"
-        EB_ENV = "prod-backend-vpc"
+        EB_ENV = "prod-backend-final"
     }
  
     stages {
