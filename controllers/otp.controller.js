@@ -322,3 +322,55 @@ export const logout = async (req, res) => {
   return res.json({ success: true });
 };
 
+
+/* ============================================================
+   UPDATE USER PROFILE (Generic)
+============================================================ */
+export const updateUser = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findByPk(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (req.file?.location) {
+      user.profile_image = req.file.location;
+    }
+
+    if (req.body.name) user.name = req.body.name;
+    if (req.body.phone) user.phone = req.body.phone;
+
+    await user.save();
+        logAudit({
+      action: "USER_PROFILE_UPDATED",
+      actor: req.auditActor,
+      target: { type: "user", id: userId },
+      req
+    }).catch(console.error);
+
+    // Invalidate caches
+    await deleteCacheByPrefix(`user:${userId}`);
+    // If they are a host, invalidate host cache too just in case
+    await deleteCacheByPrefix(`host:${userId}`);
+    
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profile_image: user.profile_image,
+        phone: user.phone
+      }
+    });
+    
+
+  } catch (err) {
+    console.error("Update User Error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

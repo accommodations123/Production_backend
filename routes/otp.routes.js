@@ -7,4 +7,5 @@ const router = express.Router()
 router.post('/send-otp',auditContext("public"),rateLimit,sendOTP)
 router.post('/verify-otp',auditContext("public"),rateLimit,verifyOTP)
 router.post('/logout',userAuth,auditContext("user"),logout)
+router.put('/update-profile', userAuth, upload.single('profile_image'), updateUser)
 export default router
