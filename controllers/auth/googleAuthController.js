@@ -67,7 +67,7 @@ export const googleCallback = async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "None",
-      domain: ".test.nextkinlife.live",
+      domain: ".nextkinlife.live",
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/"
     });
