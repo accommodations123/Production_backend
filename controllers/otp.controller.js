@@ -7,7 +7,7 @@ import User from "../model/User.js";
 
 import redis from "../config/redis.js";
 import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
-import { getCache, setCache, deleteCache } from "../services/cacheService.js";
+import { getCache, setCache, deleteCache,deleteCacheByPrefix } from "../services/cacheService.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
