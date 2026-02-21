@@ -327,50 +327,106 @@ export const logout = async (req, res) => {
    UPDATE USER PROFILE (Generic)
 ============================================================ */
 export const updateUser = async (req, res) => {
+
   try {
+
     const userId = req.user.id;
+ 
     const user = await User.findByPk(userId);
-
+ 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
 
-    if (req.file?.location) {
-      user.profile_image = req.file.location;
+      return res.status(404).json({
+
+        success: false,
+
+        message: "User not found",
+
+      });
+
     }
+ 
+    // ✅ If new profile image uploaded
+
+    if (req.file?.key) {
+
+      user.profile_image = req.file.key; 
+
+      // store only key in DB (best practice)
+
+    }
+ 
+    // ✅ Update other fields
 
     if (req.body.name) user.name = req.body.name;
+
     if (req.body.phone) user.phone = req.body.phone;
-
+ 
     await user.save();
-        logAudit({
+ 
+    // ✅ Audit log
+
+    logAudit({
+
       action: "USER_PROFILE_UPDATED",
+
       actor: req.auditActor,
+
       target: { type: "user", id: userId },
-      req
+
+      req,
+
     }).catch(console.error);
+ 
+    // ✅ Invalidate caches
 
-    // Invalidate caches
     await deleteCacheByPrefix(`user:${userId}`);
-    // If they are a host, invalidate host cache too just in case
+
     await deleteCacheByPrefix(`host:${userId}`);
-    
+ 
+    // ✅ Build full CloudFront image URL for response
 
+    const profileImageUrl = user.profile_image
+
+      ? `${process.env.CLOUDFRONT_URL}/${user.profile_image}`
+
+      : null;
+ 
     return res.json({
-      success: true,
-      message: "Profile updated successfully",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        profile_image: user.profile_image,
-        phone: user.phone
-      }
-    });
-    
 
+      success: true,
+
+      message: "Profile updated successfully",
+
+      user: {
+
+        id: user.id,
+
+        name: user.name,
+
+        email: user.email,
+
+        profile_image: profileImageUrl,
+
+        phone: user.phone,
+
+      },
+
+    });
+ 
   } catch (err) {
+
     console.error("Update User Error:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+
+    return res.status(500).json({
+
+      success: false,
+
+      message: "Server error",
+
+    });
+
   }
+
 };
+ 
