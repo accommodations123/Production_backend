@@ -6,6 +6,7 @@ import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
+import { attachCloudFrontUrl } from "../utils/imageUtils.js";
 /* =========================
    CREATE LISTING
    (User)
@@ -149,9 +150,15 @@ export const getActiveBuySellListings = async (req, res) => {
             limit: 50
         });
 
-        await setCache(cacheKey, listings, 300);
+        const processedListings = listings.map(listing => {
+            const lJson = listing.toJSON();
+            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
+            return lJson;
+        });
 
-        return res.json({ success: true, listings });
+        await setCache(cacheKey, processedListings, 300);
+
+        return res.json({ success: true, listings: processedListings });
 
     } catch (err) {
         return res.status(500).json({ message: "Failed to fetch listings" });
@@ -177,9 +184,14 @@ export const getBuySellListingById = async (req, res) => {
             });
         }
 
+        const processedListing = listing.toJSON();
+        if (processedListing.images) {
+            processedListing.images = processedListing.images.map(attachCloudFrontUrl);
+        }
+
         return res.json({
             success: true,
-            listing
+            listing: processedListing
         });
     } catch (err) {
         return res.status(500).json({
@@ -198,9 +210,15 @@ export const getMyBuySellListings = async (req, res) => {
             order: [["created_at", "DESC"]]
         });
 
+        const processedListings = listings.map(listing => {
+            const lJson = listing.toJSON();
+            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
+            return lJson;
+        });
+
         return res.json({
             success: true,
-            listings
+            listings: processedListings
         });
     } catch (err) {
         return res.status(500).json({
@@ -254,9 +272,14 @@ export const updateBuySellListing = async (req, res) => {
         await listing.update(updates);
 
 
+        const processedListing = listing.toJSON();
+        if (processedListing.images) {
+            processedListing.images = processedListing.images.map(attachCloudFrontUrl);
+        }
+
         return res.json({
             success: true,
-            listing
+            listing: processedListing
         });
     } catch (err) {
         return res.status(500).json({
@@ -359,9 +382,15 @@ export const getPendingBuySellListings = async (req, res) => {
             order: [["created_at", "ASC"]]
         });
 
-        await setCache(cacheKey, listings, 300);
+        const processedListings = listings.map(listing => {
+            const lJson = listing.toJSON();
+            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
+            return lJson;
+        });
 
-        return res.json({ success: true, listings });
+        await setCache(cacheKey, processedListings, 300);
+
+        return res.json({ success: true, listings: processedListings });
 
     } catch (err) {
         console.error("GET PENDING BUY SELL ERROR:", err);
@@ -499,9 +528,15 @@ export const getAdminApprovedBuySellListings = async (req, res) => {
             order: [["updated_at", "DESC"]]
         });
 
-        await setCache(cacheKey, listings, 300);
+        const processedListings = listings.map(listing => {
+            const lJson = listing.toJSON();
+            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
+            return lJson;
+        });
 
-        return res.json({ success: true, listings });
+        await setCache(cacheKey, processedListings, 300);
+
+        return res.json({ success: true, listings: processedListings });
     } catch (err) {
         return res.status(500).json({ message: "Failed to fetch approved listings" });
     }
@@ -528,9 +563,15 @@ export const getAdminBlockedBuySellListings = async (req, res) => {
             order: [["updated_at", "DESC"]]
         });
 
-        await setCache(cacheKey, listings, 300);
+        const processedListings = listings.map(listing => {
+            const lJson = listing.toJSON();
+            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
+            return lJson;
+        });
 
-        return res.json({ success: true, listings });
+        await setCache(cacheKey, processedListings, 300);
+
+        return res.json({ success: true, listings: processedListings });
     } catch (err) {
         return res.status(500).json({ message: "Failed to fetch blocked listings" });
     }

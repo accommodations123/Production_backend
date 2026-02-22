@@ -4,6 +4,7 @@ import User from "../model/User.js";
 import Host from "../model/Host.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
   try {
@@ -385,9 +386,20 @@ export const getMyListings = async (req, res) => {
     });
 
 
-    await setCache(cacheKey, properties, 300);
+    const processedProps = properties.map(p => {
+      const pJson = p.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+      }
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      return processHostImages(pJson);
+    });
 
-    return res.json({ success: true, properties });
+    await setCache(cacheKey, processedProps, 300);
+
+    return res.json({ success: true, properties: processedProps });
 
   } catch (err) {
     console.error("GET MY LISTINGS ERROR:", err);
@@ -472,7 +484,7 @@ export const getApprovedListings = async (req, res) => {
 
     const properties = await Property.findAll({
       where,
-         include: [
+      include: [
         {
           model: Host,
           // ADD "whatsapp", "instagram", "facebook" here
@@ -489,9 +501,20 @@ export const getApprovedListings = async (req, res) => {
       order: [["created_at", "DESC"]]
     });
 
-    await setCache(cacheKey, properties, 300);
+    const processedProps = properties.map(p => {
+      const pJson = p.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+      }
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      return processHostImages(pJson);
+    });
 
-    return res.json({ success: true, properties });
+    await setCache(cacheKey, processedProps, 300);
+
+    return res.json({ success: true, properties: processedProps });
 
   } catch (err) {
     console.error("❌ getApprovedListings error:", err);
@@ -575,16 +598,16 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     // -------------------------
     const { rows, count } = await Property.findAndCountAll({
       where,
-         include: [
+      include: [
         {
           model: Host,
           // ADD "whatsapp", "instagram", "facebook" here
-          attributes: ["id", "full_name", "phone", "whatsapp", "instagram", "facebook"], 
+          attributes: ["id", "full_name", "phone", "whatsapp", "instagram", "facebook"],
           include: [
             {
               model: User,
               // ADD "profile_image" here
-              attributes: ["id", "email", "profile_image"] 
+              attributes: ["id", "email", "profile_image"]
             }
           ]
         }
@@ -592,6 +615,17 @@ export const getAllPropertiesWithHosts = async (req, res) => {
       limit,
       offset,
       order: [["created_at", "DESC"]]
+    });
+
+    const processedProps = rows.map(p => {
+      const pJson = p.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+      }
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      return processHostImages(pJson);
     });
 
     const response = {
@@ -610,7 +644,7 @@ export const getAllPropertiesWithHosts = async (req, res) => {
         minPrice: minPrice || null,
         maxPrice: maxPrice || null
       },
-      data: rows
+      data: processedProps
     };
 
     await setCache(cacheKey, response, 300);
@@ -721,12 +755,16 @@ export const getPropertyById = async (req, res) => {
       country: req.headers["x-country"] || plain.country || null,
       state: req.headers["x-state"] || plain.state || null,
       created_at: new Date()
-    }).catch(() => {});
+    }).catch(() => { });
+
+    if (plain.photos) plain.photos = plain.photos.map(attachCloudFrontUrl);
+    if (plain.video) plain.video = attachCloudFrontUrl(plain.video);
+    const processedPlain = processHostImages(plain);
 
     // ===== CACHE SAFE DATA =====
-    await setCache(cacheKey, plain, 30);
+    await setCache(cacheKey, processedPlain, 30);
 
-    return res.json({ success: true, property: plain });
+    return res.json({ success: true, property: processedPlain });
 
   } catch (err) {
     console.error("GET PROPERTY ERROR:", err);

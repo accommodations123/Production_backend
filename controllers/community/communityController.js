@@ -8,6 +8,7 @@ import { trackCommunityEvent } from "../../services/communityAnalytics.js";
 import { notifyAndEmail } from "../../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../../services/emailService.js";
 import User from "../../model/User.js";
+import { attachCloudFrontUrl, processHostImages } from "../../utils/imageUtils.js";
 
 /* CREATE COMMUNITY */
 export const createCommunity = async (req, res) => {
@@ -54,9 +55,14 @@ export const createCommunity = async (req, res) => {
 
     await deleteCacheByPrefix("communities:list:");
 
+    // Process community images
+    const processedCommunity = community.toJSON();
+    if (processedCommunity.avatar_image) processedCommunity.avatar_image = attachCloudFrontUrl(processedCommunity.avatar_image);
+    if (processedCommunity.cover_image) processedCommunity.cover_image = attachCloudFrontUrl(processedCommunity.cover_image);
+
     return res.json({
       success: true,
-      community
+      community: processedCommunity
     });
 
   } catch (err) {
@@ -106,9 +112,14 @@ export const updateCommunityProfile = async (req, res) => {
     await deleteCache(`community:id:${id}`);
     await deleteCacheByPrefix("communities:list:");
 
+    // Process community images
+    const processedCommunity = community.toJSON();
+    if (processedCommunity.avatar_image) processedCommunity.avatar_image = attachCloudFrontUrl(processedCommunity.avatar_image);
+    if (processedCommunity.cover_image) processedCommunity.cover_image = attachCloudFrontUrl(processedCommunity.cover_image);
+
     return res.json({
       success: true,
-      community
+      community: processedCommunity
     });
 
   } catch (err) {
@@ -145,6 +156,11 @@ export const getCommunityById = async (req, res) => {
       }
 
       community = dbCommunity.toJSON();
+
+      // Process images before caching
+      if (community.avatar_image) community.avatar_image = attachCloudFrontUrl(community.avatar_image);
+      if (community.cover_image) community.cover_image = attachCloudFrontUrl(community.cover_image);
+
       await setCache(cacheKey, community, 300);
     }
 
@@ -424,9 +440,16 @@ export const listCommunities = async (req, res) => {
       limit: 20
     });
 
-    await setCache(cacheKey, communities, 300);
+    const processedCommunities = communities.map(c => {
+      const cJson = c.toJSON();
+      if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
+      if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
+      return cJson;
+    });
 
-    return res.json({ success: true, data: communities });
+    await setCache(cacheKey, processedCommunities, 300);
+
+    return res.json({ success: true, data: processedCommunities });
   } catch {
     return res.status(500).json({ message: "Failed to list communities" });
   }
@@ -473,7 +496,14 @@ export const getPendingCommunities = async (req, res) => {
     order: [["created_at", "DESC"]]
   });
 
-  res.json({ success: true, communities });
+  const processedCommunities = communities.map(c => {
+    const cJson = c.toJSON();
+    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
+    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
+    return cJson;
+  });
+
+  res.json({ success: true, communities: processedCommunities });
 };
 
 /* APPROVE COMMUNITY */
@@ -549,14 +579,14 @@ export const rejectCommunity = async (req, res) => {
   });
   const creator = await User.findByPk(community.created_by);
 
-await notifyAndEmail({
-  userId: creator.id,
-  email: creator.email,
-  type: NOTIFICATION_TYPES.COMMUNITY_REJECTED,
-  title: "Community rejected",
-  message: "Your community was rejected by admin.",
-  metadata: { communityId: community.id }
-});
+  await notifyAndEmail({
+    userId: creator.id,
+    email: creator.email,
+    type: NOTIFICATION_TYPES.COMMUNITY_REJECTED,
+    title: "Community rejected",
+    message: "Your community was rejected by admin.",
+    metadata: { communityId: community.id }
+  });
 
 
 
@@ -651,7 +681,14 @@ export const getApprovedCommunities = async (req, res) => {
     order: [["updated_at", "DESC"]]
   });
 
-  res.json({ success: true, communities });
+  const processedCommunities = communities.map(c => {
+    const cJson = c.toJSON();
+    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
+    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
+    return cJson;
+  });
+
+  res.json({ success: true, communities: processedCommunities });
 };
 
 export const getRejectedCommunities = async (req, res) => {
@@ -660,7 +697,14 @@ export const getRejectedCommunities = async (req, res) => {
     order: [["updated_at", "DESC"]]
   });
 
-  res.json({ success: true, communities });
+  const processedCommunities = communities.map(c => {
+    const cJson = c.toJSON();
+    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
+    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
+    return cJson;
+  });
+
+  res.json({ success: true, communities: processedCommunities });
 };
 
 export const getSuspendedCommunities = async (req, res) => {
@@ -669,7 +713,14 @@ export const getSuspendedCommunities = async (req, res) => {
     order: [["updated_at", "DESC"]]
   });
 
-  res.json({ success: true, communities });
+  const processedCommunities = communities.map(c => {
+    const cJson = c.toJSON();
+    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
+    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
+    return cJson;
+  });
+
+  res.json({ success: true, communities: processedCommunities });
 };
 
 
@@ -747,7 +798,7 @@ export const getCommunityHostMembers = async (req, res) => {
     const hosts = rows.map(row => ({
       user_id: row.user_id,
       full_name: row.Host.full_name,
-      profile_image: row.Host.User?.profile_image || null,
+      profile_image: attachCloudFrontUrl(row.Host.User?.profile_image || null),
       country: row.Host.country,
       state: row.Host.state,
       city: row.Host.city

@@ -8,6 +8,7 @@ import { NOTIFICATION_TYPES } from "../services/emailService.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { getIO } from "../services/socket.js"; // (Or wherever your socket file is located)
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 // ======================================================
 // 1. CREATE EVENT DRAFT
 // ======================================================
@@ -464,7 +465,17 @@ export const getPendingItems = async (req, res) => {
       include: [{ model: User, attributes: ["id", "email", "profile_image"] }]
     });
 
-    const result = { events: pendingEvents, hosts: pendingHosts };
+    // Process images
+    const processedEvents = pendingEvents.map(event => {
+      const eJson = event.toJSON();
+      if (eJson.banner_image) eJson.banner_image = attachCloudFrontUrl(eJson.banner_image);
+      if (eJson.gallery_images) eJson.gallery_images = eJson.gallery_images.map(attachCloudFrontUrl);
+      return processHostImages(eJson);
+    });
+
+    const processedHosts = pendingHosts.map(host => processHostImages(host.toJSON()));
+
+    const result = { events: processedEvents, hosts: processedHosts };
 
     await setCache(cacheKey, result, 300);
 
@@ -711,9 +722,16 @@ export const getApprovedEvents = async (req, res) => {
       order: [["created_at", "DESC"]]
     });
 
-    await setCache(cacheKey, events, 300);
+    const processedEvents = events.map(event => {
+      const eJson = event.toJSON();
+      if (eJson.banner_image) eJson.banner_image = attachCloudFrontUrl(eJson.banner_image);
+      if (eJson.gallery_images) eJson.gallery_images = eJson.gallery_images.map(attachCloudFrontUrl);
+      return processHostImages(eJson);
+    });
 
-    return res.json({ success: true, events });
+    await setCache(cacheKey, processedEvents, 300);
+
+    return res.json({ success: true, events: processedEvents });
 
   } catch (err) {
     return res.status(500).json({ message: "Server error" });
@@ -756,11 +774,17 @@ export const getMyEvents = async (req, res) => {
 
     const plainEvents = events.map(e => e.toJSON());
 
-    await setCache(cacheKey, plainEvents, 300);
+    const processedEvents = plainEvents.map(event => {
+      if (event.banner_image) event.banner_image = attachCloudFrontUrl(event.banner_image);
+      if (event.gallery_images) event.gallery_images = event.gallery_images.map(attachCloudFrontUrl);
+      return event;
+    });
+
+    await setCache(cacheKey, processedEvents, 300);
 
     return res.json({
       success: true,
-      events: plainEvents
+      events: processedEvents
     });
 
   } catch (err) {
@@ -804,7 +828,7 @@ export const getEventById = async (req, res) => {
         include: [
           {
             model: Host,
-            attributes: ["id", "full_name", "whatsapp","country", "state", "city"],
+            attributes: ["id", "full_name", "whatsapp", "country", "state", "city"],
             include: [
               {
                 model: User,
@@ -850,6 +874,18 @@ export const getEventById = async (req, res) => {
 
       isRegistered = !!participant;
     }
+
+    // Process images and host data for the response (after caching)
+    if (eventData.Host && eventData.Host.User) {
+      eventData.Host.User.email = eventData.Host.User.email || "";
+      eventData.Host.User.profile_image = eventData.Host.User.profile_image || null;
+    }
+
+    if (eventData.banner_image) eventData.banner_image = attachCloudFrontUrl(eventData.banner_image);
+    if (eventData.gallery_images) eventData.gallery_images = eventData.gallery_images.map(attachCloudFrontUrl);
+
+    // Process host images mapping
+    eventData = processHostImages(eventData);
 
     /* ======================================================
        3️⃣ RESPONSE

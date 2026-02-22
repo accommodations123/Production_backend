@@ -5,6 +5,7 @@ import BuySellListing from "../model/BuySellListing.js";
 import Community from "../model/community/Community.js";
 import TravelTrip from "../model/travel/TravelTrip.js";
 import { Op } from "sequelize";
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 
 // Helper for parsing integers safely
 const parseInteger = (value) => {
@@ -212,7 +213,26 @@ export const getWishlist = async (req, res) => {
 
         const enriched = rows.map(item => ({
             ...item.toJSON(),
-            details: detailsMap[item.item_type]?.[item.item_id] || null
+            details: detailsMap[item.item_type]?.[item.item_id] ? (() => {
+                let detailJSON = detailsMap[item.item_type][item.item_id].toJSON();
+                // Process images based on item type
+                if (item.item_type === 'property' || item.item_type === 'trip') {
+                    if (detailJSON.photos) detailJSON.photos = detailJSON.photos.map(attachCloudFrontUrl);
+                    if (detailJSON.video) detailJSON.video = attachCloudFrontUrl(detailJSON.video);
+                } else if (item.item_type === 'event') {
+                    if (detailJSON.banner_image) detailJSON.banner_image = attachCloudFrontUrl(detailJSON.banner_image);
+                    if (detailJSON.gallery_images) detailJSON.gallery_images = detailJSON.gallery_images.map(attachCloudFrontUrl);
+                } else if (item.item_type === 'buysell') {
+                    if (detailJSON.images) detailJSON.images = detailJSON.images.map(attachCloudFrontUrl);
+                } else if (item.item_type === 'community') {
+                    if (detailJSON.avatar_image) detailJSON.avatar_image = attachCloudFrontUrl(detailJSON.avatar_image);
+                    if (detailJSON.cover_image) detailJSON.cover_image = attachCloudFrontUrl(detailJSON.cover_image);
+                }
+
+                // Process host mapping if it exists
+                detailJSON = processHostImages(detailJSON);
+                return detailJSON;
+            })() : null
         }));
 
         return res.json({

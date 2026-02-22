@@ -7,6 +7,7 @@ import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { logAudit } from "../services/auditLogger.js";
 import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 // Save host details
 export const saveHost = async (req, res) => {
   try {
@@ -29,12 +30,12 @@ export const saveHost = async (req, res) => {
         message: "Phone and email are required."
       });
     }
-    
+
     const existing = await Host.findOne({ where: { user_id: userId } });
     if (existing) {
       return res.status(400).json({ message: "Host profile already exists" });
     }
-    
+
     const { latitude, longitude } = req.body;
 
     // ✅ FIX: Initialize with manual inputs from req.body FIRST
@@ -109,7 +110,7 @@ export const saveHost = async (req, res) => {
       instagram: req.body.instagram,
       facebook: req.body.facebook,
     });
-    
+
     AnalyticsEvent.create({
       event_type: "HOST_CREATED",
       user_id: userId,
@@ -120,7 +121,7 @@ export const saveHost = async (req, res) => {
     }).catch(err => {
       console.error("ANALYTICS HOST_CREATED FAILED:", err);
     });
-    
+
     logAudit({
       action: "HOST_CREATED",
       actor: req.auditActor,
@@ -166,7 +167,7 @@ export const updateHost = async (req, res) => {
 
     // Ownership check
     if (host.user_id !== userId) {
-       logAudit({
+      logAudit({
         action: "HOST_UPDATE_FORBIDDEN",
         actor: req.auditActor,
         target: { type: "host", id: hostId },
@@ -227,7 +228,7 @@ export const updateHost = async (req, res) => {
     }).catch(err => {
       console.error("ANALYTICS HOST_UPDATED FAILED:", err);
     });
-     logAudit({
+    logAudit({
       action: "HOST_UPDATED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
@@ -254,7 +255,7 @@ export const updateHost = async (req, res) => {
         host,
         user: {
           id: user.id,
-          profile_image: user.profile_image
+          profile_image: attachCloudFrontUrl(user.profile_image)
         }
       }
     });
@@ -307,7 +308,7 @@ export const getMyHost = async (req, res) => {
     // 🔹 Normalize response (frontend-friendly)
     const response = {
       ...host.toJSON(),
-      profile_image: host.User?.profile_image || null,
+      profile_image: attachCloudFrontUrl(host.User?.profile_image || null),
       email: host.User?.email || null
     };
 
@@ -333,7 +334,7 @@ export const getMyHost = async (req, res) => {
 export const getPendingHosts = async (req, res) => {
   try {
     const { country, state } = req.query;
-   
+
 
     // ✅ Location-aware cache key
     const cacheKey = `pending_hosts:${country || "all"}:${state || "all"}`;
@@ -363,7 +364,10 @@ export const getPendingHosts = async (req, res) => {
     // ✅ Cache per location
     await setCache(cacheKey, hosts, 300);
 
-    return res.json({ success: true, hosts });
+    // ✅ Process hosts before sending
+    const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+
+    return res.json({ success: true, hosts: processedHosts });
 
   } catch (err) {
     console.error("getPendingHosts error:", err);
@@ -375,8 +379,8 @@ export const getPendingHosts = async (req, res) => {
 // approve host
 export const approveHost = async (req, res) => {
   try {
-    const host = await Host.findByPk(req.params.id,{
-      include: [{ model: User, attributes:["email"]}]
+    const host = await Host.findByPk(req.params.id, {
+      include: [{ model: User, attributes: ["email"] }]
     });
     if (!host) {
       return res.status(404).json({ message: "Not found" });
@@ -395,7 +399,7 @@ export const approveHost = async (req, res) => {
     }).catch(err => {
       console.error("ANALYTICS HOST_APPROVED FAILED:", err);
     });
-     logAudit({
+    logAudit({
       action: "HOST_APPROVED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
@@ -406,7 +410,7 @@ export const approveHost = async (req, res) => {
     // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
-       // ✅ notify host user
+    // ✅ notify host user
     await notifyAndEmail({
       userId: host.user_id,
       email: host.User.email,
@@ -426,8 +430,8 @@ export const approveHost = async (req, res) => {
 // reject host
 export const rejectHost = async (req, res) => {
   try {
-    const host = await Host.findByPk(req.params.id,{
-      include:[{ model:User, attributes:["email"]}]
+    const host = await Host.findByPk(req.params.id, {
+      include: [{ model: User, attributes: ["email"] }]
     });
     if (!host) {
       return res.status(404).json({ message: "Not found" });
@@ -448,7 +452,7 @@ export const rejectHost = async (req, res) => {
     }).catch(err => {
       console.error("ANALYTICS HOST_REJECTED FAILED:", err);
     });
-     logAudit({
+    logAudit({
       action: "HOST_REJECTED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
@@ -465,16 +469,16 @@ export const rejectHost = async (req, res) => {
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
     await notifyAndEmail({
-  userId: host.user_id,
-  email: host.User.email,
-  type: NOTIFICATION_TYPES.HOST_REJECTED,
-  title: "Host rejected",
-  message: "Your host profile was rejected.",
-  metadata: {
-    hostId: host.id,
-    reason: host.rejection_reason
-  }
-});
+      userId: host.user_id,
+      email: host.User.email,
+      type: NOTIFICATION_TYPES.HOST_REJECTED,
+      title: "Host rejected",
+      message: "Your host profile was rejected.",
+      metadata: {
+        hostId: host.id,
+        reason: host.rejection_reason
+      }
+    });
 
 
     return res.json({
@@ -514,7 +518,9 @@ export const getApprovedHosts = async (req, res) => {
 
     await setCache(cacheKey, hosts, 300);
 
-    return res.json({ success: true, hosts });
+    const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+
+    return res.json({ success: true, hosts: processedHosts });
 
   } catch (err) {
     console.error("GET APPROVED HOSTS ERROR:", err);
@@ -552,7 +558,9 @@ export const getRejectedHosts = async (req, res) => {
 
     await setCache(cacheKey, hosts, 300);
 
-    return res.json({ success: true, hosts });
+    const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+
+    return res.json({ success: true, hosts: processedHosts });
 
   } catch (err) {
     console.error("GET REJECTED HOSTS ERROR:", err);
