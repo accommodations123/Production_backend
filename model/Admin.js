@@ -25,8 +25,12 @@ const Admin = sequelize.define('Admin', {
   },
 
   role: {
-    type: DataTypes.STRING,
-    defaultValue: 'admin'
+    type: DataTypes.ENUM('super_admin', 'admin', 'recruiter'),
+    allowNull: false,
+    defaultValue: 'admin',
+    validate: {
+      isIn: [['super_admin', 'admin', 'recruiter']]
+    }
   }
 
 }, {

@@ -3,6 +3,7 @@ dotenv.config();
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import User from "../../model/User.js";
+import { attachCloudFrontUrl } from "../../utils/imageUtils.js";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
@@ -72,7 +73,7 @@ export const googleCallback = async (req, res) => {
       path: "/"
     });
 
-        // ✅ CORRECT FIX
+    // ✅ CORRECT FIX
     res.redirect("https://nextkinlife.live");
   } catch (err) {
     console.error("GOOGLE AUTH ERROR:", err.response?.data || err);
@@ -98,7 +99,7 @@ export const getMe = (req, res) => {
         id: req.user.id,
         email: req.user.email,
         name: req.user.name,
-        profile_image: req.user.profile_image,
+        profile_image: attachCloudFrontUrl(req.user.profile_image),
         role: req.user.role || "user"
       }
     });

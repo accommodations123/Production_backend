@@ -6,24 +6,25 @@ const router = express.Router();
 ========================= */
 import userAuth from "../middleware/userAuth.js";
 import adminAuth from "../middleware/adminAuth.js";
+import requireRole from "../middleware/requireRole.js";
 import { uploadListingImages } from "../middleware/uploads/sell.upload.js";
-import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
+import { multerErrorHandler } from '../middleware/uploads/multerErrorHandler.js'
 /* =========================
    Controllers
 ========================= */
 import {
-  createBuySellListing,
-  getActiveBuySellListings,
-  getBuySellListingById,
-  getMyBuySellListings,
-  updateBuySellListing,
-  markBuySellAsSold,
-  deleteBuySellListing,
-  getPendingBuySellListings,
-  approveBuySellListing,
-  blockBuySellListing,
-  getAdminApprovedBuySellListings,
-  getAdminBlockedBuySellListings
+   createBuySellListing,
+   getActiveBuySellListings,
+   getBuySellListingById,
+   getMyBuySellListings,
+   updateBuySellListing,
+   markBuySellAsSold,
+   deleteBuySellListing,
+   getPendingBuySellListings,
+   approveBuySellListing,
+   blockBuySellListing,
+   getAdminApprovedBuySellListings,
+   getAdminBlockedBuySellListings
 } from "../controllers/buySellController.js";
 
 /* =========================
@@ -31,7 +32,7 @@ import {
 ========================= */
 
 // Create listing (goes to pending)
-router.post("/create",userAuth,uploadListingImages.array("galleryImages", 10),multerErrorHandler,createBuySellListing);
+router.post("/create", userAuth, uploadListingImages.array("galleryImages", 10), multerErrorHandler, createBuySellListing);
 
 
 // Public listings (only active)
@@ -57,14 +58,14 @@ router.delete("/delete/:id", userAuth, deleteBuySellListing);
 ========================= */
 
 // View pending listings
-router.get("/admin/buy-sell/pending",adminAuth,getPendingBuySellListings);
+router.get("/admin/buy-sell/pending", adminAuth, requireRole("super_admin", "admin"), getPendingBuySellListings);
 
 // Approve listing
-router.patch("/admin/buy-sell/:id/approve",adminAuth,approveBuySellListing);
+router.patch("/admin/buy-sell/:id/approve", adminAuth, requireRole("super_admin", "admin"), approveBuySellListing);
 
 // Block listing
-router.patch("/admin/buy-sell/:id/block",adminAuth,blockBuySellListing);
-router.get("/admin/buy-sell/approved", adminAuth, getAdminApprovedBuySellListings);
-router.get("/admin/buy-sell/blocked", adminAuth, getAdminBlockedBuySellListings);
+router.patch("/admin/buy-sell/:id/block", adminAuth, requireRole("super_admin", "admin"), blockBuySellListing);
+router.get("/admin/buy-sell/approved", adminAuth, requireRole("super_admin", "admin"), getAdminApprovedBuySellListings);
+router.get("/admin/buy-sell/blocked", adminAuth, requireRole("super_admin", "admin"), getAdminBlockedBuySellListings);
 
 export default router;

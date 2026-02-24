@@ -6,14 +6,16 @@ import {
   getBuySellApprovalRatio
 } from "../../controllers/DashboardAnalytics/buySellAnalyticsController.js";
 import adminAuth from "../../middleware/adminAuth.js";
+import requireRole from "../../middleware/requireRole.js";
 
 const router = express.Router();
 
 router.use(adminAuth);
+router.use(requireRole("super_admin", "admin"));
 
-router.get("/overview",adminAuth, getBuySellOverview);
-router.get("/trend",adminAuth, getBuySellDailyTrend);
-router.get("/country",adminAuth, getBuySellByCountry);
-router.get("/ratio",adminAuth, getBuySellApprovalRatio);
+router.get("/overview", getBuySellOverview);
+router.get("/trend", getBuySellDailyTrend);
+router.get("/country", getBuySellByCountry);
+router.get("/ratio", getBuySellApprovalRatio);
 
 export default router;

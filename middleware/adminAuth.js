@@ -12,7 +12,8 @@ export default async function adminAuth(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!decoded || decoded.role !== "admin") {
+    const ADMIN_ROLES = ["super_admin", "admin", "recruiter"];
+    if (!decoded || !ADMIN_ROLES.includes(decoded.role)) {
       return res.status(403).json({ message: "Access denied" });
     }
 

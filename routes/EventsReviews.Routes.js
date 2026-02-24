@@ -1,13 +1,14 @@
 import express from "express";
 import userAuth from "../middleware/userAuth.js";
 import adminAuth from "../middleware/adminAuth.js";
+import requireRole from "../middleware/requireRole.js";
 
 import {
-  addEventReview,
-  getEventReviews,
-  getEventRating,
-  hideMyReview,
-  getAllEventReviews
+   addEventReview,
+   getEventReviews,
+   getEventRating,
+   hideMyReview,
+   getAllEventReviews
 } from "../controllers/EventReview.controller.js";
 
 const router = express.Router();
@@ -34,6 +35,6 @@ router.patch("/reviews/:reviewId/hide", userAuth, hideMyReview);
 ================================ */
 
 // Get all reviews (no cache, moderation view)
-router.get("/admin/all", adminAuth, getAllEventReviews);
+router.get("/admin/all", adminAuth, requireRole("super_admin", "admin"), getAllEventReviews);
 
 export default router;

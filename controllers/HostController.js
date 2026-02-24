@@ -361,11 +361,11 @@ export const getPendingHosts = async (req, res) => {
     });
 
 
-    // ✅ Cache per location
-    await setCache(cacheKey, hosts, 300);
-
-    // ✅ Process hosts before sending
+    // ✅ Process hosts before caching and sending
     const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+
+    // ✅ Cache per location
+    await setCache(cacheKey, processedHosts, 300);
 
     return res.json({ success: true, hosts: processedHosts });
 
@@ -516,9 +516,9 @@ export const getApprovedHosts = async (req, res) => {
       order: [["updated_at", "DESC"]]
     });
 
-    await setCache(cacheKey, hosts, 300);
-
     const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+
+    await setCache(cacheKey, processedHosts, 300);
 
     return res.json({ success: true, hosts: processedHosts });
 
@@ -556,9 +556,9 @@ export const getRejectedHosts = async (req, res) => {
       order: [["updated_at", "DESC"]]
     });
 
-    await setCache(cacheKey, hosts, 300);
-
     const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+
+    await setCache(cacheKey, processedHosts, 300);
 
     return res.json({ success: true, hosts: processedHosts });
 

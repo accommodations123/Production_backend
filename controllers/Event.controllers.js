@@ -1150,7 +1150,12 @@ export const getAdminApprovedEvents = async (req, res) => {
       ]
     });
 
-    const plain = events.map(e => e.toJSON());
+    const plain = events.map(e => {
+      const eJson = e.toJSON();
+      if (eJson.banner_image) eJson.banner_image = attachCloudFrontUrl(eJson.banner_image);
+      if (eJson.gallery_images) eJson.gallery_images = eJson.gallery_images.map(attachCloudFrontUrl);
+      return processHostImages(eJson);
+    });
 
     await setCache(cacheKey, plain, 300);
 
@@ -1200,7 +1205,12 @@ export const getAdminRejectedEvents = async (req, res) => {
       ]
     });
 
-    const plain = events.map(e => e.toJSON());
+    const plain = events.map(e => {
+      const eJson = e.toJSON();
+      if (eJson.banner_image) eJson.banner_image = attachCloudFrontUrl(eJson.banner_image);
+      if (eJson.gallery_images) eJson.gallery_images = eJson.gallery_images.map(attachCloudFrontUrl);
+      return processHostImages(eJson);
+    });
 
     await setCache(cacheKey, plain, 300);
 
