@@ -82,6 +82,9 @@ import bcrypt from "bcryptjs";
 
 router.post("/seed-super-admin", rateLimit, async (req, res) => {
     try {
+        // Sync table first — adds new columns if they don't exist
+        await Admin.sync({ alter: true });
+
         // Check if any super_admin already exists
         const existing = await Admin.unscoped().findOne({
             where: { role: "super_admin" }
