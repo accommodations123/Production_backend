@@ -774,6 +774,3 @@ export const getPropertyById = async (req, res) => {
     });
   }
 };
-
-
-
