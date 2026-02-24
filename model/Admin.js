@@ -97,14 +97,6 @@ const Admin = sequelize.define(
     underscored: true,
     paranoid: true,                             // soft deletes via deleted_at
 
-    // Indexes for query performance at scale
-    indexes: [
-      { unique: true, fields: ["email"] },
-      { fields: ["role"] },
-      { fields: ["status"] },
-      { fields: ["locked_until"] }
-    ],
-
     // ── Scopes ──────────────────────────────────────────────────────
     defaultScope: {
       attributes: { exclude: ["password"] }     // never leak password by default
