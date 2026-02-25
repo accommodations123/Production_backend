@@ -30,11 +30,24 @@ const getModelByType = (type) => {
     }
 };
 
+// Helper to resolve ID (handles community slugs)
+const resolveItemId = async (type, idParam) => {
+    if (!idParam) return null;
+    const isNumeric = !isNaN(idParam) && !isNaN(parseFloat(idParam));
+    if (isNumeric) return Number(idParam);
+
+    if (type === "community") {
+        const community = await Community.findOne({ where: { slug: idParam }, attributes: ["id"] });
+        return community ? community.id : null;
+    }
+    return null;
+};
+
 export const addToWishlist = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_id = parseInteger(req.body.item_id);
         const item_type = req.body.item_type;
+        const item_id = await resolveItemId(item_type, req.body.item_id);
 
         if (!item_id || !isValidType(item_type)) {
             return res.status(400).json({ message: "Invalid parameters" });
@@ -77,8 +90,8 @@ export const addToWishlist = async (req, res) => {
 export const removeFromWishlist = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_id = parseInteger(req.params.id);
         const item_type = req.params.type;
+        const item_id = await resolveItemId(item_type, req.params.id);
 
         if (!item_id || !isValidType(item_type)) {
             return res.status(400).json({ message: "Invalid parameters" });
@@ -104,8 +117,8 @@ export const toggleWishlist = async (req, res) => {
 
     try {
         const user_id = req.user.id;
-        const item_id = parseInteger(req.body.item_id);
         const item_type = req.body.item_type;
+        const item_id = await resolveItemId(item_type, req.body.item_id);
 
         if (!item_id || !isValidType(item_type)) {
             await t.rollback();
@@ -254,8 +267,8 @@ export const getWishlist = async (req, res) => {
 export const checkWishlistStatus = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_id = parseInteger(req.params.id);
         const item_type = req.params.type;
+        const item_id = await resolveItemId(item_type, req.params.id);
 
         if (!item_id || !isValidType(item_type)) {
             return res.status(400).json({ message: "Invalid parameters" });
