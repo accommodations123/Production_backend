@@ -20,6 +20,15 @@ const isAdminOrOwner = (community, userId) => {
   );
 };
 
+const getCommunityIdFromParam = async (paramId) => {
+  const isNumericId = !isNaN(paramId) && !isNaN(parseFloat(paramId));
+  if (isNumericId) return Number(paramId);
+
+  // If it's a slug, look it up
+  const community = await Community.findOne({ where: { slug: paramId }, attributes: ['id'] });
+  return community ? community.id : null;
+};
+
 
 /* ======================================================
    FEED CONTROLLERS
@@ -31,7 +40,11 @@ const isAdminOrOwner = (community, userId) => {
 export const createPost = async (req, res) => {
   try {
     const userId = req.user.id;
-    const communityId = Number(req.params.id);
+    const communityId = await getCommunityIdFromParam(req.params.id);
+
+    if (!communityId) {
+      return res.status(404).json({ message: "Community not found" });
+    }
 
     const uploadedMedia = Array.isArray(req.files)
       ? req.files.map(f => f.location)
@@ -86,10 +99,10 @@ export const createPost = async (req, res) => {
       media_urls: uploadedMedia,
       media_type: mediaType
     });
- 
-/* =========================
-       2️⃣ UPDATE AGGREGATE
-       ========================= */
+
+    /* =========================
+           2️⃣ UPDATE AGGREGATE
+           ========================= */
     await Community.increment("posts_count", {
       where: { id: communityId }
     });
@@ -109,7 +122,7 @@ export const createPost = async (req, res) => {
         {
           model: User,
           as: "author",
-          attributes: ["id","profile_image"],   // keep user minimal
+          attributes: ["id", "profile_image"],   // keep user minimal
           include: [
             {
               model: Host,
@@ -144,7 +157,8 @@ export const createPost = async (req, res) => {
 /* GET COMMUNITY FEED (PAGINATED) */
 export const getFeed = async (req, res) => {
   try {
-    const communityId = Number(req.params.id);
+    const communityId = await getCommunityIdFromParam(req.params.id);
+    if (!communityId) return res.status(404).json({ message: "Community not found" });
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = 10;
     const offset = (page - 1) * limit;
@@ -161,7 +175,7 @@ export const getFeed = async (req, res) => {
         {
           model: User,
           as: "author",
-          attributes: ["id","profile_image"], // keep minimal
+          attributes: ["id", "profile_image"], // keep minimal
           include: [
             {
               model: Host,
@@ -276,7 +290,7 @@ export const deletePost = async (req, res) => {
 export const addResource = async (req, res) => {
   try {
     const userId = req.user.id;
-    const communityId = req.params.id;
+    const communityId = await getCommunityIdFromParam(req.params.id);
 
     const { title, description, resource_type } = req.body;
 
@@ -284,6 +298,10 @@ export const addResource = async (req, res) => {
 
     if (!title || !resource_type) {
       return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (!communityId) {
+      return res.status(404).json({ message: "Community not found" });
     }
 
     const community = await Community.findByPk(communityId);
@@ -315,11 +333,11 @@ export const addResource = async (req, res) => {
       resource_value
     });
     await trackCommunityEvent({
-  event_type: "COMMUNITY_RESOURCE_ADDED",
-  user_id:userId,
-  community,
-  metadata: { resource_id: resource.id }
-});
+      event_type: "COMMUNITY_RESOURCE_ADDED",
+      user_id: userId,
+      community,
+      metadata: { resource_id: resource.id }
+    });
 
 
     await deleteCache(`community:${communityId}:resources`);
@@ -338,7 +356,9 @@ export const addResource = async (req, res) => {
 /* GET RESOURCES */
 export const getResources = async (req, res) => {
   try {
-    const communityId = req.params.id;
+    const communityId = await getCommunityIdFromParam(req.params.id);
+    if (!communityId) return res.status(404).json({ message: "Community not found" });
+
     const cacheKey = `community:${communityId}:resources`;
 
     const cached = await getCache(cacheKey);
@@ -387,11 +407,11 @@ export const deleteResource = async (req, res) => {
     resource.status = "deleted";
     await resource.save();
     await trackCommunityEvent({
-  event_type: "COMMUNITY_RESOURCE_DELETED",
-  user_id:userId,
-  community,
-  metadata: { resource_id:resource.id }
-});
+      event_type: "COMMUNITY_RESOURCE_DELETED",
+      user_id: userId,
+      community,
+      metadata: { resource_id: resource.id }
+    });
 
 
     /* 🔥 REDIS INVALIDATION */

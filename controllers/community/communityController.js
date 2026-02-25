@@ -10,6 +10,13 @@ import { NOTIFICATION_TYPES } from "../../services/emailService.js";
 import User from "../../model/User.js";
 import { attachCloudFrontUrl, processHostImages } from "../../utils/imageUtils.js";
 
+const getCommunityIdFromParam = async (paramId) => {
+  const isNumericId = !isNaN(paramId) && !isNaN(parseFloat(paramId));
+  if (isNumericId) return Number(paramId);
+  const community = await Community.findOne({ where: { slug: paramId }, attributes: ['id'] });
+  return community ? community.id : null;
+};
+
 /* CREATE COMMUNITY */
 export const createCommunity = async (req, res) => {
   try {
@@ -134,13 +141,10 @@ export const updateCommunityProfile = async (req, res) => {
    GET COMMUNITY DETAILS (PRODUCTION SAFE)
    ========================================= */
 export const getCommunityById = async (req, res) => {
-  const communityId = Number(req.params.id);
+  const paramId = req.params.id;
+  const isNumericId = !isNaN(paramId) && !isNaN(parseFloat(paramId));
 
-  if (!Number.isInteger(communityId)) {
-    return res.status(400).json({ message: "Invalid community id" });
-  }
-
-  const cacheKey = `community:id:${communityId}`;
+  const cacheKey = `community:idOrSlug:${paramId}`;
 
   try {
     /* =========================
@@ -149,7 +153,9 @@ export const getCommunityById = async (req, res) => {
     let community = await getCache(cacheKey);
 
     if (!community) {
-      const dbCommunity = await Community.findByPk(communityId);
+      const dbCommunity = await Community.findOne({
+        where: isNumericId ? { id: Number(paramId) } : { slug: paramId }
+      });
 
       if (!dbCommunity) {
         return res.status(404).json({ message: "Community not found" });
@@ -174,7 +180,7 @@ export const getCommunityById = async (req, res) => {
     if (req.user?.id) {
       const membership = await CommunityMember.findOne({
         where: {
-          community_id: communityId,
+          community_id: community.id,
           user_id: req.user.id
         },
         attributes: ["role", "is_host"]
@@ -214,10 +220,10 @@ export const getCommunityById = async (req, res) => {
 /* JOIN COMMUNITY - FIXED */
 export const joinCommunity = async (req, res) => {
   const userId = req.user.id;
-  const communityId = Number(req.params.id);
+  const communityId = await getCommunityIdFromParam(req.params.id);
 
-  if (!Number.isInteger(communityId)) {
-    return res.status(400).json({ message: "Invalid community id" });
+  if (!communityId) {
+    return res.status(404).json({ message: "Community not found" });
   }
 
   const t = await Community.sequelize.transaction();
@@ -301,10 +307,10 @@ export const joinCommunity = async (req, res) => {
 
 export const leaveCommunity = async (req, res) => {
   const userId = req.user.id;
-  const communityId = Number(req.params.id);
+  const communityId = await getCommunityIdFromParam(req.params.id);
 
-  if (!Number.isInteger(communityId)) {
-    return res.status(400).json({ message: "Invalid community id" });
+  if (!communityId) {
+    return res.status(404).json({ message: "Community not found" });
   }
 
   const t = await Community.sequelize.transaction();
@@ -728,11 +734,11 @@ export const getSuspendedCommunities = async (req, res) => {
    GET COMMUNITY HOST MEMBERS (READ-ONLY, SAFE)
 ===================================================== */
 export const getCommunityHostMembers = async (req, res) => {
-  const communityId = Number(req.params.id);
+  const communityId = await getCommunityIdFromParam(req.params.id);
 
-  if (!Number.isInteger(communityId)) {
-    return res.status(400).json({
-      message: "Invalid community id"
+  if (!communityId) {
+    return res.status(404).json({
+      message: "Community not found"
     });
   }
 
