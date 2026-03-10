@@ -400,9 +400,9 @@ export const approveHost = async (req, res) => {
       console.error("ANALYTICS HOST_APPROVED FAILED:", err);
     });
     logAudit({
-      action: "HOST_APPROVED",
-      actor: req.auditActor,
-      target: { type: "host", id: host.id },
+      action: "HOST_PROFILE_APPROVED",
+      actor: { id: req.admin?.id || "system", role: "admin" },
+      target: { type: "host_profile", id: host.id },
       severity: "HIGH",
       req
     }).catch(console.error);
@@ -411,14 +411,20 @@ export const approveHost = async (req, res) => {
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
     // ✅ notify host user
-    await notifyAndEmail({
-      userId: host.user_id,
-      email: host.User.email,
-      type: NOTIFICATION_TYPES.HOST_APPROVED,
-      title: "Host approved",
-      message: "Your host profile has been approved.",
-      metadata: { hostId: host.id }
-    });
+    try {
+      if (host.User?.email) {
+        await notifyAndEmail({
+          userId: host.user_id,
+          email: host.User.email,
+          type: NOTIFICATION_TYPES.HOST_APPROVED,
+          title: "Host approved",
+          message: "Your host profile has been approved.",
+          metadata: { hostId: host.id }
+        });
+      }
+    } catch (err) {
+      console.error("Failed to notify user:", err);
+    }
 
     return res.json({ success: true, message: "Host approved" });
 
@@ -442,10 +448,10 @@ export const rejectHost = async (req, res) => {
     await host.save();
     AnalyticsEvent.create({
       event_type: "HOST_REJECTED",
-      user_id: req.admin?.id || null,
+      user_id: req.admin?.id || "system",
       host_id: host.id,
-      country: host.country,
-      state: host.state,
+      country: host.country || null,
+      state: host.state || null,
       metadata: {
         reason: host.rejection_reason
       },
@@ -468,17 +474,23 @@ export const rejectHost = async (req, res) => {
     // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
-    await notifyAndEmail({
-      userId: host.user_id,
-      email: host.User.email,
-      type: NOTIFICATION_TYPES.HOST_REJECTED,
-      title: "Host rejected",
-      message: "Your host profile was rejected.",
-      metadata: {
-        hostId: host.id,
-        reason: host.rejection_reason
+    try {
+      if (host.User?.email) {
+        await notifyAndEmail({
+          userId: host.user_id,
+          email: host.User.email,
+          type: NOTIFICATION_TYPES.HOST_REJECTED,
+          title: "Host application rejected",
+          message: "Your host application was rejected. Please review our guidelines.",
+          metadata: {
+            hostId: host.id,
+            reason: host.rejection_reason
+          }
+        });
       }
-    });
+    } catch (err) {
+      console.error("Failed to notify user:", err);
+    }
 
 
     return res.json({

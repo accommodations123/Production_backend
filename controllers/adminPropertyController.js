@@ -96,7 +96,7 @@ export const approveProperty = async (req, res) => {
       listing_expires_at: expiresAt,
       is_expired: false
     });
-       // 🔐 AUDIT (authoritative)
+    // 🔐 AUDIT (authoritative)
     logAudit({
       action: "PROPERTY_APPROVED",
       actor: req.auditActor,
@@ -128,19 +128,25 @@ export const approveProperty = async (req, res) => {
     await deleteCacheByPrefix("approved_listings:");
     await deleteCacheByPrefix("all_properties:");
 
-  
+
     // ✅ ONE LINE: notification + socket + email
-    await notifyAndEmail({
-      userId: property.Host.user_id,
-      email: property.Host.User.email,
-      type: NOTIFICATION_TYPES.PROPERTY_APPROVED,
-      title: "Property approved",
-      message: "Your property has been approved and is now visible.",
-      metadata: {
-        propertyId: property.id,
-        expiresAt
+    try {
+      if (property.Host?.User?.email) {
+        await notifyAndEmail({
+          userId: property.Host?.user_id || null,
+          email: property.Host.User.email,
+          type: NOTIFICATION_TYPES.PROPERTY_APPROVED,
+          title: "Property approved",
+          message: "Your property has been approved and is now visible.",
+          metadata: {
+            propertyId: property.id,
+            expiresAt
+          }
+        });
       }
-    });
+    } catch (err) {
+      console.error("Failed to push notification/email:", err);
+    }
 
     return res.json({
       success: true,
@@ -166,7 +172,7 @@ export const rejectProperty = async (req, res) => {
     property.status = "rejected";
     property.rejection_reason = req.body.reason || "Not specified";
     await property.save();
-        logAudit({
+    logAudit({
       action: "PROPERTY_REJECTED",
       actor: req.auditActor,
       target: { type: "property", id: property.id },
@@ -191,18 +197,24 @@ export const rejectProperty = async (req, res) => {
     // Invalidate caches
     await deleteCacheByPrefix("pending_properties");
     await deleteCacheByPrefix("property_status_stats");
-      // ✅ notify user (socket + email)
-    await notifyAndEmail({
-      userId: property.Host.user_id,
-      email: property.Host.User.email,
-      type: NOTIFICATION_TYPES.PROPERTY_REJECTED,
-      title: "Property rejected",
-      message: "Your property was rejected. Please review the reason.",
-      metadata: {
-        propertyId: property.id,
-        reason
+    // ✅ notify user (socket + email)
+    try {
+      if (property.Host?.User?.email) {
+        await notifyAndEmail({
+          userId: property.Host?.user_id || null,
+          email: property.Host.User.email,
+          type: NOTIFICATION_TYPES.PROPERTY_REJECTED,
+          title: "Property rejected",
+          message: "Your property was rejected. Please review the reason.",
+          metadata: {
+            propertyId: property.id,
+            reason: property.rejection_reason
+          }
+        });
       }
-    });
+    } catch (err) {
+      console.error("Failed to push notification/email:", err);
+    }
 
     return res.json({ success: true, message: "Property rejected" });
 

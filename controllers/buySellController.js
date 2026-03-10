@@ -414,7 +414,7 @@ export const approveBuySellListing = async (req, res) => {
 
         logAudit({
             action: "BUYSELL_LISTING_APPROVED",
-            actor: { id: req.admin.id, role: "admin" },
+            actor: { id: req.admin?.id || "system", role: "admin" },
             target: { type: "buy_sell_listing", id: listing.id },
             severity: "MEDIUM",
             req
@@ -422,7 +422,7 @@ export const approveBuySellListing = async (req, res) => {
 
         AnalyticsEvent.create({
             event_type: "BUYSELL_LISTING_APPROVED",
-            user_id: req.admin.id,
+            user_id: req.admin?.id || "system",
             country: listing.country || null
         }).catch(console.error);
 
@@ -430,20 +430,28 @@ export const approveBuySellListing = async (req, res) => {
         const user = await User.findByPk(listing.user_id);
 
         if (user?.email) {
-            await notifyAndEmail({
-                userId: user.id,
-                email: user.email,
-                type: NOTIFICATION_TYPES.BUYSELL_APPROVED,
-                title: "Listing approved",
-                message: "Your buy/sell listing has been approved.",
-                metadata: { listingId: listing.id }
-            });
+            try {
+                await notifyAndEmail({
+                    userId: user.id,
+                    email: user.email,
+                    type: NOTIFICATION_TYPES.BUYSELL_APPROVED,
+                    title: "Listing approved",
+                    message: "Your buy/sell listing has been approved.",
+                    metadata: { listingId: listing.id }
+                });
+            } catch (err) {
+                console.error("Failed to notify user:", err);
+            }
         }
 
-        // 🧹 Cache
-        await deleteCacheByPrefix("pending_buy_sell");
-        await deleteCacheByPrefix("active_buy_sell");
-        await deleteCacheByPrefix("admin:buy_sell");
+        // 🧹 Cache - handled safely to prevent 504 Gateway Timeouts
+        try {
+            await deleteCacheByPrefix("pending_buy_sell");
+            await deleteCacheByPrefix("active_buy_sell");
+            await deleteCacheByPrefix("admin:buy_sell");
+        } catch (err) {
+            console.error("Cache clear failed, but proceeding:", err);
+        }
 
         return res.json({ success: true, message: "Listing approved" });
     } catch (err) {
@@ -467,7 +475,7 @@ export const blockBuySellListing = async (req, res) => {
         await listing.update({ status: "blocked" });
         logAudit({
             action: "BUYSELL_LISTING_BLOCKED",
-            actor: { id: req.admin.id, role: "admin" },
+            actor: { id: req.admin?.id || "system", role: "admin" },
             target: { type: "buy_sell_listing", id: listing.id },
             severity: "HIGH",
             req
@@ -475,25 +483,33 @@ export const blockBuySellListing = async (req, res) => {
 
         AnalyticsEvent.create({
             event_type: "BUYSELL_LISTING_BLOCKED",
-            user_id: req.admin.id,
+            user_id: req.admin?.id || "system",
             country: listing.country || null
         }).catch(console.error);
         const user = await User.findByPk(listing.user_id);
 
 
         if (user?.email) {
-            await notifyAndEmail({
-                userId: user.id,
-                email: user.email,
-                type: NOTIFICATION_TYPES.BUYSELL_REJECTED,
-                title: "Listing blocked",
-                message: "Your buy/sell listing was blocked by admin.",
-                metadata: { listingId: listing.id }
-            });
+            try {
+                await notifyAndEmail({
+                    userId: user.id,
+                    email: user.email,
+                    type: NOTIFICATION_TYPES.BUYSELL_REJECTED,
+                    title: "Listing blocked",
+                    message: "Your buy/sell listing was blocked by admin.",
+                    metadata: { listingId: listing.id }
+                });
+            } catch (err) {
+                console.error("Failed to notify user:", err);
+            }
         }
-        await deleteCacheByPrefix("pending_buy_sell");
-        await deleteCacheByPrefix("active_buy_sell");
-        await deleteCacheByPrefix("admin:buy_sell");
+        try {
+            await deleteCacheByPrefix("pending_buy_sell");
+            await deleteCacheByPrefix("active_buy_sell");
+            await deleteCacheByPrefix("admin:buy_sell");
+        } catch (err) {
+            console.error("Cache clear failed, but proceeding:", err);
+        }
 
 
 

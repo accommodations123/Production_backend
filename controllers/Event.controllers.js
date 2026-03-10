@@ -578,7 +578,7 @@ export const approveEvent = async (req, res) => {
     await event.save();
     AnalyticsEvent.create({
       event_type: "EVENT_APPROVED",
-      user_id: req.admin.id,
+      user_id: req.admin?.id || null,
       host_id: event.host_id,
       event_id: event.id,
       country: event.country,
@@ -594,17 +594,23 @@ export const approveEvent = async (req, res) => {
     await deleteCache(`event:${event.id}`);
 
     // ✅ ONE LINE — persistent + socket + email
-    await notifyAndEmail({
-      userId: event.Host.user_id,           // IMPORTANT: user_id, not host_id
-      email: event.Host.User.email,
-      type: NOTIFICATION_TYPES.EVENT_APPROVED,
-      title: "Event approved",
-      message: "Your event has been approved and is now live.",
-      metadata: {
-        eventId: event.id,
-        title: event.title
+    try {
+      if (event.Host?.User?.email) {
+        await notifyAndEmail({
+          userId: event.Host?.user_id || event.host_id,           // IMPORTANT: user_id, not host_id
+          email: event.Host.User.email,
+          type: NOTIFICATION_TYPES.EVENT_APPROVED,
+          title: "Event approved",
+          message: "Your event has been approved and is now live.",
+          metadata: {
+            eventId: event.id,
+            title: event.title
+          }
+        });
       }
-    });
+    } catch (err) {
+      console.error("Failed to notify user:", err);
+    }
 
 
     return res.json({
@@ -656,18 +662,24 @@ export const rejectEvent = async (req, res) => {
     await deleteCacheByPrefix("pending_events:");
     await deleteCache(`event:${event.id}`);
     // ✅ notify host
-    await notifyAndEmail({
-      userId: event.Host.user_id,
-      email: event.Host.User.email,
-      type: NOTIFICATION_TYPES.EVENT_REJECTED,
-      title: "Event rejected",
-      message: "Your event was rejected. Please review the reason.",
-      metadata: {
-        eventId: event.id,
-        title: event.title,
-        reason: event.rejection_reason // <--- Fixed
+    try {
+      if (event.Host?.User?.email) {
+        await notifyAndEmail({
+          userId: event.Host?.user_id || event.host_id,
+          email: event.Host.User.email,
+          type: NOTIFICATION_TYPES.EVENT_REJECTED,
+          title: "Event rejected",
+          message: "Your event was rejected. Please review the reason.",
+          metadata: {
+            eventId: event.id,
+            title: event.title,
+            reason: event.rejection_reason // <--- Fixed
+          }
+        });
       }
-    });
+    } catch (err) {
+      console.error("Failed to notify user:", err);
+    }
 
     return res.json({ success: true, message: "Event rejected" });
 

@@ -530,7 +530,7 @@ export const approveCommunity = async (req, res) => {
   await community.save();
   logAudit({
     action: "COMMUNITY_APPROVED",
-    actor: { id: req.admin.id, role: "admin" },
+    actor: { id: req.admin?.id || "system", role: "admin" },
     target: { type: "community", id: community.id },
     severity: "MEDIUM",
     req
@@ -538,19 +538,25 @@ export const approveCommunity = async (req, res) => {
 
   trackCommunityEvent({
     event_type: "COMMUNITY_APPROVED",
-    user_id: req.admin.id,
+    user_id: req.admin?.id || "system",
     community
   });
   const creator = await User.findByPk(community.created_by);
 
-  await notifyAndEmail({
-    userId: creator.id,
-    email: creator.email,
-    type: NOTIFICATION_TYPES.COMMUNITY_APPROVED,
-    title: "Community approved",
-    message: "Your community has been approved.",
-    metadata: { communityId: community.id }
-  });
+  try {
+    if (creator?.email) {
+      await notifyAndEmail({
+        userId: creator.id,
+        email: creator.email,
+        type: NOTIFICATION_TYPES.COMMUNITY_APPROVED,
+        title: "Community approved",
+        message: "Your community has been approved.",
+        metadata: { communityId: community.id }
+      });
+    }
+  } catch (err) {
+    console.error("Failed to notify user:", err);
+  }
 
 
 
@@ -572,7 +578,7 @@ export const rejectCommunity = async (req, res) => {
   await community.save();
   logAudit({
     action: "COMMUNITY_REJECTED",
-    actor: { id: req.admin.id, role: "admin" },
+    actor: { id: req.admin?.id || "system", role: "admin" },
     target: { type: "community", id: community.id },
     severity: "HIGH",
     req
@@ -580,19 +586,25 @@ export const rejectCommunity = async (req, res) => {
 
   await trackCommunityEvent({
     event_type: "COMMUNITY_REJECTED",
-    user_id: req.admin.id,
+    user_id: req.admin?.id || "system",
     community
   });
   const creator = await User.findByPk(community.created_by);
 
-  await notifyAndEmail({
-    userId: creator.id,
-    email: creator.email,
-    type: NOTIFICATION_TYPES.COMMUNITY_REJECTED,
-    title: "Community rejected",
-    message: "Your community was rejected by admin.",
-    metadata: { communityId: community.id }
-  });
+  try {
+    if (creator?.email) {
+      await notifyAndEmail({
+        userId: creator.id,
+        email: creator.email,
+        type: NOTIFICATION_TYPES.COMMUNITY_REJECTED,
+        title: "Community rejected",
+        message: "Your community was rejected by admin.",
+        metadata: { communityId: community.id }
+      });
+    }
+  } catch (err) {
+    console.error("Failed to notify user:", err);
+  }
 
 
 
@@ -621,7 +633,7 @@ export const suspendCommunity = async (req, res) => {
 
     logAudit({
       action: "COMMUNITY_SUSPENDED",
-      actor: { id: req.admin.id, role: "admin" },
+      actor: { id: req.admin?.id || "system", role: "admin" },
       target: { type: "community", id: community.id },
       severity: "CRITICAL",
       req
@@ -629,26 +641,30 @@ export const suspendCommunity = async (req, res) => {
 
     await trackCommunityEvent({
       event_type: "COMMUNITY_SUSPENDED",
-      user_id: req.admin.id,
+      user_id: req.admin?.id || "system",
       community
     });
 
     // 🔔 Notify community owner
     const owner = await User.findByPk(community.created_by);
 
-    if (owner) {
-      await notifyAndEmail({
-        userId: owner.id,
-        email: owner.email,
-        type: NOTIFICATION_TYPES.COMMUNITY_SUSPENDED,
-        title: "Community suspended",
-        message:
-          "Your community has been suspended by admin. Please contact support for details.",
-        metadata: {
-          communityId: community.id,
-          communityName: community.name
-        }
-      });
+    if (owner?.email) {
+      try {
+        await notifyAndEmail({
+          userId: owner.id,
+          email: owner.email,
+          type: NOTIFICATION_TYPES.COMMUNITY_SUSPENDED,
+          title: "Community suspended",
+          message:
+            "Your community has been suspended by admin. Please contact support for details.",
+          metadata: {
+            communityId: community.id,
+            communityName: community.name
+          }
+        });
+      } catch (err) {
+        console.error("Failed to notify user:", err);
+      }
     }
 
     return res.json({
