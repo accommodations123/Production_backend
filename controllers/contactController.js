@@ -12,7 +12,7 @@ export const scheduleCall = async (req, res) => {
         }
 
         await sendNotificationEmail({
-            to: "careers@nextkinlife.com",
+            to: "accommodations.nextkinlife@gmail.com",
             type: NOTIFICATION_TYPES.SCHEDULE_CALL,
             data: { date, timeSlot },
         });
