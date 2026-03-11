@@ -16,7 +16,8 @@ import {
   activateCommunity,
   getApprovedCommunities,
   getRejectedCommunities,
-  getSuspendedCommunities
+  getSuspendedCommunities,
+  getAdminCommunityById
 } from "../../controllers/community/communityController.js";
 import adminAuth from "../../middleware/adminAuth.js";
 import requireRole from "../../middleware/requireRole.js";
@@ -44,5 +45,6 @@ router.post('/admin/communities/:id/activate', adminAuth, requireRole("super_adm
 router.get("/admin/communities/approved", adminAuth, requireRole("super_admin", "admin"), getApprovedCommunities);
 router.get("/admin/communities/rejected", adminAuth, requireRole("super_admin", "admin"), getRejectedCommunities);
 router.get("/admin/communities/suspended", adminAuth, requireRole("super_admin", "admin"), getSuspendedCommunities);
+router.get("/admin/communities/:id", adminAuth, requireRole("super_admin", "admin"), getAdminCommunityById);
 
 export default router;

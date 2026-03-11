@@ -841,3 +841,42 @@ export const getCommunityHostMembers = async (req, res) => {
   }
 };
 
+/* =====================================================
+   ADMIN: GET COMMUNITY BY ID WITH MEMBERS
+===================================================== */
+export const getAdminCommunityById = async (req, res) => {
+  try {
+    const communityId = await getCommunityIdFromParam(req.params.id);
+
+    if (!communityId) {
+      return res.status(404).json({ message: "Community not found" });
+    }
+
+    const dbCommunity = await Community.findByPk(communityId);
+
+    if (!dbCommunity) {
+      return res.status(404).json({ message: "Community not found" });
+    }
+
+    const community = dbCommunity.toJSON();
+    if (community.avatar_image) community.avatar_image = attachCloudFrontUrl(community.avatar_image);
+    if (community.cover_image) community.cover_image = attachCloudFrontUrl(community.cover_image);
+
+    // Fetch members
+    const members = await CommunityMember.findAll({
+      where: { community_id: communityId },
+      attributes: ['user_id', 'role', 'is_host']
+    });
+
+    community.members = members;
+
+    return res.json({
+      success: true,
+      community
+    });
+  } catch (err) {
+    console.error("ADMIN GET COMMUNITY BY ID ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch community details" });
+  }
+};
+

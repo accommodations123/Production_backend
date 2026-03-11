@@ -32,7 +32,6 @@ import authRoutes from "./routes/auth/googleAuthroutes.js";
 import travelRoutes from "./routes/travel/travelRoutes.js";
 import careerRoutes from "./routes/carrer/careers.routes.js";
 import analyticsRoutes from "./routes/DashboardAnalytics/analyticsroutes.js";
-import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
 import buySellAnalytics from "./routes/DashboardAnalytics/buySellAnalyticsroutes.js";
 import communityAnalytics from "./routes/DashboardAnalytics/communityAnalytics.routes.js";
 import travelAnalytics from "./routes/DashboardAnalytics/travelAnalytics.routes.js";
@@ -41,6 +40,9 @@ import useanalytics from './routes/DashboardAnalytics/useranalytics.routes.js'
 import notificationRoutes from "./routes/notification.routes.js";
 import wishlistroutes from './routes/wishlistRoutes.js'
 import contactRoutes from './routes/contactRoutes.js'
+import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
+import activityLogRoutes from './routes/activityLogRoutes.js';
+
 /* ===================== WORKERS ===================== */
 import "./services/workers/emailWorker.js";
 
@@ -127,6 +129,8 @@ app.use("/users", useanalytics)
 app.use("/notification", notificationRoutes);
 app.use("/wishlist", wishlistroutes)
 app.use("/contact", contactRoutes)
+app.use('/activity-logs', activityLogRoutes);
+
 /* ===================== HEALTH ===================== */
 app.get("/health", async (req, res) => {
   try {
