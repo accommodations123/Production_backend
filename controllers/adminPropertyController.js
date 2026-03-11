@@ -6,6 +6,7 @@ import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 
 export const getPendingProperties = async (req, res) => {
   try {
@@ -38,14 +39,25 @@ export const getPendingProperties = async (req, res) => {
       ]
     });
 
-    const data = properties.map(property => ({
-      property,
-      owner: {
-        userId: property.Host?.User?.id || null,
-        email: property.Host?.User?.email || null,
-        verification: property.Host || null
+    const data = properties.map(property => {
+      const pJson = property.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
       }
-    }));
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      const processedProp = processHostImages(pJson);
+
+      return {
+        property: processedProp,
+        owner: {
+          userId: property.Host?.User?.id || null,
+          email: property.Host?.User?.email || null,
+          verification: property.Host || null
+        }
+      };
+    });
 
     await setCache(cacheKey, data, 300);
 
@@ -429,11 +441,22 @@ export const getApprovedPropertiesAdmin = async (req, res) => {
       order: [["updated_at", "DESC"]]
     });
 
-    await setCache(cacheKey, properties, 300);
+    const processedProps = properties.map(p => {
+      const pJson = p.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+      }
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      return processHostImages(pJson);
+    });
+
+    await setCache(cacheKey, processedProps, 300);
 
     return res.json({
       success: true,
-      properties
+      properties: processedProps
     });
 
   } catch (err) {
@@ -478,11 +501,22 @@ export const getRejectedPropertiesAdmin = async (req, res) => {
       order: [["updated_at", "DESC"]]
     });
 
-    await setCache(cacheKey, properties, 300);
+    const processedProps = properties.map(p => {
+      const pJson = p.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+      }
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      return processHostImages(pJson);
+    });
+
+    await setCache(cacheKey, processedProps, 300);
 
     return res.json({
       success: true,
-      properties
+      properties: processedProps
     });
 
   } catch (err) {

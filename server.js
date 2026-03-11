@@ -41,7 +41,7 @@ import notificationRoutes from "./routes/notification.routes.js";
 import wishlistroutes from './routes/wishlistRoutes.js'
 import contactRoutes from './routes/contactRoutes.js'
 import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
-import activityLogRoutes from './routes/activityLogRoutes.js';
+// import activityLogRoutes from './routes/activityLogRoutes.js';
 
 /* ===================== WORKERS ===================== */
 import "./services/workers/emailWorker.js";
@@ -129,7 +129,7 @@ app.use("/users", useanalytics)
 app.use("/notification", notificationRoutes);
 app.use("/wishlist", wishlistroutes)
 app.use("/contact", contactRoutes)
-app.use('/activity-logs', activityLogRoutes);
+// app.use('/activity-logs', activityLogRoutes);
 
 /* ===================== HEALTH ===================== */
 app.get("/health", async (req, res) => {

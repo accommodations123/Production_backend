@@ -57,5 +57,15 @@ export const processHostImages = (obj) => {
         processed.profile_image = attachCloudFrontUrl(processed.profile_image);
     }
 
+    // Handle top-level image/images arrays (e.g. accommodations, events)
+    if (processed.images && Array.isArray(processed.images)) {
+        processed.images = processed.images.map(img => attachCloudFrontUrl(img));
+    }
+    if (processed.image && Array.isArray(processed.image)) {
+        processed.image = processed.image.map(img => attachCloudFrontUrl(img));
+    } else if (processed.image && typeof processed.image === 'string') {
+        processed.image = attachCloudFrontUrl(processed.image);
+    }
+
     return processed;
 };
