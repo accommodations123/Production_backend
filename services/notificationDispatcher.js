@@ -37,10 +37,12 @@ export const notifyAndEmail = async ({
 
   // 3️⃣ Email (async, non-blocking, QUEUED CORRECTLY)
   if (email) {
-    await createJob(type, {
+    createJob(type, {
       type,            // 👈 explicit
       to: email,
       data: metadata   // 👈 matches emailService contract
+    }).catch(err => {
+      console.error("❌ QUEUE_ERROR:", err.message);
     });
   }
 
