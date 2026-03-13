@@ -79,7 +79,7 @@ const templates = {
         <br/>
         <p>Log in to your dashboard to get started.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -93,7 +93,7 @@ const templates = {
         <p><strong>Reason:</strong> ${d.reason || "The information provided does not meet our current guidelines."}</p>
         <p>We encourage you to review the requirements and apply again once you have updated your details.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -106,7 +106,7 @@ const templates = {
         <p>Your event <strong>"${d.title}"</strong> has passed our review process and is now visible to the public.</p>
         <p>Users can now see your event, and you can start accepting registrations. Make sure to check your dashboard for any new sign-ups.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -120,7 +120,7 @@ const templates = {
         <p><strong>Reason for Rejection:</strong> ${d.reason || "Content violation or missing required details."}</p>
         <p>Please review our community guidelines and feel free to resubmit your event with the necessary corrections.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -133,7 +133,7 @@ const templates = {
         <p>Your property listing has been successfully verified and is now visible on our platform.</p>
         <p>Users searching for accommodation in your area will now be able to view your property. Expect to receive booking inquiries soon!</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -147,7 +147,7 @@ const templates = {
         <p><strong>Reason:</strong> ${d.reason || "Insufficient details or image quality issues."}</p>
         <p>Please update your listing details and submit it again for review.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -160,7 +160,7 @@ const templates = {
         <p>Your buy/sell listing has been approved and is now live on our marketplace.</p>
         <p>Interested buyers or sellers in your area can now contact you.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -174,7 +174,7 @@ const templates = {
         <p><strong>Reason:</strong> ${d.reason || "Policy violation."}</p>
         <p>Please review our posting guidelines.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -187,7 +187,7 @@ const templates = {
         <p>Your community group has been created and is now live. You can start inviting members and posting content.</p>
         <p>Thank you for building a space for our users to connect.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -201,7 +201,7 @@ const templates = {
         <p><strong>Reason:</strong> ${d.reason || "Content guidelines not met."}</p>
         <p>Please review our community standards and try again.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -214,7 +214,7 @@ const templates = {
         <p>Your community group has been suspended by the administration due to a violation of our policies.</p>
         <p>If you believe this is a mistake, please contact our support team immediately with details.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -253,7 +253,7 @@ const templates = {
         <p>We regret to inform you that a travel match you were involved in has been cancelled by an administrator.</p>
         <p>This may be due to policy violations or changes in the trip schedule. Please check your dashboard for available alternatives.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -266,7 +266,7 @@ const templates = {
         <p>Your scheduled travel trip has been cancelled by the administration.</p>
         <p>If you believe this is an error, or if you need assistance rescheduling, please contact our support team.</p>
         <br/>
-        <p style="color: #777;">— Accommodations Team</p>
+        <p style="color: #777;">— NextKinLife Team</p>
       </div>
     `
   }),
@@ -286,7 +286,7 @@ const templates = {
         Application ID: ${d.applicationId}
       </p>
 
-      <p style="color:#777;">— Accommodations Team</p>
+      <p style="color:#777;">— NextKinLife Team</p>
     </div>
   `
   }),
@@ -349,7 +349,7 @@ export const sendNotificationEmail = async ({ to, type, data }) => {
   const { subject, html } = template(data || {});
 
   return transporter.sendMail({
-    from: `"Accommodations" <${process.env.EMAIL_USER}>`,
+    from: `"NextKinLife" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     html

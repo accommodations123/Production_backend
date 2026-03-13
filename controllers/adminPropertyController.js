@@ -178,7 +178,19 @@ export const approveProperty = async (req, res) => {
 // REJECT property
 export const rejectProperty = async (req, res) => {
   try {
-    const property = await Property.findByPk(req.params.id);
+    const property = await Property.findByPk(req.params.id, {
+      include: [
+        {
+          model: Host,
+          include: [
+            {
+              model: User,
+              attributes: ["email"]
+            }
+          ]
+        }
+      ]
+    });
     if (!property) return res.status(404).json({ message: "Not found" });
 
     property.status = "rejected";

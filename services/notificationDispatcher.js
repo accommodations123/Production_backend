@@ -37,6 +37,7 @@ export const notifyAndEmail = async ({
 
   // 3️⃣ Email (async, non-blocking, QUEUED CORRECTLY)
   if (email) {
+    console.log(`📡 Queueing email to: ${email} (Type: ${type})`);
     createJob(type, {
       type,            // 👈 explicit
       to: email,
@@ -44,6 +45,8 @@ export const notifyAndEmail = async ({
     }).catch(err => {
       console.error("❌ QUEUE_ERROR:", err.message);
     });
+  } else {
+    console.warn("⚠️ No email provided, skipping queue.");
   }
 
   return notification;

@@ -443,7 +443,7 @@ export const notifyApplicationUser = async (req, res) => {
     // 🔔 ONE SINGLE SOURCE OF TRUTH
     await notifyAndEmail({
       userId: application.user.id,
-      email: application.user.email,
+      email: application.email, // ✅ Use direct email from application
       type: "APPLICATION_UPDATE",
       title: subject,
       message,
