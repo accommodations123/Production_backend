@@ -4,6 +4,7 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 import { Op, Sequelize } from "sequelize";
 import { getCache, setCache } from "../services/cacheService.js";
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 
 /* ───────────────── UTILITIES ───────────────── */
 
@@ -72,7 +73,7 @@ export const getApprovedList = async (req, res) => {
       zip_code: item.property_snapshot?.zip_code ?? null,
       street_address: item.property_snapshot?.street_address ?? null,
       pricePerNight: item.property_snapshot?.price_per_night ?? null,
-      photos: item.property_snapshot?.photos ?? [],
+      photos: (item.property_snapshot?.photos || []).map(attachCloudFrontUrl),
       ownerName: item.host_snapshot?.full_name ?? null,
       ownerEmail: item.host_snapshot?.email ?? null,
       ownerPhone: item.host_snapshot?.phone ?? null,
@@ -145,7 +146,16 @@ export const getApprovedWithHosts = async (req, res) => {
       ]
     });
 
-    const plain = properties.map(p => p.toJSON());
+    const plain = properties.map(p => {
+      const pJson = p.toJSON();
+      if (pJson.photos) {
+        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+      }
+      if (pJson.video) {
+        pJson.video = attachCloudFrontUrl(pJson.video);
+      }
+      return processHostImages(pJson);
+    });
 
     await setCache(cacheKey, plain, 300);
 

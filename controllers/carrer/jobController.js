@@ -138,7 +138,6 @@ export const getMyJobs = async (req, res) => {
 
     const { rows: jobs, count } = await Job.findAndCountAll({
       where: {
-        created_by: req.admin.id,
         status: { [Op.ne]: "deleted" }
       },
       attributes: [
