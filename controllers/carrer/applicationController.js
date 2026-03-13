@@ -289,6 +289,12 @@ export const getAllApplications = async (req, res) => {
       attributes: [
         "id",
         "status",
+        "first_name",
+        "last_name",
+        "email",
+        "phone",
+        "experience",
+        "resume_url",
         "created_at",
         "job_id",
         "user_id"
@@ -398,7 +404,7 @@ export const notifyApplicationUser = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const { subject, message, template } = req.body;
+    const { subject, message, template, status } = req.body;
 
     if (!subject || !message) {
       return res.status(400).json({
@@ -407,13 +413,31 @@ export const notifyApplicationUser = async (req, res) => {
     }
 
     const application = await Application.findByPk(req.params.id, {
-      include: [{ model: User, as: "user" }]
+      include: [
+        { model: User, as: "user" },
+        { model: Job, as: "job", attributes: ["id", "title"] }
+      ]
     });
 
     if (!application || !application.user) {
       return res.status(404).json({
         message: "Application/User not found"
       });
+    }
+
+    // ✅ PERSISTING STATUS CHANGE (Fixes "gone on refresh" bug)
+    if (status && VALID_STATUSES.includes(status) && application.status !== status) {
+      const prev = application.status;
+      await application.update({ status });
+
+      // 📜 Add to history for audit trail
+      await ApplicationStatusHistory.create({
+        application_id: application.id,
+        from_status: prev,
+        to_status: status,
+        acted_by_id: req.admin.id,
+        acted_by_role: "admin"
+      }).catch(err => console.error("HISTORY_LOG_FAILED:", err.message));
     }
 
     // 🔔 ONE SINGLE SOURCE OF TRUTH
