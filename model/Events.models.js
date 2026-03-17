@@ -1,201 +1,128 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
-import Host from "./Host.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Event = sequelize.define("Event", {
+/* =====================================================================
+   Event Model — DynamoDB (Dynamoose)
+   ===================================================================== */
 
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
+const eventSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    host_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "host_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    title: {
+      type: String,
+      required: true
+    },
+    description: { type: String },
+    included_items: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    type: {
+      type: String,
+      default: "public",
+      enum: ["public", "private", "festival", "meetup", "party", "other"]
+    },
+    country: {
+      type: String,
+      index: {
+        name: "country-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    state: { type: String },
+    city: { type: String },
+    zip_code: { type: String },
+    street_address: { type: String },
+    landmark: { type: String },
+    start_date: {
+      type: String,
+      required: true
+    },
+    end_date: { type: String },
+    start_time: {
+      type: String,
+      required: true
+    },
+    end_time: { type: String },
+    schedule: {
+      type: Array,
+      schema: [Object],
+      default: []
+    },
+    venue_name: { type: String },
+    venue_description: { type: String },
+    parking_info: { type: String },
+    accessibility_info: { type: String },
+    google_maps_url: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    banner_image: { type: String },
+    gallery_images: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    price: {
+      type: Number,
+      default: 0
+    },
+    attendees_count: {
+      type: Number,
+      default: 0
+    },
+    rating: {
+      type: Number,
+      default: 0
+    },
+    status: {
+      type: String,
+      default: "draft",
+      enum: ["draft", "pending", "approved", "rejected"],
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    rejection_reason: {
+      type: String,
+      default: ""
+    },
+    event_mode: {
+      type: String,
+      default: "offline",
+      enum: ["offline", "online", "hybrid"]
+    },
+    event_url: { type: String },
+    online_instructions: { type: String },
+    is_deleted: {
+      type: Boolean,
+      default: false
+    }
   },
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
+  }
+);
 
-  host_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  title: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  included_items: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-
-
-  type: {
-    type: DataTypes.ENUM("public", "private", "festival", "meetup", "party", "other"),
-    defaultValue: "public"
-  },
-
-  // Location
-  country: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  state: {
-    type: DataTypes.STRING(100),
-    allowNull: true
-  },
-  city: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  zip_code: {
-    type: DataTypes.STRING(20),
-    allowNull: true
-  },
-  street_address: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-
-  // address: DataTypes.STRING,
-  landmark: DataTypes.STRING,
-
-  // Schedule fields (event duration)
-  start_date: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
-  end_date: {
-    type: DataTypes.DATEONLY,
-    allowNull: true
-  },
-  start_time: {
-    type: DataTypes.TIME,
-    allowNull: false
-  },
-  end_time: {
-    type: DataTypes.TIME,
-    allowNull: true
-  },
-
-  // Event timeline schedule (UI list)
-  schedule: {
-    type: DataTypes.JSON,   // list of sessions
-    defaultValue: []
-  },
-  // Venue details
-  venue_name: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  venue_description: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-
-  parking_info: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  accessibility_info: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  google_maps_url: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  latitude: {
-    type: DataTypes.DECIMAL(10, 7),
-    allowNull: true
-  },
-
-  longitude: {
-    type: DataTypes.DECIMAL(10, 7),
-    allowNull: true
-  },
-
-
-  // Media
-  banner_image: DataTypes.STRING,
-  gallery_images: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-
-  price: {
-    type: DataTypes.DECIMAL(10, 2),
-    defaultValue: 0
-  },
-
-  // members_going: {
-  //   type: DataTypes.JSON,
-  //   defaultValue: []
-  // },
-  attendees_count: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
-  },
-
-
-  rating: {
-    type: DataTypes.FLOAT,
-    defaultValue: 0
-  },
-
-  status: {
-    type: DataTypes.ENUM("draft", "pending", "approved", "rejected"),
-    defaultValue: "draft"
-  },
-
-  rejection_reason: {
-    type: DataTypes.TEXT,
-    defaultValue: ""
-  },
-  // Event type (online / offline / hybrid)
-  event_mode: {
-    type: DataTypes.ENUM("offline", "online", "hybrid"),
-    defaultValue: "offline"
-  },
-
-  // Online event URL (Zoom / Meet / custom)
-  event_url: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  // Optional joining instructions
-  online_instructions: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  is_deleted: {
-  type: DataTypes.BOOLEAN,
-  defaultValue: false
-}
-
-
-
-}, {
-  tableName: "events",
-  timestamps: true,
-  underscored: true,
-  indexes: [
-    { fields: ["host_id"] },
-    { fields: ["status"] },
-    { fields: ["country"] },
-    { fields: ["country", "state"] },
-    { fields: ["country", "state", "city"] },
-    { fields: ["country", "state", "city", "zip_code"] }
-  ]
-
-});
-
-Event.belongsTo(Host, { foreignKey: "host_id" });
-Host.hasMany(Event, { foreignKey: "host_id" });
+const Event = dynamoose.model("Event", eventSchema);
 
 export default Event;

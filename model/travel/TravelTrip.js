@@ -1,153 +1,87 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import Host from "../Host.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-/**
- * TravelTrip
- * One row = one verified host's travel plan
- */
-const TravelTrip = sequelize.define(
-  "TravelTrip",
+/* =====================================================================
+   TravelTrip Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const travelTripSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     host_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-
-    from_country: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-
-    from_state: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-
-    from_city: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-
-    to_country: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-
-    to_city: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-
-    travel_date: {
-      type: DataTypes.DATEONLY,
-      allowNull: false
-    },
-
-    departure_time: {
-      type: DataTypes.TIME,
-      allowNull: false
-    },
-
-    arrival_date: {
-      type: DataTypes.DATEONLY,
-      allowNull: true
-    },
-
-    arrival_time: {
-      type: DataTypes.TIME,
-      allowNull: true
-    },
-
-    airline: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-
-    flight_number: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-    /* ===============================
-       🔥 NEW FIELDS (TRIP-SPECIFIC)
-       =============================== */
-
-    age: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      validate: {
-        min: 18,
-        max: 100
+      type: String,
+      required: true,
+      index: {
+        name: "host_id-index",
+        type: "global",
+        rangeKey: "travel_date"
       }
     },
-
-    languages: {
-      type: DataTypes.JSON,
-      allowNull: true,
-      defaultValue: []
+    from_country: {
+      type: String,
+      required: true
     },
-
+    from_state: {
+      type: String,
+      required: true
+    },
+    from_city: {
+      type: String,
+      required: true
+    },
+    to_country: {
+      type: String,
+      required: true,
+      index: {
+        name: "to_country-index",
+        type: "global",
+        rangeKey: "travel_date"
+      }
+    },
+    to_city: {
+      type: String,
+      required: true
+    },
+    travel_date: {
+      type: String,
+      required: true
+    },
+    departure_time: {
+      type: String,
+      required: true
+    },
+    arrival_date: { type: String },
+    arrival_time: { type: String },
+    airline: { type: String },
+    flight_number: { type: String },
+    age: { type: Number },
+    languages: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
     status: {
-      type: DataTypes.STRING,
-      defaultValue: "active"
-      // active, completed, cancelled
+      type: String,
+      default: "active",
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     }
   },
   {
-    tableName: "travel_trips",
-    timestamps: true,
-    underscored: true,
-
-    indexes: [
-      // 🔥 MAIN SEARCH INDEX
-      {
-        name: "idx_trip_search",
-        fields: ["from_country", "to_country", "travel_date", "status"]
-      },
-
-      // 🔥 HOST DASHBOARD
-      {
-        name: "idx_trip_host",
-        fields: ["host_id", "travel_date"]
-      },
-
-      // 🔥 STATUS FILTER
-      {
-        name: "idx_trip_status",
-        fields: ["status"]
-      },
-
-      // 🔥 DESTINATION QUICK FILTER
-      {
-        name: "idx_trip_destination",
-        fields: ["to_country", "to_city"]
-      }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-/* ======================================================
-   ASSOCIATIONS (THIS IS WHAT YOU WERE MISSING)
-   ====================================================== */
-
-// Each trip belongs to ONE host
-TravelTrip.belongsTo(Host, {
-  foreignKey: "host_id",
-  as: "host",
-  onDelete: "CASCADE"
-});
-
-// One host can have MANY trips
-Host.hasMany(TravelTrip, {
-  foreignKey: "host_id",
-  as: "trips"
-});
-
+const TravelTrip = dynamoose.model("TravelTrip", travelTripSchema);
 
 export default TravelTrip;

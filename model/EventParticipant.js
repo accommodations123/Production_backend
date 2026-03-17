@@ -1,42 +1,43 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
-import Event from "./Events.models.js";
-import User from "./User.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const EventParticipant = sequelize.define(
-  "EventParticipant",
+/* =====================================================================
+   EventParticipant Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const eventParticipantSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     event_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "event_id-index",
+        type: "global",
+        rangeKey: "user_id"
+      }
     },
-
     user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global"
+      }
     }
   },
   {
-    tableName: "event_participants",
-    timestamps: true,
-    underscored: true,
-
-    indexes: [
-      {
-        unique: true,
-        fields: ["event_id", "user_id"]
-      }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-EventParticipant.belongsTo(Event, { foreignKey: "event_id" });
-EventParticipant.belongsTo(User, { foreignKey: "user_id" });
+const EventParticipant = dynamoose.model("EventParticipant", eventParticipantSchema);
 
 export default EventParticipant;

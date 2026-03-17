@@ -1,5 +1,4 @@
 
-import { Op } from "sequelize";
 import Community from "../model/community/Community.js";
 import CommunityMember from "../model/community/CommunityMember.js";
 
@@ -9,24 +8,18 @@ import CommunityMember from "../model/community/CommunityMember.js";
 export const requireCommunityMember = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const communityId = Number(req.params.id);
+    const communityId = req.params.id;
 
-    if (!Number.isInteger(communityId)) {
+    if (!communityId) {
       return res.status(400).json({ message: "Invalid community id" });
     }
 
     /* =========================
        1️⃣ COMMUNITY CHECK
        ========================= */
-    const community = await Community.findOne({
-      where: {
-        id: communityId,
-        status: "active"
-      },
-      attributes: ["id"]
-    });
+    const community = await Community.get(communityId);
 
-    if (!community) {
+    if (!community || community.status !== "active") {
       return res.status(404).json({
         message: "Community not found or inactive"
       });
@@ -35,12 +28,8 @@ export const requireCommunityMember = async (req, res, next) => {
     /* =========================
        2️⃣ MEMBERSHIP CHECK
        ========================= */
-    const member = await CommunityMember.findOne({
-      where: {
-        community_id: communityId,
-        user_id: userId
-      }
-    });
+    const members = await CommunityMember.query("community_id").eq(communityId).exec();
+    const member = members.find(m => m.user_id === userId);
 
     if (!member) {
       return res.status(403).json({
@@ -70,20 +59,17 @@ export const requireCommunityMember = async (req, res, next) => {
 export const requireAdminOrOwner = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const communityId = Number(req.params.id);
+    const communityId = req.params.id;
 
-    if (!Number.isInteger(communityId)) {
+    if (!communityId) {
       return res.status(400).json({ message: "Invalid community id" });
     }
 
     // Reuse if already loaded
     if (!req.community) {
-      const community = await Community.findOne({
-        where: { id: communityId, status: "active" },
-        attributes: ["id"]
-      });
+      const community = await Community.get(communityId);
 
-      if (!community) {
+      if (!community || community.status !== "active") {
         return res.status(404).json({
           message: "Community not found or inactive"
         });
@@ -92,13 +78,8 @@ export const requireAdminOrOwner = async (req, res, next) => {
       req.community = community;
     }
 
-    const member = await CommunityMember.findOne({
-      where: {
-        community_id: communityId,
-        user_id: userId,
-        role: { [Op.in]: ["admin", "owner"] }
-      }
-    });
+    const members = await CommunityMember.query("community_id").eq(communityId).exec();
+    const member = members.find(m => m.user_id === userId && (m.role === "admin" || m.role === "owner"));
 
     if (!member) {
       return res.status(403).json({
@@ -116,5 +97,3 @@ export const requireAdminOrOwner = async (req, res, next) => {
     });
   }
 };
-
-

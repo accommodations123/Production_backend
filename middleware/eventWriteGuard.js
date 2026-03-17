@@ -4,38 +4,28 @@ import Event from "../model/Events.models.js";
 
 export const eventWriteGuard = async (req, res, next) => {
   try {
-    const eventId = Number(req.params.id);
-    const userId = Number(req.user.id);
+    const eventId = req.params.id;
+    const userId = req.user.id;
 
     if (!eventId) {
       return res.status(400).json({ message: "Invalid event id" });
     }
 
-    const event = await Event.findOne({
-      where: {
-        id: eventId,
-        is_deleted: false
-      },
-      include: [{
-        model: Host,
-        attributes: ["id", "user_id"]
-      }]
-    });
+    // DynamoDB: get by primary key, then manually check conditions
+    const event = await Event.get(eventId);
 
-    if (!event) {
+    if (!event || event.is_deleted) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    if (event.Host.user_id !== userId) {
+    // Manually fetch Host to check ownership
+    const host = await Host.get(event.host_id);
+    if (!host || host.user_id !== userId) {
       return res.status(403).json({ message: "You do not own this event" });
     }
 
-    // if (["approved", "rejected"].includes(event.status)) {
-    //   return res.status(400).json({
-    //     message: `Event cannot be modified when status is '${event.status}'`
-    //   });
-    // }
-
+    // Attach Host data to event for downstream use
+    event.Host = { id: host.id, user_id: host.user_id };
     req.event = event;
     req.eventHost = event.Host;
 
@@ -48,22 +38,16 @@ export const eventWriteGuard = async (req, res, next) => {
 
 export const eventParticipationGuard = async (req, res, next) => {
   try {
-    const eventId = Number(req.params.id);
+    const eventId = req.params.id;
 
     if (!eventId) {
       return res.status(400).json({ message: "Invalid event id" });
     }
 
-    const event = await Event.findOne({
-      where: {
-        id: eventId,
-        status: "approved",
-        is_deleted: false
-      },
-      attributes: ["id", "host_id"]
-    });
+    // DynamoDB: get by primary key, then check conditions
+    const event = await Event.get(eventId);
 
-    if (!event) {
+    if (!event || event.status !== "approved" || event.is_deleted) {
       return res.status(404).json({ message: "Event not available" });
     }
 

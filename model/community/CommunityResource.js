@@ -1,64 +1,57 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const CommunityResource = sequelize.define(
-  "CommunityResource",
+/* =====================================================================
+   CommunityResource Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const communityResourceSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     community_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "community_id-index",
+        type: "global"
+      }
     },
-
     added_by: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true
     },
-
     title: {
-      type: DataTypes.STRING(200),
-      allowNull: false
+      type: String,
+      required: true
     },
-
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
-
+    description: { type: String },
     resource_type: {
-      type: DataTypes.ENUM("link", "file", "contact"),
-      allowNull: false
+      type: String,
+      required: true,
+      enum: ["link", "file", "contact"]
     },
-
     resource_value: {
-      type: DataTypes.TEXT,
-      allowNull: false
-      /*
-        link → URL
-        file → CDN URL
-        contact → JSON string
-      */
+      type: String,
+      required: true
     },
-
     status: {
-      type: DataTypes.ENUM("active", "hidden", "deleted"),
-      defaultValue: "active"
+      type: String,
+      default: "active",
+      enum: ["active", "hidden", "deleted"]
     }
   },
   {
-    tableName: "community_resources",
-    timestamps: true,
-    underscored: true,
-    indexes: [
-      { fields: ["community_id"] },
-      { fields: ["resource_type"] }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
+
+const CommunityResource = dynamoose.model("CommunityResource", communityResourceSchema);
 
 export default CommunityResource;

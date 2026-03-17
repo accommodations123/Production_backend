@@ -1,131 +1,87 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import Job from "../carrer/Job.js";
-import User from "../User.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Application = sequelize.define(
-  "Application",
+/* =====================================================================
+   Application Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const applicationSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     job_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "job_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     },
-
     user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true
+      type: String,
+      index: {
+        name: "user_id-index",
+        type: "global"
+      }
     },
-
     first_name: {
-      type: DataTypes.STRING(100),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     last_name: {
-      type: DataTypes.STRING(100),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     email: {
-      type: DataTypes.STRING(150),
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "email-index",
+        type: "global"
+      }
     },
-
-    phone: {
-      type: DataTypes.STRING(30),
-      allowNull: true
-    },
-
-    linkedin_url: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-
-    portfolio_url: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-
+    phone: { type: String },
+    linkedin_url: { type: String },
+    portfolio_url: { type: String },
     resume_url: {
-      type: DataTypes.STRING,
-      allowNull: false
+      type: String,
+      required: true
     },
-
     experience: {
-      type: DataTypes.JSON,
-      defaultValue: []
+      type: Array,
+      schema: [Object],
+      default: []
     },
-
-    availability_date: {
-      type: DataTypes.DATE,
-      allowNull: true
-    },
-
-    /* ===== STATUS TRACKING ===== */
+    availability_date: { type: String },
     status: {
-      type: DataTypes.ENUM(
-        "submitted",
-        "viewed",
-        "shortlisted",
-        "interview",
-        "offer",
-        "rejected",
-        "withdrawn"
-      ),
-      defaultValue: "submitted"
+      type: String,
+      default: "submitted",
+      enum: ["submitted", "viewed", "shortlisted", "interview", "offer", "rejected", "withdrawn"],
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     },
-
     status_updated_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW
+      type: String,
+      default: () => new Date().toISOString()
     },
-
-    /* ===== VIEW TRACKING ===== */
-    last_viewed_at: {
-      type: DataTypes.DATE,
-      allowNull: true
-    },
-
-    viewed_by_admin: {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    }
+    last_viewed_at: { type: String },
+    viewed_by_admin: { type: String }
   },
   {
-    tableName: "applications",
-    timestamps: true,
-    underscored: true,
-    indexes: [
-      { fields: ["job_id"] },
-      { fields: ["status"] },
-      { fields: ["email"] },
-      { fields: ["last_viewed_at"] }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-
-/* RELATIONS */
-Application.belongsTo(Job, {
-  foreignKey: "job_id",
-  as: "job"
-});
-
-Job.hasMany(Application, {
-  foreignKey: "job_id",
-  as: "applications"
-});
-
-Application.belongsTo(User, {
-  foreignKey: "user_id",
-  as: "user"
-});
+const Application = dynamoose.model("Application", applicationSchema);
 
 export default Application;

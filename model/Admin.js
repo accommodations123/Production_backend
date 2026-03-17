@@ -1,163 +1,99 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
 /* =====================================================================
-   Admin Model — Production-Ready
-   - Account lockout after repeated failed login attempts
-   - Status management (active / suspended / deactivated)
-   - Last-login and password-change tracking
-   - Default scope hides password; use `.scope("withPassword")` when needed
-   - Paranoid mode (soft deletes)
+   Admin Model — DynamoDB (Dynamoose)
    ===================================================================== */
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 30;
 
-const Admin = sequelize.define(
-  "Admin",
+const adminSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     name: {
-      type: DataTypes.STRING(100),
-      allowNull: false,
-      validate: {
-        len: {
-          args: [2, 100],
-          msg: "Name must be between 2 and 100 characters"
-        }
-      }
+      type: String,
+      required: true
     },
-
     email: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-      unique: true,
-      validate: {
-        isEmail: { msg: "Must be a valid email address" }
+      type: String,
+      required: true,
+      index: {
+        name: "email-index",
+        type: "global"
       }
     },
-
     password: {
-      type: DataTypes.STRING(255),             // bcrypt output can be up to 60 chars, 255 for future-proofing
-      allowNull: false
+      type: String,
+      required: true
     },
-
     role: {
-      type: DataTypes.ENUM("super_admin", "admin", "recruiter"),
-      allowNull: false,
-      defaultValue: "admin",
-      validate: {
-        isIn: {
-          args: [["super_admin", "admin", "recruiter"]],
-          msg: "Invalid role"
-        }
-      }
+      type: String,
+      default: "admin",
+      enum: ["super_admin", "admin", "recruiter"]
     },
-
     status: {
-      type: DataTypes.ENUM("active", "suspended", "deactivated"),
-      allowNull: false,
-      defaultValue: "active"
+      type: String,
+      default: "active",
+      enum: ["active", "suspended", "deactivated"]
     },
-
-    // ── Security: Brute-force protection ────────────────────────────
     failed_login_attempts: {
-      type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: false,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
-    locked_until: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: null
-    },
-
-    // ── Tracking ────────────────────────────────────────────────────
-    last_login_at: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: null
-    },
-
-    password_changed_at: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: null
-    }
+    locked_until: { type: String },
+    last_login_at: { type: String },
+    password_changed_at: { type: String },
+    deleted_at: { type: String }   // soft delete
   },
   {
-    tableName: "admins",
-    timestamps: true,
-    underscored: true,
-    paranoid: true,                             // soft deletes via deleted_at
-
-    // ── Scopes ──────────────────────────────────────────────────────
-    defaultScope: {
-      attributes: { exclude: ["password"] }     // never leak password by default
-    },
-    scopes: {
-      withPassword: {
-        attributes: { include: ["password"] }   // opt-in for login flow
-      },
-      active: {
-        where: { status: "active" }
-      }
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
     }
   }
 );
 
+const Admin = dynamoose.model("Admin", adminSchema);
+
 /* =====================================================================
-   Instance Methods
+   Helper Functions (replacing instance methods)
    ===================================================================== */
 
-/**
- * Check if the account is currently locked out.
- */
-Admin.prototype.isLocked = function () {
-  if (!this.locked_until) return false;
-  return new Date(this.locked_until) > new Date();
-};
+export function isLocked(admin) {
+  if (!admin.locked_until) return false;
+  return new Date(admin.locked_until) > new Date();
+}
 
-/**
- * Increment failed attempts. Auto-lock after MAX_FAILED_ATTEMPTS.
- */
-Admin.prototype.incrementFailedAttempts = async function () {
-  const attempts = this.failed_login_attempts + 1;
+export async function incrementFailedAttempts(admin) {
+  const attempts = (admin.failed_login_attempts || 0) + 1;
   const updates = { failed_login_attempts: attempts };
 
   if (attempts >= MAX_FAILED_ATTEMPTS) {
     const lockUntil = new Date();
     lockUntil.setMinutes(lockUntil.getMinutes() + LOCKOUT_DURATION_MINUTES);
-    updates.locked_until = lockUntil;
+    updates.locked_until = lockUntil.toISOString();
   }
 
-  await this.update(updates);
+  await Admin.update({ id: admin.id }, updates);
   return attempts;
-};
+}
 
-/**
- * Reset failed attempt counter (call on successful login).
- */
-Admin.prototype.resetFailedAttempts = async function () {
-  if (this.failed_login_attempts > 0 || this.locked_until) {
-    await this.update({
+export async function resetFailedAttempts(admin) {
+  if (admin.failed_login_attempts > 0 || admin.locked_until) {
+    await Admin.update({ id: admin.id }, {
       failed_login_attempts: 0,
       locked_until: null
     });
   }
-};
+}
 
-/**
- * Record a successful login timestamp.
- */
-Admin.prototype.recordLogin = async function () {
-  await this.update({ last_login_at: new Date() });
-};
+export async function recordLogin(admin) {
+  await Admin.update({ id: admin.id }, { last_login_at: new Date().toISOString() });
+}
 
 export default Admin;

@@ -47,7 +47,10 @@ export const googleCallback = async (req, res) => {
       res.redirect("https://nextkinlife.live");
     }
 
-    let user = await User.findOne({ where: { email } });
+    // Query by email GSI
+    const existingUsers = await User.query("email").eq(email).exec();
+    let user = existingUsers[0] || null;
+
     if (!user) {
       user = await User.create({
         email,
@@ -84,9 +87,6 @@ export const googleCallback = async (req, res) => {
 
 export const getMe = (req, res) => {
   try {
-    // userAuth middleware already validated the cookie
-    // and attached the user to req.user
-
     if (!req.user) {
       return res.status(401).json({
         loggedIn: false

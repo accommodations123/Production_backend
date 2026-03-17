@@ -8,12 +8,13 @@ import { logAudit } from "../services/auditLogger.js";
 import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
+
 // Save host details
 export const saveHost = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const user = await User.findByPk(userId);
+    const user = await User.get(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -31,14 +32,14 @@ export const saveHost = async (req, res) => {
       });
     }
 
-    const existing = await Host.findOne({ where: { user_id: userId } });
-    if (existing) {
+    // Check if host already exists
+    const existingHosts = await Host.query("user_id").eq(userId).exec();
+    if (existingHosts.length > 0) {
       return res.status(400).json({ message: "Host profile already exists" });
     }
 
     const { latitude, longitude } = req.body;
 
-    // ✅ FIX: Initialize with manual inputs from req.body FIRST
     let location = {
       country: req.body.country || null,
       state: req.body.state || null,
@@ -47,7 +48,7 @@ export const saveHost = async (req, res) => {
       street_address: req.body.street_address || null
     };
 
-    // 1. GPS-based resolution (Only used if manual location is MISSING)
+    // 1. GPS-based resolution
     if ((!location.country || !location.state || !location.city) && latitude && longitude) {
       const response = await axios.get(
         "https://nominatim.openstreetmap.org/reverse",
@@ -59,7 +60,6 @@ export const saveHost = async (req, res) => {
       );
 
       const addr = response.data.address || {};
-
       location = {
         country: addr.country || location.country,
         state: addr.state || location.state,
@@ -69,12 +69,9 @@ export const saveHost = async (req, res) => {
       };
     }
 
-    // 2. IP fallback (Only used if location is STILL missing)
+    // 2. IP fallback
     if (!location.country) {
-      const ip =
-        req.headers["x-forwarded-for"]?.split(",")[0] ||
-        req.socket.remoteAddress;
-
+      const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.socket.remoteAddress;
       const geo = geoip.lookup(ip);
       if (geo) {
         location = {
@@ -95,7 +92,6 @@ export const saveHost = async (req, res) => {
       });
     }
 
-    // ⚠️ Note: Fixed 'whatsapp' typo to 'whatsapp'
     const data = await Host.create({
       user_id: userId,
       email,
@@ -106,7 +102,7 @@ export const saveHost = async (req, res) => {
       city: location.city,
       zip_code: location.zip_code,
       street_address: location.street_address,
-      whatsapp: req.body.whatsapp, // Fixed typo (was req.body.whatsapp)
+      whatsapp: req.body.whatsapp,
       instagram: req.body.instagram,
       facebook: req.body.facebook,
     });
@@ -117,7 +113,6 @@ export const saveHost = async (req, res) => {
       host_id: data.id,
       country: data.country,
       state: data.state,
-
     }).catch(err => {
       console.error("ANALYTICS HOST_CREATED FAILED:", err);
     });
@@ -131,7 +126,6 @@ export const saveHost = async (req, res) => {
       console.error("AUDIT LOG FAILED", err);
     });
 
-    // Invalidate caches
     await deleteCacheByPrefix(`host:${userId}`);
     await deleteCacheByPrefix("pending_hosts");
     await deleteCacheByPrefix("property:");
@@ -157,7 +151,7 @@ export const updateHost = async (req, res) => {
     const hostId = req.params.id;
     const userId = req.user.id;
 
-    const host = await Host.findByPk(hostId);
+    const host = await Host.get(hostId);
     if (!host) {
       return res.status(404).json({
         success: false,
@@ -180,8 +174,7 @@ export const updateHost = async (req, res) => {
       });
     }
 
-    // Fetch user (for profile updates)
-    const user = await User.findByPk(userId);
+    const user = await User.get(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -189,9 +182,7 @@ export const updateHost = async (req, res) => {
       });
     }
 
-    /* ===============================
-       HOST UPDATES
-    =============================== */
+    /* HOST UPDATES */
     const hostUpdates = {
       full_name: req.body.full_name ?? host.full_name,
       phone: req.body.phone ?? host.phone,
@@ -205,57 +196,48 @@ export const updateHost = async (req, res) => {
       facebook: req.body.facebook ?? host.facebook
     };
 
-    await host.update(hostUpdates);
+    await Host.update({ id: hostId }, hostUpdates);
 
-    /* ===============================
-       USER PROFILE IMAGE UPDATE
-    =============================== */
+    /* USER PROFILE IMAGE UPDATE */
     if (req.file?.location) {
-      await user.update({
-        profile_image: req.file.location
-      });
+      await User.update({ id: userId }, { profile_image: req.file.location });
     }
+
     AnalyticsEvent.create({
       event_type: "HOST_UPDATED",
       user_id: userId,
       host_id: host.id,
       country: host.country,
       state: host.state,
-      metadata: {
-        fields_updated: Object.keys(req.body)
-      },
-
+      metadata: { fields_updated: Object.keys(req.body) },
     }).catch(err => {
       console.error("ANALYTICS HOST_UPDATED FAILED:", err);
     });
+
     logAudit({
       action: "HOST_UPDATED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
       req,
-      metadata: {
-        fields: Object.keys(req.body)
-      }
+      metadata: { fields: Object.keys(req.body) }
     }).catch(console.error);
 
-
-
-    /* ===============================
-       CACHE INVALIDATION
-    =============================== */
     await deleteCacheByPrefix(`host:${userId}`);
     await deleteCacheByPrefix("pending_hosts");
     await deleteCacheByPrefix("property:");
     await deleteCacheByPrefix(`user:${userId}`);
 
+    const updatedHost = await Host.get(hostId);
+    const updatedUser = await User.get(userId);
+
     return res.json({
       success: true,
       message: "Profile updated successfully",
       data: {
-        host,
+        host: updatedHost,
         user: {
-          id: user.id,
-          profile_image: attachCloudFrontUrl(user.profile_image)
+          id: updatedUser.id,
+          profile_image: attachCloudFrontUrl(updatedUser.profile_image)
         }
       }
     });
@@ -272,7 +254,6 @@ export const updateHost = async (req, res) => {
 
 
 // Get host data for logged-in user
-
 export const getMyHost = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -284,19 +265,8 @@ export const getMyHost = async (req, res) => {
       return res.json({ success: true, data: cached });
     }
 
-    const host = await Host.findOne({
-      where: { user_id: userId },
-      include: [
-        {
-          model: User,
-          attributes: [
-            "id",
-            "email",
-            "profile_image"
-          ]
-        }
-      ]
-    });
+    const hosts = await Host.query("user_id").eq(userId).exec();
+    const host = hosts.length > 0 ? hosts[0] : null;
 
     if (!host) {
       return res.status(404).json({
@@ -305,14 +275,15 @@ export const getMyHost = async (req, res) => {
       });
     }
 
-    // 🔹 Normalize response (frontend-friendly)
+    // Fetch user for profile image
+    const user = await User.get(host.user_id);
+
     const response = {
-      ...host.toJSON(),
-      profile_image: attachCloudFrontUrl(host.User?.profile_image || null),
-      email: host.User?.email || null
+      ...host,
+      profile_image: attachCloudFrontUrl(user?.profile_image || null),
+      email: user?.email || null
     };
 
-    // Cache normalized response
     await setCache(cacheKey, response, 300);
 
     return res.json({
@@ -335,36 +306,30 @@ export const getPendingHosts = async (req, res) => {
   try {
     const { country, state } = req.query;
 
-
-    // ✅ Location-aware cache key
     const cacheKey = `pending_hosts:${country || "all"}:${state || "all"}`;
     const cached = await getCache(cacheKey);
     if (cached) {
       return res.json({ success: true, hosts: cached });
     }
 
-    // ✅ Build where clause FIRST
-    const where = { status: "pending" };
+    // Query by status GSI
+    let results = await Host.query("status").eq("pending").exec();
 
-    if (country) where.country = country;
-    if (state) where.state = state;
+    // Client-side filter for country/state
+    if (country) results = results.filter(h => h.country === country);
+    if (state) results = results.filter(h => h.state === state);
 
-    const hosts = await Host.findAll({
-      where,
-      include: [
-        {
-          model: User,
-          attributes: ["id", "email"]
-        }
-      ],
-      order: [["created_at", "DESC"]]
-    });
+    // Sort by created_at DESC
+    results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
+    // Fetch user data for each host
+    const processedHosts = await Promise.all(results.map(async (host) => {
+      const user = await User.get(host.user_id);
+      const hostObj = { ...host };
+      hostObj.User = user ? { id: user.id, email: user.email } : null;
+      return processHostImages(hostObj);
+    }));
 
-    // ✅ Process hosts before caching and sending
-    const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
-
-    // ✅ Cache per location
     await setCache(cacheKey, processedHosts, 300);
 
     return res.json({ success: true, hosts: processedHosts });
@@ -379,26 +344,29 @@ export const getPendingHosts = async (req, res) => {
 // approve host
 export const approveHost = async (req, res) => {
   try {
-    const host = await Host.findByPk(req.params.id, {
-      include: [{ model: User, attributes: ["email"] }]
-    });
+    const host = await Host.get(req.params.id);
     if (!host) {
       return res.status(404).json({ message: "Not found" });
     }
 
-    host.status = "approved";
-    host.rejection_reason = "";
-    await host.save();
+    await Host.update({ id: host.id }, {
+      status: "approved",
+      rejection_reason: ""
+    });
+
+    // Fetch user email
+    const user = await User.get(host.user_id);
+
     AnalyticsEvent.create({
       event_type: "HOST_APPROVED",
-      user_id: req.admin?.id || null,   // approving admin
+      user_id: req.admin?.id || null,
       host_id: host.id,
       country: host.country,
       state: host.state,
-
     }).catch(err => {
       console.error("ANALYTICS HOST_APPROVED FAILED:", err);
     });
+
     logAudit({
       action: "HOST_PROFILE_APPROVED",
       actor: { id: req.admin?.id || "system", role: "admin" },
@@ -407,15 +375,15 @@ export const approveHost = async (req, res) => {
       req
     }).catch(console.error);
 
-    // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
+
     // ✅ notify host user
     try {
-      if (host.User?.email) {
+      if (user?.email) {
         await notifyAndEmail({
           userId: host.user_id,
-          email: host.User.email,
+          email: user.email,
           type: NOTIFICATION_TYPES.HOST_APPROVED,
           title: "Host approved",
           message: "Your host profile has been approved.",
@@ -436,62 +404,60 @@ export const approveHost = async (req, res) => {
 // reject host
 export const rejectHost = async (req, res) => {
   try {
-    const host = await Host.findByPk(req.params.id, {
-      include: [{ model: User, attributes: ["email"] }]
-    });
+    const host = await Host.get(req.params.id);
     if (!host) {
       return res.status(404).json({ message: "Not found" });
     }
 
-    host.status = "rejected";
-    host.rejection_reason = req.body.reason || "";
-    await host.save();
+    const rejection_reason = req.body.reason || "";
+
+    await Host.update({ id: host.id }, {
+      status: "rejected",
+      rejection_reason
+    });
+
+    const user = await User.get(host.user_id);
+
     AnalyticsEvent.create({
       event_type: "HOST_REJECTED",
       user_id: req.admin?.id || "system",
       host_id: host.id,
       country: host.country || null,
       state: host.state || null,
-      metadata: {
-        reason: host.rejection_reason
-      },
+      metadata: { reason: rejection_reason },
     }).catch(err => {
       console.error("ANALYTICS HOST_REJECTED FAILED:", err);
     });
+
     logAudit({
       action: "HOST_REJECTED",
       actor: req.auditActor,
       target: { type: "host", id: host.id },
       severity: "HIGH",
       req,
-      metadata: {
-        reason: host.rejection_reason
-      }
+      metadata: { reason: rejection_reason }
     }).catch(console.error);
 
-
-
-    // Clear caches
     await deleteCacheByPrefix(`host:${host.user_id}`);
     await deleteCacheByPrefix("pending_hosts");
+
     try {
-      if (host.User?.email) {
+      if (user?.email) {
         await notifyAndEmail({
           userId: host.user_id,
-          email: host.User.email,
+          email: user.email,
           type: NOTIFICATION_TYPES.HOST_REJECTED,
           title: "Host application rejected",
           message: "Your host application was rejected. Please review our guidelines.",
           metadata: {
             hostId: host.id,
-            reason: host.rejection_reason
+            reason: rejection_reason
           }
         });
       }
     } catch (err) {
       console.error("Failed to notify user:", err);
     }
-
 
     return res.json({
       success: true,
@@ -513,22 +479,19 @@ export const getApprovedHosts = async (req, res) => {
       return res.json({ success: true, hosts: cached });
     }
 
-    const where = { status: "approved" };
-    if (country) where.country = country;
-    if (state) where.state = state;
+    let results = await Host.query("status").eq("approved").exec();
 
-    const hosts = await Host.findAll({
-      where,
-      include: [
-        {
-          model: User,
-          attributes: ["id", "email", "profile_image"]
-        }
-      ],
-      order: [["updated_at", "DESC"]]
-    });
+    if (country) results = results.filter(h => h.country === country);
+    if (state) results = results.filter(h => h.state === state);
 
-    const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+    results.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+    const processedHosts = await Promise.all(results.map(async (host) => {
+      const user = await User.get(host.user_id);
+      const hostObj = { ...host };
+      hostObj.User = user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null;
+      return processHostImages(hostObj);
+    }));
 
     await setCache(cacheKey, processedHosts, 300);
 
@@ -550,25 +513,19 @@ export const getRejectedHosts = async (req, res) => {
       return res.json({ success: true, hosts: cached });
     }
 
-    const where = { status: "rejected" };
-    if (country) where.country = country;
-    if (state) where.state = state;
+    let results = await Host.query("status").eq("rejected").exec();
 
-    const hosts = await Host.findAll({
-      where,
-      attributes: {
-        include: ["rejection_reason"]
-      },
-      include: [
-        {
-          model: User,
-          attributes: ["id", "email", "profile_image"]
-        }
-      ],
-      order: [["updated_at", "DESC"]]
-    });
+    if (country) results = results.filter(h => h.country === country);
+    if (state) results = results.filter(h => h.state === state);
 
-    const processedHosts = hosts.map(host => processHostImages(host.toJSON()));
+    results.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+    const processedHosts = await Promise.all(results.map(async (host) => {
+      const user = await User.get(host.user_id);
+      const hostObj = { ...host };
+      hostObj.User = user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null;
+      return processHostImages(hostObj);
+    }));
 
     await setCache(cacheKey, processedHosts, 300);
 

@@ -1,64 +1,56 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../config/db.js';
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const User = sequelize.define('User', {
-  id: { 
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
-  },
-  email: {
-    type: DataTypes.STRING,
-    unique: true,
-    allowNull: true
-  },
-  otp: {
-    type: DataTypes.STRING
-  },
-  // phone: {
-  //   type: DataTypes.STRING(20),
-  //   unique:true,
-  //   allowNull:true
-  // },
-  otpExpires: {
-    type: DataTypes.DATE,
-    field: 'otp_expires',
-    allowNull: true
-  },
-  verified: { 
-    type: DataTypes.BOOLEAN,
-    defaultValue: false 
-  },
-  /* =========================
-     🔹 ADDED FOR GOOGLE OAUTH
-  ========================= */
+/* =====================================================================
+   User Model — DynamoDB (Dynamoose)
+   ===================================================================== */
 
-  name: {
-    type: DataTypes.STRING(150),
-    allowNull: true
-  },
-
-  profile_image: {
-    type: DataTypes.STRING(255),
-    allowNull: true
-  },
-
-  google_id: {
-    type: DataTypes.STRING(100),
-    allowNull: true,
-    unique: true
-  }
-}, {
-  tableName: 'users',
-  timestamps: true,
-  underscored: true,
-  validate: {
-    emailOrPhoneRequired() {
-      if (!this.email && !this.phone) {
-        throw new Error('Either email or phone required')
+const userSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    email: {
+      type: String,
+      index: {
+        name: "email-index",
+        type: "global"
+      }
+    },
+    otp: {
+      type: String
+    },
+    otp_expires: {
+      type: String // ISO date string
+    },
+    verified: {
+      type: Boolean,
+      default: false
+    },
+    name: {
+      type: String
+    },
+    profile_image: {
+      type: String
+    },
+    google_id: {
+      type: String,
+      index: {
+        name: "google_id-index",
+        type: "global"
       }
     }
+  },
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
-});
+);
+
+const User = dynamoose.model("User", userSchema);
 
 export default User;

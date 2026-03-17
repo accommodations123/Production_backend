@@ -5,11 +5,13 @@ import Notification from "../model/Notification.js";
 ====================================================== */
 export const getMyNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.findAll({
-      where: { user_id: req.user.id },
-      order: [["created_at", "DESC"]],
-      limit: 50
-    });
+    // Query by user_id GSI
+    let notifications = await Notification.query("user_id").eq(req.user.id).exec();
+
+    // Client-side sort by created_at DESC + limit 50
+    notifications = notifications
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 50);
 
     return res.json({
       success: true,
@@ -26,19 +28,13 @@ export const getMyNotifications = async (req, res) => {
 ====================================================== */
 export const markNotificationRead = async (req, res) => {
   try {
-    const notification = await Notification.findOne({
-      where: {
-        id: req.params.id,
-        user_id: req.user.id
-      }
-    });
+    const notification = await Notification.get(req.params.id);
 
-    if (!notification) {
+    if (!notification || notification.user_id !== req.user.id) {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    notification.is_read = true;
-    await notification.save();
+    await Notification.update({ id: notification.id }, { is_read: true });
 
     return res.json({ success: true });
   } catch (err) {
@@ -52,9 +48,13 @@ export const markNotificationRead = async (req, res) => {
 ====================================================== */
 export const markAllNotificationsRead = async (req, res) => {
   try {
-    await Notification.update(
-      { is_read: true },
-      { where: { user_id: req.user.id, is_read: false } }
+    // Get all unread notifications for this user
+    const notifications = await Notification.query("user_id").eq(req.user.id).exec();
+    const unread = notifications.filter(n => !n.is_read);
+
+    // Batch update
+    await Promise.all(
+      unread.map(n => Notification.update({ id: n.id }, { is_read: true }))
     );
 
     return res.json({ success: true });
@@ -67,20 +67,13 @@ export const markAllNotificationsRead = async (req, res) => {
 
 export const deleteNotification = async (req, res) => {
   try {
-    const notification = await Notification.findOne({
-      where: {
-        id: req.params.id,
-        user_id: req.user.id,
-        is_deleted: false
-      }
-    });
+    const notification = await Notification.get(req.params.id);
 
-    if (!notification) {
+    if (!notification || notification.user_id !== req.user.id || notification.is_deleted) {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    notification.is_deleted = true;
-    await notification.save();
+    await Notification.update({ id: notification.id }, { is_deleted: true });
 
     return res.json({ success: true });
   } catch (err) {
@@ -91,14 +84,11 @@ export const deleteNotification = async (req, res) => {
 
 export const deleteAllNotifications = async (req, res) => {
   try {
-    await Notification.update(
-      { is_deleted: true },
-      {
-        where: {
-          user_id: req.user.id,
-          is_deleted: false
-        }
-      }
+    const notifications = await Notification.query("user_id").eq(req.user.id).exec();
+    const active = notifications.filter(n => !n.is_deleted);
+
+    await Promise.all(
+      active.map(n => Notification.update({ id: n.id }, { is_deleted: true }))
     );
 
     return res.json({ success: true });

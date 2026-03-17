@@ -1,86 +1,50 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import Application from "../carrer/Application.js";
-import User from "../User.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const ApplicationStatusHistory = sequelize.define(
-  "ApplicationStatusHistory",
+/* =====================================================================
+   ApplicationStatusHistory Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const applicationStatusHistorySchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     application_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "application_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     },
-
-    /* ===== STATUS TRANSITION ===== */
     from_status: {
-      type: DataTypes.STRING(30),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     to_status: {
-      type: DataTypes.STRING(30),
-      allowNull: false
+      type: String,
+      required: true
     },
-
-    /* ===== ACTOR (ROLE-AGNOSTIC) ===== */
-    acted_by_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    },
-
+    acted_by_id: { type: String },
     acted_by_role: {
-      type: DataTypes.ENUM(
-        "admin",
-        "recruiter",
-        "interviewer",
-        "system",
-        "user"
-      ),
-      allowNull: false,
-      defaultValue: "admin"
+      type: String,
+      default: "admin",
+      enum: ["admin", "recruiter", "interviewer", "system", "user"]
     },
-
-    /* ===== OPTIONAL INTERNAL NOTES ===== */
-    notes: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    }
+    notes: { type: String }
   },
   {
-    tableName: "application_status_history",
-    timestamps: true,
-    underscored: true,
-    indexes: [
-      { fields: ["application_id"] },
-      { fields: ["to_status"] },
-      { fields: ["acted_by_role"] }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-/* ================= RELATIONS ================= */
-
-// One application → many status history entries
-Application.hasMany(ApplicationStatusHistory, {
-  foreignKey: "application_id",
-  as: "status_history"
-});
-
-ApplicationStatusHistory.belongsTo(Application, {
-  foreignKey: "application_id",
-  as: "application"
-});
-
-// Actor reference (works for admin, recruiter, interviewer, user)
-ApplicationStatusHistory.belongsTo(User, {
-  foreignKey: "acted_by_id",
-  as: "actor"
-});
+const ApplicationStatusHistory = dynamoose.model("ApplicationStatusHistory", applicationStatusHistorySchema);
 
 export default ApplicationStatusHistory;

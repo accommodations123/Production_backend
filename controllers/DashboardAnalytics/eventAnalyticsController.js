@@ -1,4 +1,3 @@
-import sequelize from "../../config/db.js";
 import { getCache, setCache } from "../../services/cacheService.js";
 /* =========================================================
    EVENT ANALYTICS SUMMARY (LAST 30 DAYS)

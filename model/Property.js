@@ -1,127 +1,109 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../config/db.js';
-import Host from './Host.js';
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Property = sequelize.define('Property', {
+/* =====================================================================
+   Property Model — DynamoDB (Dynamoose)
+   ===================================================================== */
 
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
+const propertySchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    user_id: {
+      type: String,
+      required: true
+    },
+    host_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "host_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    category_id: { type: String },
+    property_type: { type: String },
+    privacy_type: { type: String },
+    guests: { type: Number },
+    bedrooms: { type: Number },
+    bathrooms: { type: Number },
+    pets_allowed: { type: Number },
+    area: { type: Number },
+    title: { type: String },
+    description: { type: String },
+    country: {
+      type: String,
+      index: {
+        name: "country-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    state: { type: String },
+    city: { type: String },
+    zip_code: { type: String },
+    street_address: { type: String },
+    photos: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    video: { type: String },
+    amenities: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    rules: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    price_per_hour: { type: Number },
+    price_per_night: { type: Number },
+    price_per_month: { type: Number },
+    currency: {
+      type: String,
+      default: "USD"
+    },
+    status: {
+      type: String,
+      default: "draft",
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    rejection_reason: {
+      type: String,
+      default: ""
+    },
+    is_deleted: {
+      type: Boolean,
+      default: false
+    },
+    deleted_at: { type: String },
+    deleted_by: { type: String },
+    delete_reason: { type: String },
+    listing_expires_at: { type: String },
+    is_expired: {
+      type: Boolean,
+      default: false
+    }
   },
-  user_id: {                         // 🔥 THIS IS MISSING
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  host_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  category_id: DataTypes.STRING,
-  property_type: DataTypes.STRING,
-  privacy_type: DataTypes.STRING,
-
-  guests: DataTypes.INTEGER,
-  bedrooms: DataTypes.INTEGER,
-  bathrooms: DataTypes.INTEGER,
-  pets_allowed: DataTypes.INTEGER,
-  area: DataTypes.INTEGER,
-
-  title: DataTypes.STRING,
-  description: DataTypes.TEXT,
-
-  country: DataTypes.STRING,
-  state: {                        // ✅ ADDED
-    type: DataTypes.STRING(100),
-    allowNull: true
-  },
-  city: DataTypes.STRING,
-  zip_code: {
-    type: DataTypes.STRING(20),
-    allowNull: true
-  },
-  street_address: {               // ✅ ADDED
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-
-  photos: DataTypes.JSON,
-  video: DataTypes.STRING,
-
-  amenities: DataTypes.JSON,
-  rules: DataTypes.JSON,
-  // legal_docs: DataTypes.JSON,
-
-  price_per_hour: DataTypes.DECIMAL(10, 2),
-  price_per_night: DataTypes.DECIMAL(10, 2),
-  price_per_month: DataTypes.DECIMAL(10, 2),
-
-  currency: {
-    type: DataTypes.STRING,
-    defaultValue: 'USD'
-  },
-
-  status: {
-    type: DataTypes.STRING,
-    defaultValue: 'draft'
-  },
-
-  rejection_reason: {
-    type: DataTypes.TEXT,
-    defaultValue: ''
-  },
-  is_deleted: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
-  deleted_at: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  deleted_by: {
-    type: DataTypes.INTEGER,
-    allowNull: true
-  },
-  delete_reason: {
-    type: DataTypes.STRING,
-    allowNull: true
-  }, listing_expires_at: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-
-  is_expired: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
+);
 
-
-}, {
-  tableName: 'properties',
-  timestamps: true,
-  underscored: true,
-
-
-  //  indexes
-  indexes: [
-    { fields: ["host_id"] },
-    { fields: ["status"] },
-    { fields: ["country"] },
-    { fields: ["country", "state"] },
-    { fields: ["country", "state", "city"] },
-    { fields: ["country", "state", "city", "zip_code"] },
-    { fields: ["is_deleted"] },
-    { fields: ["listing_expires_at"] },
-    { fields: ["is_expired"] }
-
-  ]
-
-});
-
-Property.belongsTo(Host, { foreignKey: 'host_id' });
-Host.hasMany(Property, { foreignKey: 'host_id' });
-
+const Property = dynamoose.model("Property", propertySchema);
 
 export default Property;

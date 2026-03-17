@@ -1,87 +1,69 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../config/db.js';
-import User from './User.js';
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Host = sequelize.define('Host', {
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
-  },
+/* =====================================================================
+   Host Model — DynamoDB (Dynamoose)
+   ===================================================================== */
 
-  user_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+const hostSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    user_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global"
+      }
+    },
+    email: { type: String },
+    phone: { type: String },
+    full_name: {
+      type: String,
+      required: true
+    },
+    country: {
+      type: String,
+      required: true,
+      index: {
+        name: "country-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    state: { type: String },
+    city: { type: String },
+    zip_code: { type: String },
+    street_address: { type: String },
+    whatsapp: { type: String },
+    facebook: { type: String },
+    instagram: { type: String },
+    status: {
+      type: String,
+      default: "pending",
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    rejection_reason: {
+      type: String,
+      default: ""
+    }
   },
-
-  email: DataTypes.STRING,
-  phone: DataTypes.STRING,
-
-  full_name: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  country: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  state: {                      // ✅ ADDED
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
-  city: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  zip_code: {
-    type: DataTypes.STRING(20),
-    allowNull: true
-  },
-  street_address: {             // ✅ ADDED
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-
-
-  // 🔹 Communication channels
-  whatsapp: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  facebook: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-
-  instagram: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  status: {
-    type: DataTypes.STRING,
-    defaultValue: "pending"   // pending, approved, rejected
-  },
-  rejection_reason: {
-    type: DataTypes.TEXT,
-    defaultValue: ""
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
+);
 
-}, {
-  tableName: 'hosts',
-  timestamps: true,
-  underscored: true,
-  indexes: [
-    { fields: ["country"] },
-    { fields: ["country", "state"] },
-    { fields: ["country", "state", "city"] },
-    { fields: ["country", "state", "city", "zip_code"] }
-  ]
-
-});
-
-// Relationship
-Host.belongsTo(User, { foreignKey: 'user_id' });
-User.hasOne(Host, { foreignKey: 'user_id' });
+const Host = dynamoose.model("Host", hostSchema);
 
 export default Host;

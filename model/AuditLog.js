@@ -1,62 +1,45 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const AuditLog = sequelize.define("AuditLog", {
-  id: {
-    type: DataTypes.BIGINT.UNSIGNED,
-    primaryKey: true,
-    autoIncrement: true
+/* =====================================================================
+   AuditLog Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const auditLogSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    action: {
+      type: String,
+      required: true
+    },
+    severity: {
+      type: String,
+      default: "LOW",
+      enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    actor_id: { type: String },
+    actor_role: { type: String },
+    actor_user_id: { type: String },
+    actor_host_id: { type: String },
+    actor_admin_id: { type: String },
+    target_type: { type: String },
+    target_id: { type: String },
+    ip_address: { type: String },
+    user_agent: { type: String },
+    metadata: { type: Object }
   },
-
-  action: {
-    type: DataTypes.STRING(64),
-    allowNull: false
-  },
-
-  severity: {
-    type: DataTypes.ENUM("LOW", "MEDIUM", "HIGH", "CRITICAL"),
-    allowNull: false,
-    defaultValue: "LOW"
-  },
-
-  actor_id: {
-    type: DataTypes.BIGINT.UNSIGNED,
-    allowNull: true
-  },
-
-  actor_role: {
-    type: DataTypes.STRING(32),
-    allowNull: true
-  },
-
-  target_type: {
-    type: DataTypes.STRING(64),
-    allowNull: true
-  },
-
-  target_id: {
-    type: DataTypes.BIGINT.UNSIGNED,
-    allowNull: true
-  },
-
-  ip_address: {
-    type: DataTypes.STRING(45),
-    allowNull: true
-  },
-
-  user_agent: {
-    type: DataTypes.STRING(255),
-    allowNull: true
-  },
-
-  metadata: {
-    type: DataTypes.JSON,
-    allowNull: true
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
-}, {
-  tableName: "audit_logs",
-  timestamps: true
-});
+);
 
+const AuditLog = dynamoose.model("AuditLog", auditLogSchema);
 
 export default AuditLog;

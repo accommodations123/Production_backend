@@ -1,84 +1,52 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../../config/db.js';
-import TravelTrip from './TravelTrip.js';
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const TravelMatch = sequelize.define('TravelMatch', {
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
+/* =====================================================================
+   TravelMatch Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const travelMatchSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    trip_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "trip_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    matched_trip_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "matched_trip_id-index",
+        type: "global",
+        rangeKey: "status"
+      }
+    },
+    status: {
+      type: String,
+      default: "pending"
+    },
+    consent_given: {
+      type: Boolean,
+      default: false
+    }
   },
-
-  trip_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  matched_trip_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  status: {
-    type: DataTypes.STRING,
-    defaultValue: 'pending'
-    // pending, accepted, rejected, cancelled
-  },
-
-  consent_given: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
+);
 
-}, {
-  tableName: 'travel_matches',
-  timestamps: true,
-  underscored: true,
-
-  uniqueKeys: {
-    unique_trip_pair: {
-      fields: ['trip_id', 'matched_trip_id']
-    }
-  },
-
-  indexes: [
-    // 🔥 Find my outgoing requests
-    {
-      name: 'idx_match_trip',
-      fields: ['trip_id']
-    },
-
-    // 🔥 Find incoming requests (MOST USED)
-    {
-      name: 'idx_match_matched_trip',
-      fields: ['matched_trip_id']
-    },
-
-    // 🔥 Pending requests list
-    {
-      name: 'idx_match_status',
-      fields: ['matched_trip_id', 'status']
-    },
-
-    // 🔥 Accept / cancel lookup
-    {
-      name: 'idx_match_pair_status',
-      fields: ['trip_id', 'matched_trip_id', 'status']
-    }
-  ]
-});
-
-// 🔒 ALIASED RELATIONS (CRITICAL)
-TravelMatch.belongsTo(TravelTrip, {
-  foreignKey: 'trip_id',
-  as: 'requesterTrip',
-  onDelete: 'CASCADE'
-});
-
-TravelMatch.belongsTo(TravelTrip, {
-  foreignKey: 'matched_trip_id',
-  as: 'receiverTrip',
-  onDelete: 'CASCADE'
-});
+const TravelMatch = dynamoose.model("TravelMatch", travelMatchSchema);
 
 export default TravelMatch;

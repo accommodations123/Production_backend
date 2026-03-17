@@ -1,97 +1,60 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
-import Event from "./Events.models.js";
-import User from "./User.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const EventReview = sequelize.define(
-  "EventReview",
+/* =====================================================================
+   EventReview Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const eventReviewSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     event_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-
-    user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-
-    // Snapshot of reviewer name at the time of review
-    reviewer_name: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-
-    rating: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      validate: {
-        min: 1,
-        max: 5
+      type: String,
+      required: true,
+      index: {
+        name: "event_id-index",
+        type: "global",
+        rangeKey: "created_at"
       }
     },
-
-    comment: {
-      type: DataTypes.TEXT,
-      allowNull: false
+    user_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global"
+      }
     },
-
-    // For future moderation / admin control
+    reviewer_name: {
+      type: String,
+      required: true
+    },
+    rating: {
+      type: Number,
+      required: true
+    },
+    comment: {
+      type: String,
+      required: true
+    },
     status: {
-      type: DataTypes.ENUM("active", "hidden", "reported"),
-      defaultValue: "active"
+      type: String,
+      default: "active",
+      enum: ["active", "hidden", "reported"]
     }
   },
   {
-    tableName: "event_reviews",
-    timestamps: true,
-    underscored: true,
-
-   indexes: [
-  {
-    unique: true,
-    fields: ["event_id", "user_id"]
-  },
-  {
-    fields: ["event_id", "status"]
-  },
-  {
-    fields: ["status"]
-  },
-  {
-    fields: ["created_at"]
-  }
-]
-
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-/* =========================
-   Associations
-========================= */
-
-EventReview.belongsTo(Event, {
-  foreignKey: "event_id",
-  onDelete: "CASCADE"
-});
-
-Event.hasMany(EventReview, {
-  foreignKey: "event_id"
-});
-
-EventReview.belongsTo(User, {
-  foreignKey: "user_id",
-  onDelete: "CASCADE"
-});
-
-User.hasMany(EventReview, {
-  foreignKey: "user_id"
-});
+const EventReview = dynamoose.model("EventReview", eventReviewSchema);
 
 export default EventReview;

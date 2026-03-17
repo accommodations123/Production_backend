@@ -11,11 +11,22 @@ import User from "../../model/User.js";
 import { attachCloudFrontUrl, processHostImages } from "../../utils/imageUtils.js";
 
 const getCommunityIdFromParam = async (paramId) => {
-  const isNumericId = !isNaN(paramId) && !isNaN(parseFloat(paramId));
-  if (isNumericId) return Number(paramId);
-  const community = await Community.findOne({ where: { slug: paramId }, attributes: ['id'] });
-  return community ? community.id : null;
+  // DynamoDB uses UUID strings, not auto-increment integers
+  // If paramId looks like a UUID, use directly; otherwise look up by slug
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(paramId)) return paramId;
+
+  // Try slug lookup via GSI
+  const communities = await Community.query("slug").eq(paramId).exec();
+  return communities[0]?.id || null;
 };
+
+function processCommunityImages(community) {
+  const c = { ...community };
+  if (c.avatar_image) c.avatar_image = attachCloudFrontUrl(c.avatar_image);
+  if (c.cover_image) c.cover_image = attachCloudFrontUrl(c.cover_image);
+  return c;
+}
 
 /* CREATE COMMUNITY */
 export const createCommunity = async (req, res) => {
@@ -24,168 +35,85 @@ export const createCommunity = async (req, res) => {
     const { name, description, country, state, city, topics } = req.body;
 
     if (!name || !country) {
-      return res.status(400).json({
-        message: "Name and country are required"
-      });
+      return res.status(400).json({ message: "Name and country are required" });
     }
 
-    const slug =
-      name
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-") +
-      "-" +
-      Date.now();
+    const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now();
 
     const community = await Community.create({
-      created_by: userId,
-      name,
-      slug,
-      description: description || null,
-      country,
-      state: state || null,
-      city: city || null,
+      created_by: userId, name, slug,
+      description: description || null, country,
+      state: state || null, city: city || null,
       topics: Array.isArray(topics) ? topics : [],
       members: [{ user_id: userId, role: "owner" }],
-      members_count: 1,
-      status: "pending" // ✅ IMPORTANT
+      members_count: 1, status: "pending"
     });
 
-
-    await trackCommunityEvent({
-      event_type: "COMMUNITY_CREATED",
-      user_id: userId,
-      community
-    });
-
-
-
+    await trackCommunityEvent({ event_type: "COMMUNITY_CREATED", user_id: userId, community });
     await deleteCacheByPrefix("communities:list:");
 
-    // Process community images
-    const processedCommunity = community.toJSON();
-    if (processedCommunity.avatar_image) processedCommunity.avatar_image = attachCloudFrontUrl(processedCommunity.avatar_image);
-    if (processedCommunity.cover_image) processedCommunity.cover_image = attachCloudFrontUrl(processedCommunity.cover_image);
-
-    return res.json({
-      success: true,
-      community: processedCommunity
-    });
+    const processedCommunity = processCommunityImages(community);
+    return res.json({ success: true, community: processedCommunity });
 
   } catch (err) {
     console.error("CREATE COMMUNITY ERROR:", err);
-
-    return res.status(500).json({
-      message: err.message
-    });
+    return res.status(500).json({ message: err.message });
   }
 };
-
-
 
 export const updateCommunityProfile = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const community = await Community.findByPk(id);
-    if (!community) {
-      return res.status(404).json({ message: "Community not found" });
-    }
-
-    // Owner-only update (correct security)
-    if (community.created_by !== userId) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
+    const community = await Community.get(id);
+    if (!community) return res.status(404).json({ message: "Community not found" });
+    if (community.created_by !== userId) return res.status(403).json({ message: "Not authorized" });
 
     const updateData = {};
-
-    // 🔥 FILES COME FROM req.files, NOT req.body
-    if (req.files?.avatar_image?.[0]) {
-      updateData.avatar_image = req.files.avatar_image[0].location;
-    }
-
-    if (req.files?.cover_image?.[0]) {
-      updateData.cover_image = req.files.cover_image[0].location;
-    }
+    if (req.files?.avatar_image?.[0]) updateData.avatar_image = req.files.avatar_image[0].location;
+    if (req.files?.cover_image?.[0]) updateData.cover_image = req.files.cover_image[0].location;
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ message: "No data to update" });
     }
 
-    await community.update(updateData);
-
-    // cache cleanup
+    await Community.update({ id }, updateData);
     await deleteCache(`community:id:${id}`);
     await deleteCacheByPrefix("communities:list:");
 
-    // Process community images
-    const processedCommunity = community.toJSON();
-    if (processedCommunity.avatar_image) processedCommunity.avatar_image = attachCloudFrontUrl(processedCommunity.avatar_image);
-    if (processedCommunity.cover_image) processedCommunity.cover_image = attachCloudFrontUrl(processedCommunity.cover_image);
-
-    return res.json({
-      success: true,
-      community: processedCommunity
-    });
-
+    const updated = await Community.get(id);
+    return res.json({ success: true, community: processCommunityImages(updated) });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Update failed" });
   }
 };
 
-
-
-/* =========================================
-   GET COMMUNITY DETAILS (PRODUCTION SAFE)
-   ========================================= */
+/* GET COMMUNITY DETAILS */
 export const getCommunityById = async (req, res) => {
   const paramId = req.params.id;
-  const isNumericId = !isNaN(paramId) && !isNaN(parseFloat(paramId));
-
   const cacheKey = `community:idOrSlug:${paramId}`;
 
   try {
-    /* =========================
-       1️⃣ FETCH COMMUNITY (CACHE SAFE)
-       ========================= */
     let community = await getCache(cacheKey);
 
     if (!community) {
-      const dbCommunity = await Community.findOne({
-        where: isNumericId ? { id: Number(paramId) } : { slug: paramId }
-      });
+      const communityId = await getCommunityIdFromParam(paramId);
+      if (!communityId) return res.status(404).json({ message: "Community not found" });
 
-      if (!dbCommunity) {
-        return res.status(404).json({ message: "Community not found" });
-      }
+      const dbCommunity = await Community.get(communityId);
+      if (!dbCommunity) return res.status(404).json({ message: "Community not found" });
 
-      community = dbCommunity.toJSON();
-
-      // Process images before caching
-      if (community.avatar_image) community.avatar_image = attachCloudFrontUrl(community.avatar_image);
-      if (community.cover_image) community.cover_image = attachCloudFrontUrl(community.cover_image);
-
+      community = processCommunityImages(dbCommunity);
       await setCache(cacheKey, community, 300);
     }
 
-    /* =========================
-       2️⃣ USER-SPECIFIC MEMBERSHIP
-       ========================= */
-    let isMember = false;
-    let memberRole = null;
-    let isHost = false;
+    let isMember = false, memberRole = null, isHost = false;
 
     if (req.user?.id) {
-      const membership = await CommunityMember.findOne({
-        where: {
-          community_id: community.id,
-          user_id: req.user.id
-        },
-        attributes: ["role", "is_host"]
-      });
-
+      const members = await CommunityMember.query("community_id").eq(community.id).exec();
+      const membership = members.find(m => m.user_id === req.user.id);
       if (membership) {
         isMember = true;
         memberRole = membership.role;
@@ -193,236 +121,102 @@ export const getCommunityById = async (req, res) => {
       }
     }
 
-    /* =========================
-       3️⃣ RESPONSE
-       ========================= */
     return res.json({
       success: true,
-      community: {
-        ...community,
-        is_member: isMember,
-        isJoined: isMember,
-        member_role: memberRole,
-        is_host: isHost
-      }
+      community: { ...community, is_member: isMember, isJoined: isMember, member_role: memberRole, is_host: isHost }
     });
-
   } catch (err) {
     console.error("GET COMMUNITY ERROR:", err);
     return res.status(500).json({ message: "Failed to fetch community" });
   }
 };
 
-
-
-
 /* JOIN COMMUNITY */
-/* JOIN COMMUNITY - FIXED */
 export const joinCommunity = async (req, res) => {
   const userId = req.user.id;
   const communityId = await getCommunityIdFromParam(req.params.id);
-
-  if (!communityId) {
-    return res.status(404).json({ message: "Community not found" });
-  }
-
-  const t = await Community.sequelize.transaction();
+  if (!communityId) return res.status(404).json({ message: "Community not found" });
 
   try {
-    /* 1️⃣ LOCK COMMUNITY */
-    const community = await Community.findOne({
-      where: { id: communityId, status: "active" },
-      transaction: t,
-      lock: t.LOCK.UPDATE
-    });
-
-    if (!community) {
-      await t.rollback();
+    const community = await Community.get(communityId);
+    if (!community || community.status !== "active") {
       return res.status(404).json({ message: "Community not found or inactive" });
     }
 
-    /* 2️⃣ CHECK EXISTING MEMBERSHIP */
-    const existingMember = await CommunityMember.findOne({
-      where: { community_id: communityId, user_id: userId },
-      transaction: t
-    });
-
-    if (existingMember) {
-      await t.rollback();
+    // Check existing membership
+    const members = await CommunityMember.query("community_id").eq(communityId).exec();
+    if (members.some(m => m.user_id === userId)) {
       return res.status(400).json({ message: "Already a member of this community" });
     }
 
-    /* 3️⃣ CHECK HOST STATUS */
-    const host = await Host.findOne({
-      where: { user_id: userId },
-      transaction: t
-    });
-
-    if (!host) {
-      await t.rollback();
+    // Check host status
+    const hosts = await Host.query("user_id").eq(userId).exec();
+    if (!hosts[0]) {
       return res.status(403).json({ message: "Only approved hosts can join this community" });
     }
 
-    /* 4️⃣ CREATE MEMBERSHIP */
     await CommunityMember.create({
-      community_id: communityId,
-      user_id: userId,
-      role: "member",
-      is_host: true
-    }, { transaction: t });
+      community_id: communityId, user_id: userId, role: "member", is_host: true
+    });
 
-    /* 5️⃣ UPDATE AGGREGATES */
-    community.members_count += 1;
-    community.host_count += 1;
-    await community.save({ transaction: t });
+    await Community.update({ id: communityId }, {
+      members_count: (community.members_count || 0) + 1,
+      host_count: (community.host_count || 0) + 1
+    });
 
-    /* 6️⃣ COMMIT */
-    await t.commit();
+    trackCommunityEvent({
+      event_type: "COMMUNITY_JOINED", user_id: userId,
+      metadata: { community_id: communityId, is_host: true }
+    }).catch(console.error);
 
+    deleteCache(`community:id:${communityId}`).catch(console.error);
+    deleteCacheByPrefix("communities:list:").catch(console.error);
+
+    return res.json({ success: true, message: "Joined community successfully" });
   } catch (err) {
-    await t.rollback();
     console.error("JOIN COMMUNITY ERROR:", err);
     return res.status(500).json({ message: "Failed to join community" });
   }
-
-  /* 7️⃣ SIDE EFFECTS (OUTSIDE TRY/CATCH) */
-  trackCommunityEvent({
-    event_type: "COMMUNITY_JOINED",
-    user_id: userId,
-    metadata: { community_id: communityId, is_host: true }
-  }).catch(console.error);
-
-  deleteCache(`community:id:${communityId}`).catch(console.error);
-  deleteCacheByPrefix("communities:list:").catch(console.error);
-
-  return res.json({ success: true, message: "Joined community successfully" });
 };
 
-
-
-
-
 /* LEAVE COMMUNITY */
-
-
 export const leaveCommunity = async (req, res) => {
   const userId = req.user.id;
   const communityId = await getCommunityIdFromParam(req.params.id);
-
-  if (!communityId) {
-    return res.status(404).json({ message: "Community not found" });
-  }
-
-  const t = await Community.sequelize.transaction();
+  if (!communityId) return res.status(404).json({ message: "Community not found" });
 
   try {
-    /* =========================
-       1️⃣ LOCK MEMBERSHIP
-       ========================= */
-    const member = await CommunityMember.findOne({
-      where: {
-        community_id: communityId,
-        user_id: userId
-      },
-      transaction: t,
-      lock: t.LOCK.UPDATE
-    });
+    const members = await CommunityMember.query("community_id").eq(communityId).exec();
+    const member = members.find(m => m.user_id === userId);
 
-    if (!member) {
-      await t.rollback();
-      return res.status(400).json({
-        message: "You are not a member of this community"
-      });
-    }
+    if (!member) return res.status(400).json({ message: "You are not a member of this community" });
+    if (member.role === "owner") return res.status(400).json({ message: "Community owner cannot leave" });
 
-    /* =========================
-       2️⃣ OWNER CANNOT LEAVE
-       ========================= */
-    if (member.role === "owner") {
-      await t.rollback();
-      return res.status(400).json({
-        message: "Community owner cannot leave"
-      });
-    }
+    const community = await Community.get(communityId);
+    if (!community) return res.status(404).json({ message: "Community not found" });
 
-    /* =========================
-       3️⃣ LOCK COMMUNITY
-       ========================= */
-    const community = await Community.findByPk(communityId, {
-      transaction: t,
-      lock: t.LOCK.UPDATE
-    });
+    await CommunityMember.delete(member.id);
 
-    if (!community) {
-      await t.rollback();
-      return res.status(404).json({
-        message: "Community not found"
-      });
-    }
-
-    /* =========================
-       4️⃣ DELETE MEMBERSHIP
-       ========================= */
-    await member.destroy({ transaction: t });
-
-    /* =========================
-       5️⃣ UPDATE AGGREGATES
-       ========================= */
-    community.members_count = Math.max(
-      0,
-      community.members_count - 1
-    );
-
+    const updateData = { members_count: Math.max(0, (community.members_count || 0) - 1) };
     if (member.is_host) {
-      community.host_count = Math.max(
-        0,
-        community.host_count - 1
-      );
+      updateData.host_count = Math.max(0, (community.host_count || 0) - 1);
     }
+    await Community.update({ id: communityId }, updateData);
 
-    await community.save({ transaction: t });
+    trackCommunityEvent({
+      event_type: "COMMUNITY_LEFT", user_id: userId,
+      metadata: { community_id: communityId }
+    }).catch(console.error);
 
-    /* =========================
-       6️⃣ COMMIT (DB STATE FINAL)
-       ========================= */
-    await t.commit();
+    deleteCache(`community:id:${communityId}`).catch(console.error);
+    deleteCacheByPrefix("communities:list:").catch(console.error);
 
+    return res.json({ success: true, message: "Left community successfully" });
   } catch (err) {
-    await t.rollback();
     console.error("LEAVE COMMUNITY ERROR:", err);
-
-    return res.status(500).json({
-      message: "Failed to leave community"
-    });
+    return res.status(500).json({ message: "Failed to leave community" });
   }
-
-  /* =========================
-     7️⃣ POST-COMMIT SIDE EFFECTS
-     (NEVER ROLLBACK DB)
-     ========================= */
-
-  trackCommunityEvent({
-    event_type: "COMMUNITY_LEFT",
-    user_id: userId,
-    metadata: {
-      community_id: communityId
-    }
-  }).catch(console.error);
-
-  deleteCache(`community:id:${communityId}`).catch(console.error);
-  deleteCacheByPrefix("communities:list:").catch(console.error);
-
-  return res.json({
-    success: true,
-    message: "Left community successfully"
-  });
 };
-
-
-
-
-
-
 
 /* LIST COMMUNITIES (LOCATION BASED) */
 export const listCommunities = async (req, res) => {
@@ -431,36 +225,26 @@ export const listCommunities = async (req, res) => {
 
   try {
     const cached = await getCache(cacheKey);
-    if (cached) {
-      return res.json({ success: true, data: cached });
-    }
+    if (cached) return res.json({ success: true, data: cached });
 
-    const where = { status: "active" };
-    if (country !== "all") where.country = country;
-    if (state !== "all") where.state = state;
-    if (city !== "all") where.city = city;
+    // Query by status GSI
+    let communities = await Community.query("status").eq("active").exec();
 
-    const communities = await Community.findAll({
-      where,
-      order: [["members_count", "DESC"]],
-      limit: 20
-    });
+    if (country !== "all") communities = communities.filter(c => c.country === country);
+    if (state !== "all") communities = communities.filter(c => c.state === state);
+    if (city !== "all") communities = communities.filter(c => c.city === city);
 
-    const processedCommunities = communities.map(c => {
-      const cJson = c.toJSON();
-      if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
-      if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
-      return cJson;
-    });
+    communities.sort((a, b) => (b.members_count || 0) - (a.members_count || 0));
+    communities = communities.slice(0, 20);
+
+    const processedCommunities = communities.map(c => processCommunityImages(c));
 
     await setCache(cacheKey, processedCommunities, 300);
-
     return res.json({ success: true, data: processedCommunities });
   } catch {
     return res.status(500).json({ message: "Failed to list communities" });
   }
 };
-
 
 /* NEARBY EVENTS FOR COMMUNITY */
 export const getNearbyEvents = async (req, res) => {
@@ -468,27 +252,18 @@ export const getNearbyEvents = async (req, res) => {
 
   try {
     const cached = await getCache(cacheKey);
-    if (cached) {
-      return res.json({ success: true, events: cached });
-    }
+    if (cached) return res.json({ success: true, events: cached });
 
-    const community = await Community.findByPk(req.params.id);
-    if (!community) {
-      return res.status(404).json({ message: "Community not found" });
-    }
+    const community = await Community.get(req.params.id);
+    if (!community) return res.status(404).json({ message: "Community not found" });
 
-    const events = await Event.findAll({
-      where: {
-        country: community.country,
-        city: community.city,
-        status: "published"
-      },
-      order: [["start_date", "ASC"]],
-      limit: 10
-    });
+    // Query events by status, then filter by location
+    let events = await Event.query("status").eq("published").exec();
+    events = events.filter(e => e.country === community.country && e.city === community.city);
+    events.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+    events = events.slice(0, 10);
 
     await setCache(cacheKey, events, 120);
-
     return res.json({ success: true, events });
   } catch {
     return res.status(500).json({ message: "Failed to fetch events" });
@@ -497,386 +272,215 @@ export const getNearbyEvents = async (req, res) => {
 
 /* GET ALL PENDING COMMUNITIES */
 export const getPendingCommunities = async (req, res) => {
-  const communities = await Community.findAll({
-    where: { status: "pending" },
-    order: [["created_at", "DESC"]]
-  });
+  let communities = await Community.query("status").eq("pending").exec();
+  communities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const processedCommunities = communities.map(c => {
-    const cJson = c.toJSON();
-    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
-    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
-    return cJson;
-  });
-
+  const processedCommunities = communities.map(c => processCommunityImages(c));
   res.json({ success: true, communities: processedCommunities });
 };
 
 /* APPROVE COMMUNITY */
 export const approveCommunity = async (req, res) => {
-  const community = await Community.findByPk(req.params.id);
-
-  if (!community) {
-    return res.status(404).json({ message: "Community not found" });
-  }
-
+  const community = await Community.get(req.params.id);
+  if (!community) return res.status(404).json({ message: "Community not found" });
   if (community.status !== "pending") {
-    return res.status(400).json({
-      message: "Community is not pending approval"
-    });
+    return res.status(400).json({ message: "Community is not pending approval" });
   }
 
-  community.status = "active";
-  await community.save();
+  await Community.update({ id: community.id }, { status: "active" });
+
   logAudit({
     action: "COMMUNITY_APPROVED",
     actor: { id: req.admin?.id || "system", role: "admin" },
     target: { type: "community", id: community.id },
-    severity: "MEDIUM",
-    req
+    severity: "MEDIUM", req
   }).catch(console.error);
 
-  trackCommunityEvent({
-    event_type: "COMMUNITY_APPROVED",
-    user_id: req.admin?.id || "system",
-    community
-  });
-  const creator = await User.findByPk(community.created_by);
+  trackCommunityEvent({ event_type: "COMMUNITY_APPROVED", user_id: req.admin?.id || "system", community });
 
+  const creator = await User.get(community.created_by);
   try {
     if (creator?.email) {
       await notifyAndEmail({
-        userId: creator.id,
-        email: creator.email,
+        userId: creator.id, email: creator.email,
         type: NOTIFICATION_TYPES.COMMUNITY_APPROVED,
-        title: "Community approved",
-        message: "Your community has been approved.",
+        title: "Community approved", message: "Your community has been approved.",
         metadata: { communityId: community.id }
       });
     }
-  } catch (err) {
-    console.error("Failed to notify user:", err);
-  }
+  } catch (err) { console.error("Failed to notify user:", err); }
 
-
-
-  res.json({
-    success: true,
-    message: "Community approved"
-  });
+  res.json({ success: true, message: "Community approved" });
 };
 
 /* REJECT COMMUNITY */
 export const rejectCommunity = async (req, res) => {
-  const community = await Community.findByPk(req.params.id);
+  const community = await Community.get(req.params.id);
+  if (!community) return res.status(404).json({ message: "Community not found" });
 
-  if (!community) {
-    return res.status(404).json({ message: "Community not found" });
-  }
+  await Community.update({ id: community.id }, { status: "deleted" });
 
-  community.status = "deleted";
-  await community.save();
   logAudit({
     action: "COMMUNITY_REJECTED",
     actor: { id: req.admin?.id || "system", role: "admin" },
     target: { type: "community", id: community.id },
-    severity: "HIGH",
-    req
+    severity: "HIGH", req
   }).catch(console.error);
 
-  await trackCommunityEvent({
-    event_type: "COMMUNITY_REJECTED",
-    user_id: req.admin?.id || "system",
-    community
-  });
-  const creator = await User.findByPk(community.created_by);
+  await trackCommunityEvent({ event_type: "COMMUNITY_REJECTED", user_id: req.admin?.id || "system", community });
 
+  const creator = await User.get(community.created_by);
   try {
     if (creator?.email) {
       await notifyAndEmail({
-        userId: creator.id,
-        email: creator.email,
+        userId: creator.id, email: creator.email,
         type: NOTIFICATION_TYPES.COMMUNITY_REJECTED,
-        title: "Community rejected",
-        message: "Your community was rejected by admin.",
+        title: "Community rejected", message: "Your community was rejected by admin.",
         metadata: { communityId: community.id }
       });
     }
-  } catch (err) {
-    console.error("Failed to notify user:", err);
-  }
+  } catch (err) { console.error("Failed to notify user:", err); }
 
-
-
-  res.json({
-    success: true,
-    message: "Community rejected"
-  });
+  res.json({ success: true, message: "Community rejected" });
 };
 
-/* SUSPEND COMMUNITY (AFTER APPROVAL) */
+/* SUSPEND COMMUNITY */
 export const suspendCommunity = async (req, res) => {
   try {
-    const community = await Community.findByPk(req.params.id);
-    if (!community) {
-      return res.status(404).json({ message: "Community not found" });
-    }
-
-    // Optional but recommended guard
+    const community = await Community.get(req.params.id);
+    if (!community) return res.status(404).json({ message: "Community not found" });
     if (community.status !== "active") {
-      return res.status(400).json({
-        message: "Only active communities can be suspended"
-      });
+      return res.status(400).json({ message: "Only active communities can be suspended" });
     }
 
-    await community.update({ status: "suspended" });
+    await Community.update({ id: community.id }, { status: "suspended" });
 
     logAudit({
       action: "COMMUNITY_SUSPENDED",
       actor: { id: req.admin?.id || "system", role: "admin" },
       target: { type: "community", id: community.id },
-      severity: "CRITICAL",
-      req
+      severity: "CRITICAL", req
     }).catch(console.error);
 
-    await trackCommunityEvent({
-      event_type: "COMMUNITY_SUSPENDED",
-      user_id: req.admin?.id || "system",
-      community
-    });
+    await trackCommunityEvent({ event_type: "COMMUNITY_SUSPENDED", user_id: req.admin?.id || "system", community });
 
-    // 🔔 Notify community owner
-    const owner = await User.findByPk(community.created_by);
-
+    const owner = await User.get(community.created_by);
     if (owner?.email) {
       try {
         await notifyAndEmail({
-          userId: owner.id,
-          email: owner.email,
+          userId: owner.id, email: owner.email,
           type: NOTIFICATION_TYPES.COMMUNITY_SUSPENDED,
           title: "Community suspended",
-          message:
-            "Your community has been suspended by admin. Please contact support for details.",
-          metadata: {
-            communityId: community.id,
-            communityName: community.name
-          }
+          message: "Your community has been suspended by admin. Please contact support for details.",
+          metadata: { communityId: community.id, communityName: community.name }
         });
-      } catch (err) {
-        console.error("Failed to notify user:", err);
-      }
+      } catch (err) { console.error("Failed to notify user:", err); }
     }
 
-    return res.json({
-      success: true,
-      message: "Community suspended"
-    });
-
+    return res.json({ success: true, message: "Community suspended" });
   } catch (err) {
     console.error("SUSPEND COMMUNITY ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
-
 /* RE-ACTIVATE COMMUNITY */
 export const activateCommunity = async (req, res) => {
-  const community = await Community.findByPk(req.params.id);
+  const community = await Community.get(req.params.id);
+  if (!community) return res.status(404).json({ message: "Community not found" });
 
-  if (!community) {
-    return res.status(404).json({ message: "Community not found" });
-  }
-
-  community.status = "active";
-  await community.save();
-
-  res.json({
-    success: true,
-    message: "Community activated"
-  });
+  await Community.update({ id: community.id }, { status: "active" });
+  res.json({ success: true, message: "Community activated" });
 };
 
-
 export const getApprovedCommunities = async (req, res) => {
-  const communities = await Community.findAll({
-    where: { status: "active" },
-    order: [["updated_at", "DESC"]]
-  });
-
-  const processedCommunities = communities.map(c => {
-    const cJson = c.toJSON();
-    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
-    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
-    return cJson;
-  });
-
-  res.json({ success: true, communities: processedCommunities });
+  let communities = await Community.query("status").eq("active").exec();
+  communities.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+  res.json({ success: true, communities: communities.map(c => processCommunityImages(c)) });
 };
 
 export const getRejectedCommunities = async (req, res) => {
-  const communities = await Community.findAll({
-    where: { status: "deleted" },
-    order: [["updated_at", "DESC"]]
-  });
-
-  const processedCommunities = communities.map(c => {
-    const cJson = c.toJSON();
-    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
-    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
-    return cJson;
-  });
-
-  res.json({ success: true, communities: processedCommunities });
+  let communities = await Community.scan().filter("status").eq("deleted").exec();
+  communities.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+  res.json({ success: true, communities: communities.map(c => processCommunityImages(c)) });
 };
 
 export const getSuspendedCommunities = async (req, res) => {
-  const communities = await Community.findAll({
-    where: { status: "suspended" },
-    order: [["updated_at", "DESC"]]
-  });
-
-  const processedCommunities = communities.map(c => {
-    const cJson = c.toJSON();
-    if (cJson.avatar_image) cJson.avatar_image = attachCloudFrontUrl(cJson.avatar_image);
-    if (cJson.cover_image) cJson.cover_image = attachCloudFrontUrl(cJson.cover_image);
-    return cJson;
-  });
-
-  res.json({ success: true, communities: processedCommunities });
+  let communities = await Community.scan().filter("status").eq("suspended").exec();
+  communities.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+  res.json({ success: true, communities: communities.map(c => processCommunityImages(c)) });
 };
 
-
-/* =====================================================
-   GET COMMUNITY HOST MEMBERS (READ-ONLY, SAFE)
-===================================================== */
+/* GET COMMUNITY HOST MEMBERS */
 export const getCommunityHostMembers = async (req, res) => {
   const communityId = await getCommunityIdFromParam(req.params.id);
+  if (!communityId) return res.status(404).json({ message: "Community not found" });
 
-  if (!communityId) {
-    return res.status(404).json({
-      message: "Community not found"
-    });
-  }
-
-  // Pagination (hard limited)
   const page = Math.max(1, Number(req.query.page || 1));
   const limit = Math.min(20, Number(req.query.limit || 10));
   const offset = (page - 1) * limit;
 
   try {
-    /* =========================
-       1️⃣ COMMUNITY VALIDATION
-       ========================= */
-    const community = await Community.findByPk(communityId, {
-      attributes: ["id", "status", "visibility"]
-    });
-
+    const community = await Community.get(communityId);
     if (!community || community.status !== "active") {
-      return res.status(404).json({
-        message: "Community not found or inactive"
-      });
+      return res.status(404).json({ message: "Community not found or inactive" });
     }
 
-    // Optional privacy guard (safe default)
     if (community.visibility !== "public" && !req.user) {
-      return res.status(403).json({
-        message: "This community is private"
-      });
+      return res.status(403).json({ message: "This community is private" });
     }
 
-    /* =========================
-       2️⃣ FETCH HOST MEMBERS
-       ========================= */
-    const { rows, count } = await CommunityMember.findAndCountAll({
-      where: {
-        community_id: communityId,
-        is_host: true
-      },
-      attributes: ["user_id"],
-      limit,
-      offset,
-      order: [["id", "DESC"]], // deterministic without timestamps
-      include: [
-        {
-          model: Host,
-          required: true,
-          where: {
-            status: "approved"
-          },
-          attributes: ["full_name", "country", "state", "city"],
-          include: [
-            {
-              model: User,
-              attributes: ["profile_image"]
-            }
-          ]
-        }
-      ]
-    });
+    // Fetch members and filter host members
+    const allMembers = await CommunityMember.query("community_id").eq(communityId).exec();
+    const hostMembers = allMembers.filter(m => m.is_host);
+    const count = hostMembers.length;
+    const paginatedMembers = hostMembers.slice(offset, offset + limit);
 
-    /* =========================
-       3️⃣ RESPONSE SHAPING
-       ========================= */
-    const hosts = rows.map(row => ({
-      user_id: row.user_id,
-      full_name: row.Host.full_name,
-      profile_image: attachCloudFrontUrl(row.Host.User?.profile_image || null),
-      country: row.Host.country,
-      state: row.Host.state,
-      city: row.Host.city
+    // Enrich with Host + User data
+    const hosts = await Promise.all(paginatedMembers.map(async member => {
+      const hostResults = await Host.query("user_id").eq(member.user_id).exec();
+      const host = hostResults[0];
+      if (!host || host.status !== "approved") return null;
+
+      const user = await User.get(host.user_id);
+      return {
+        user_id: member.user_id,
+        full_name: host.full_name,
+        profile_image: attachCloudFrontUrl(user?.profile_image || null),
+        country: host.country, state: host.state, city: host.city
+      };
     }));
 
     return res.json({
-      success: true,
-      count,
-      page,
-      hosts
+      success: true, count, page,
+      hosts: hosts.filter(Boolean)
     });
-
   } catch (err) {
     console.error("GET COMMUNITY HOST MEMBERS ERROR:", err);
-    return res.status(500).json({
-      message: "Failed to fetch community host members"
-    });
+    return res.status(500).json({ message: "Failed to fetch community host members" });
   }
 };
 
-/* =====================================================
-   ADMIN: GET COMMUNITY BY ID WITH MEMBERS
-===================================================== */
+/* ADMIN: GET COMMUNITY BY ID WITH MEMBERS */
 export const getAdminCommunityById = async (req, res) => {
   try {
     const communityId = await getCommunityIdFromParam(req.params.id);
+    if (!communityId) return res.status(404).json({ message: "Community not found" });
 
-    if (!communityId) {
-      return res.status(404).json({ message: "Community not found" });
-    }
+    const dbCommunity = await Community.get(communityId);
+    if (!dbCommunity) return res.status(404).json({ message: "Community not found" });
 
-    const dbCommunity = await Community.findByPk(communityId);
+    const community = processCommunityImages(dbCommunity);
 
-    if (!dbCommunity) {
-      return res.status(404).json({ message: "Community not found" });
-    }
+    // Fetch members via GSI
+    const members = await CommunityMember.query("community_id").eq(communityId).exec();
+    community.members = members.map(m => ({
+      user_id: m.user_id, role: m.role, is_host: m.is_host
+    }));
 
-    const community = dbCommunity.toJSON();
-    if (community.avatar_image) community.avatar_image = attachCloudFrontUrl(community.avatar_image);
-    if (community.cover_image) community.cover_image = attachCloudFrontUrl(community.cover_image);
-
-    // Fetch members
-    const members = await CommunityMember.findAll({
-      where: { community_id: communityId },
-      attributes: ['user_id', 'role', 'is_host']
-    });
-
-    community.members = members;
-
-    return res.json({
-      success: true,
-      community
-    });
+    return res.json({ success: true, community });
   } catch (err) {
     console.error("ADMIN GET COMMUNITY BY ID ERROR:", err);
     return res.status(500).json({ message: "Failed to fetch community details" });
   }
 };
-

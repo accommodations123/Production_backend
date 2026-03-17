@@ -1,73 +1,42 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const AnalyticsEvent = sequelize.define(
-  "AnalyticsEvent",
-  {
-    id: {
-      type: DataTypes.BIGINT.UNSIGNED,
-      autoIncrement: true,
-      primaryKey: true
-    },
+/* =====================================================================
+   AnalyticsEvent Model — DynamoDB (Dynamoose)
+   ===================================================================== */
 
-    event_type: {
-      type: DataTypes.STRING(64),
-      allowNull: false
-    },
-
-    user_id: {
-      type: DataTypes.BIGINT.UNSIGNED,
-      allowNull: true
-    },
-
-    host_id: {
-      type: DataTypes.BIGINT.UNSIGNED,
-      allowNull: true
-    },
-
-    property_id: {
-      type: DataTypes.BIGINT.UNSIGNED,
-      allowNull: true
-    },
-
-    event_id: {
-      type: DataTypes.BIGINT.UNSIGNED,
-      allowNull: true
-    },
-
-    country: {
-      type: DataTypes.STRING(64),
-      allowNull: true
-    },
-
-    state: {
-      type: DataTypes.STRING(64),
-      allowNull: true
-    },
-
-    metadata: {
-      type: DataTypes.JSON,
-      allowNull: true
-    },
-
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW
+const analyticsEventSchema = new dynamoose.Schema({
+  id: {
+    type: String,
+    hashKey: true,
+    default: () => uuidv4()
+  },
+  event_type: {
+    type: String,
+    required: true,
+    index: {
+      name: "event_type-index",
+      type: "global",
+      rangeKey: "created_at"
     }
   },
-  {
-    tableName: "analytics_events",
-    timestamps: false,
-    underscored: true,
-    indexes: [
-      { fields: ["event_type"] },
-      { fields: ["created_at"] },
-      { fields: ["event_type", "created_at"] },
-      { fields: ["event_id"] },
-      { fields: ["user_id"] }
-    ]
+  user_id: { type: String },
+  host_id: { type: String },
+  property_id: { type: String },
+  event_id: { type: String },
+  country: { type: String },
+  state: { type: String },
+  metadata: { type: Object },
+  created_at: {
+    type: String,
+    default: () => new Date().toISOString(),
+    index: {
+      name: "created_at-index",
+      type: "global"
+    }
   }
-);
+});
+
+const AnalyticsEvent = dynamoose.model("AnalyticsEvent", analyticsEventSchema);
 
 export default AnalyticsEvent;

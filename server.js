@@ -7,7 +7,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
-import sequelize from "./config/db.js";
+import dynamoose, { checkDynamoDBConnection } from "./config/db.js";
 import { initSocket } from "./services/socket.js";
 
 /* ===================== MODELS ===================== */
@@ -41,7 +41,6 @@ import notificationRoutes from "./routes/notification.routes.js";
 import wishlistroutes from './routes/wishlistRoutes.js'
 import contactRoutes from './routes/contactRoutes.js'
 import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
-// import activityLogRoutes from './routes/activityLogRoutes.js';
 
 /* ===================== WORKERS ===================== */
 import "./services/workers/emailWorker.js";
@@ -129,13 +128,16 @@ app.use("/users", useanalytics)
 app.use("/notification", notificationRoutes);
 app.use("/wishlist", wishlistroutes)
 app.use("/contact", contactRoutes)
-// app.use('/activity-logs', activityLogRoutes);
 
 /* ===================== HEALTH ===================== */
 app.get("/health", async (req, res) => {
   try {
-    await sequelize.authenticate();
-    res.json({ status: "ok", db: "connected" });
+    const connected = await checkDynamoDBConnection();
+    if (connected) {
+      res.json({ status: "ok", db: "connected" });
+    } else {
+      res.status(500).json({ status: "error", db: "disconnected" });
+    }
   } catch {
     res.status(500).json({ status: "error", db: "disconnected" });
   }
@@ -144,13 +146,6 @@ app.get("/health", async (req, res) => {
 /* ===================== ERROR HANDLER (LAST) ===================== */
 app.use((err, req, res, next) => {
   console.error("❌ ERROR:", err);
-
-  if (err.name === "SequelizeValidationError") {
-    return res.status(400).json({
-      success: false,
-      message: err.errors[0].message
-    });
-  }
 
   if (err.statusCode) {
     return res.status(err.statusCode).json({
@@ -170,11 +165,13 @@ const PORT = process.env.PORT || 5000;
 
 (async () => {
   try {
-    await sequelize.authenticate();
-    console.log("✅ MySQL connected");
-    // Create tables if they don't exist (safe for production)
-    await sequelize.sync({ alter: false });
-    console.log("✅ Database tables synced");
+    const connected = await checkDynamoDBConnection();
+    if (connected) {
+      console.log("✅ DynamoDB connected");
+    } else {
+      console.error("❌ DynamoDB connection check failed");
+      process.exit(1);
+    }
   } catch (err) {
     console.error("❌ DB connection failed:", err.message);
     process.exit(1);
@@ -196,6 +193,5 @@ server.listen(PORT, "0.0.0.0", () => {
 /* ===================== GRACEFUL SHUTDOWN ===================== */
 process.on("SIGTERM", async () => {
   console.log("🛑 SIGTERM received. Shutting down...");
-  await sequelize.close();
   process.exit(0);
 });

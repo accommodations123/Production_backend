@@ -1,143 +1,99 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import User from "../User.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Community = sequelize.define(
-  "Community",
+/* =====================================================================
+   Community Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const communitySchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
-    /* USER WHO CREATED THE COMMUNITY */
     created_by: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "created_by-index",
+        type: "global"
+      }
     },
-
     name: {
-      type: DataTypes.STRING(150),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     slug: {
-      type: DataTypes.STRING(180),
-      allowNull: false,
-      unique: true
+      type: String,
+      required: true,
+      index: {
+        name: "slug-index",
+        type: "global"
+      }
     },
-
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
-
-    avatar_image: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-
-    cover_image: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-
-    /* VISIBILITY & JOIN RULES */
+    description: { type: String },
+    avatar_image: { type: String },
+    cover_image: { type: String },
     visibility: {
-      type: DataTypes.ENUM("public", "private", "hidden"),
-      defaultValue: "public"
+      type: String,
+      default: "public",
+      enum: ["public", "private", "hidden"]
     },
-
     join_policy: {
-      type: DataTypes.ENUM("open", "request", "invite"),
-      defaultValue: "open"
+      type: String,
+      default: "open",
+      enum: ["open", "request", "invite"]
     },
-
-    /* LOCATION (USED FOR NEARBY EVENT SUGGESTIONS) */
     country: {
-      type: DataTypes.STRING(100),
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "country-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     },
-
-    state: {
-      type: DataTypes.STRING(100),
-      allowNull: true
-    },
-
-    city: {
-      type: DataTypes.STRING(100),
-      allowNull: true
-    },
-
-    /* OPTIONAL – FUTURE PROOF FOR RADIUS SEARCH */
-    latitude: {
-      type: DataTypes.DECIMAL(10, 7),
-      allowNull: true
-    },
-
-    longitude: {
-      type: DataTypes.DECIMAL(10, 7),
-      allowNull: true
-    },
-
-    /* TOPICS (FOR SIMPLE RECOMMENDATIONS) */
+    state: { type: String },
+    city: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
     topics: {
-      type: DataTypes.JSON,
-      defaultValue: []
-      // ["telugu", "developers", "students"]
+      type: Array,
+      schema: [String],
+      default: []
     },
-
-    /* MEMBERS (COMPRESSED USER REFERENCES) */
-  
-
     members_count: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 1
+      type: Number,
+      default: 1
     },
-
-
     posts_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
-    /* EVENTS ARE NOT OWNED – ONLY SUGGESTED */
     events_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
     status: {
-      type: DataTypes.ENUM("pending", "active", "suspended", "deleted"),
-      defaultValue: "pending"
+      type: String,
+      default: "pending",
+      enum: ["pending", "active", "suspended", "deleted"],
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     }
   },
   {
-    tableName: "communities",
-    timestamps: true,
-    underscored: true,
-    indexes: [
-      { fields: ["country", "city"] },
-      { fields: ["country", "state"] },
-      { fields: ["visibility"] },
-      { fields: ["status"] },
-      { fields: ["members_count"] },
-      { unique: true, fields: ["slug"] }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-/* USER ↔ COMMUNITY RELATION */
-Community.belongsTo(User, {
-  foreignKey: "created_by",
-  as: "creator"
-});
-
-User.hasMany(Community, {
-  foreignKey: "created_by",
-  as: "createdCommunities"
-});
+const Community = dynamoose.model("Community", communitySchema);
 
 export default Community;

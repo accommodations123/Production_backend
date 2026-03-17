@@ -4,7 +4,6 @@ import Event from "../model/Events.models.js";
 import BuySellListing from "../model/BuySellListing.js";
 import Community from "../model/community/Community.js";
 import TravelTrip from "../model/travel/TravelTrip.js";
-import { Op } from "sequelize";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 
 // Helper for parsing integers safely
@@ -33,14 +32,14 @@ const getModelByType = (type) => {
 // Helper to resolve ID (handles community slugs)
 const resolveItemId = async (type, idParam) => {
     if (!idParam) return null;
-    const isNumeric = !isNaN(idParam) && !isNaN(parseFloat(idParam));
-    if (isNumeric) return Number(idParam);
 
-    if (type === "community") {
-        const community = await Community.findOne({ where: { slug: idParam }, attributes: ["id"] });
-        return community ? community.id : null;
+    // For DynamoDB, IDs are UUIDs (strings), not numbers
+    // If it's a community slug (not a UUID pattern), look it up
+    if (type === "community" && !idParam.match(/^[0-9a-f-]{36}$/i)) {
+        const communities = await Community.query("slug").eq(idParam).exec();
+        return communities[0]?.id || null;
     }
-    return null;
+    return idParam;
 };
 
 export const addToWishlist = async (req, res) => {
@@ -54,32 +53,32 @@ export const addToWishlist = async (req, res) => {
         }
 
         const Model = getModelByType(item_type);
-        const exists = await Model.findByPk(item_id, { attributes: ["id"] });
+        const exists = await Model.get(item_id);
 
         if (!exists) {
             return res.status(404).json({ message: "Item not found" });
         }
 
-        try {
-            const wishlist = await Wishlist.create({
-                user_id,
-                item_id,
-                item_type
-            });
+        // Check if already in wishlist
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const alreadyExists = userWishlist.find(
+            w => w.item_id === item_id && w.item_type === item_type
+        );
 
-            return res.status(201).json({
-                message: "Added to wishlist",
-                wishlist
-            });
-
-        } catch (err) {
-            if (err.name === "SequelizeUniqueConstraintError") {
-                return res.status(200).json({
-                    message: "Already in wishlist"
-                });
-            }
-            throw err;
+        if (alreadyExists) {
+            return res.status(200).json({ message: "Already in wishlist" });
         }
+
+        const wishlist = await Wishlist.create({
+            user_id,
+            item_id,
+            item_type
+        });
+
+        return res.status(201).json({
+            message: "Added to wishlist",
+            wishlist
+        });
 
     } catch (err) {
         console.error("ADD WISHLIST ERROR:", err);
@@ -97,14 +96,18 @@ export const removeFromWishlist = async (req, res) => {
             return res.status(400).json({ message: "Invalid parameters" });
         }
 
-        const deleted = await Wishlist.destroy({
-            where: { user_id, item_id, item_type }
-        });
+        // Find the wishlist entry
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const entry = userWishlist.find(
+            w => w.item_id === item_id && w.item_type === item_type
+        );
 
-        return res.status(200).json({
-            success: !!deleted,
-            message: deleted ? "Removed" : "Not found"
-        });
+        if (entry) {
+            await Wishlist.delete(entry.id);
+            return res.status(200).json({ success: true, message: "Removed" });
+        }
+
+        return res.status(200).json({ success: false, message: "Not found" });
 
     } catch (err) {
         console.error("REMOVE WISHLIST ERROR:", err);
@@ -113,27 +116,23 @@ export const removeFromWishlist = async (req, res) => {
 };
 
 export const toggleWishlist = async (req, res) => {
-    const t = await Wishlist.sequelize.transaction();
-
     try {
         const user_id = req.user.id;
         const item_type = req.body.item_type;
         const item_id = await resolveItemId(item_type, req.body.item_id);
 
         if (!item_id || !isValidType(item_type)) {
-            await t.rollback();
             return res.status(400).json({ message: "Invalid parameters" });
         }
 
-        const existing = await Wishlist.findOne({
-            where: { user_id, item_id, item_type },
-            transaction: t,
-            lock: t.LOCK.UPDATE
-        });
+        // Check existing
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const existing = userWishlist.find(
+            w => w.item_id === item_id && w.item_type === item_type
+        );
 
         if (existing) {
-            await existing.destroy({ transaction: t });
-            await t.commit();
+            await Wishlist.delete(existing.id);
             return res.status(200).json({
                 message: "Removed from wishlist",
                 isWishlisted: false
@@ -141,19 +140,13 @@ export const toggleWishlist = async (req, res) => {
         }
 
         const Model = getModelByType(item_type);
-        const itemExists = await Model.findByPk(item_id, { attributes: ["id"] });
+        const itemExists = await Model.get(item_id);
 
         if (!itemExists) {
-            await t.rollback();
             return res.status(404).json({ message: "Item not found" });
         }
 
-        await Wishlist.create(
-            { user_id, item_id, item_type },
-            { transaction: t }
-        );
-
-        await t.commit();
+        await Wishlist.create({ user_id, item_id, item_type });
 
         return res.status(201).json({
             message: "Added to wishlist",
@@ -161,13 +154,7 @@ export const toggleWishlist = async (req, res) => {
         });
 
     } catch (err) {
-        // If transaction active/valid, rollback
-        if (t && !t.finished) {
-            try { await t.rollback(); } catch (e) { console.error("Rollback failed", e); }
-        }
-
-        // Check constraint race condition (unlikely with lock, but possible)
-        if (err.name === "SequelizeUniqueConstraintError") {
+        if (err.name === "ConditionalCheckFailedException") {
             return res.status(200).json({ message: "Item already in wishlist", isWishlisted: true });
         }
 
@@ -184,26 +171,27 @@ export const getWishlist = async (req, res) => {
         const limit = Math.min(Math.max(parseInteger(req.query.limit) || 20, 1), 100);
         const offset = (page - 1) * limit;
 
-        const where = { user_id };
+        // Query by user_id GSI
+        let allItems = await Wishlist.query("user_id").eq(user_id).exec();
 
+        // Filter by type if specified
         if (req.query.type && isValidType(req.query.type)) {
-            where.item_type = req.query.type;
+            allItems = allItems.filter(w => w.item_type === req.query.type);
         }
 
-        const { count, rows } = await Wishlist.findAndCountAll({
-            where,
-            order: [["created_at", "DESC"]],
-            limit,
-            offset
-        });
+        const count = allItems.length;
 
-        if (!rows.length) {
+        if (!allItems.length) {
             return res.json({
                 wishlist: [],
                 pagination: { total: count, page, limit }
             });
         }
 
+        // Paginate
+        const rows = allItems.slice(offset, offset + limit);
+
+        // Group by type for batch fetching
         const grouped = rows.reduce((acc, item) => {
             if (!acc[item.item_type]) acc[item.item_type] = [];
             acc[item.item_type].push(item.item_id);
@@ -214,37 +202,38 @@ export const getWishlist = async (req, res) => {
 
         await Promise.all(Object.keys(grouped).map(async (type) => {
             const Model = getModelByType(type);
-            const items = await Model.findAll({
-                where: { id: grouped[type] }
-            });
+            // Fetch each item individually (DynamoDB batchGet alternative)
+            const items = await Promise.all(
+                grouped[type].map(id => Model.get(id).catch(() => null))
+            );
 
-            detailsMap[type] = items.reduce((m, i) => {
+            detailsMap[type] = items.filter(Boolean).reduce((m, i) => {
                 m[i.id] = i;
                 return m;
             }, {});
         }));
 
         const enriched = rows.map(item => ({
-            ...item.toJSON(),
+            ...item,
             details: detailsMap[item.item_type]?.[item.item_id] ? (() => {
-                let detailJSON = detailsMap[item.item_type][item.item_id].toJSON();
+                let detail = { ...detailsMap[item.item_type][item.item_id] };
                 // Process images based on item type
                 if (item.item_type === 'property' || item.item_type === 'trip') {
-                    if (detailJSON.photos) detailJSON.photos = detailJSON.photos.map(attachCloudFrontUrl);
-                    if (detailJSON.video) detailJSON.video = attachCloudFrontUrl(detailJSON.video);
+                    if (detail.photos) detail.photos = detail.photos.map(attachCloudFrontUrl);
+                    if (detail.video) detail.video = attachCloudFrontUrl(detail.video);
                 } else if (item.item_type === 'event') {
-                    if (detailJSON.banner_image) detailJSON.banner_image = attachCloudFrontUrl(detailJSON.banner_image);
-                    if (detailJSON.gallery_images) detailJSON.gallery_images = detailJSON.gallery_images.map(attachCloudFrontUrl);
+                    if (detail.banner_image) detail.banner_image = attachCloudFrontUrl(detail.banner_image);
+                    if (detail.gallery_images) detail.gallery_images = detail.gallery_images.map(attachCloudFrontUrl);
                 } else if (item.item_type === 'buysell') {
-                    if (detailJSON.images) detailJSON.images = detailJSON.images.map(attachCloudFrontUrl);
+                    if (detail.images) detail.images = detail.images.map(attachCloudFrontUrl);
                 } else if (item.item_type === 'community') {
-                    if (detailJSON.avatar_image) detailJSON.avatar_image = attachCloudFrontUrl(detailJSON.avatar_image);
-                    if (detailJSON.cover_image) detailJSON.cover_image = attachCloudFrontUrl(detailJSON.cover_image);
+                    if (detail.avatar_image) detail.avatar_image = attachCloudFrontUrl(detail.avatar_image);
+                    if (detail.cover_image) detail.cover_image = attachCloudFrontUrl(detail.cover_image);
                 }
 
                 // Process host mapping if it exists
-                detailJSON = processHostImages(detailJSON);
-                return detailJSON;
+                detail = processHostImages(detail);
+                return detail;
             })() : null
         }));
 
@@ -274,10 +263,10 @@ export const checkWishlistStatus = async (req, res) => {
             return res.status(400).json({ message: "Invalid parameters" });
         }
 
-        const exists = await Wishlist.findOne({
-            where: { user_id, item_id, item_type },
-            attributes: ["id"]
-        });
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const exists = userWishlist.find(
+            w => w.item_id === item_id && w.item_type === item_type
+        );
 
         return res.json({ isWishlisted: !!exists });
 

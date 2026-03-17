@@ -82,13 +82,11 @@ import bcrypt from "bcryptjs";
 
 router.post("/seed-super-admin", rateLimit, async (req, res) => {
     try {
-        // Sync table first — adds new columns if they don't exist
-        await Admin.sync({ alter: true });
+        // DynamoDB: tables are auto-created by Dynamoose, no sync needed
 
-        // Check if any super_admin already exists
-        const existing = await Admin.unscoped().findOne({
-            where: { role: "super_admin" }
-        });
+        // Check if any super_admin already exists (scan + filter)
+        const superAdmins = await Admin.scan().filter("role").eq("super_admin").exec();
+        const existing = superAdmins[0] || null;
 
         if (existing) {
             return res.status(403).json({

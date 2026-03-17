@@ -1,62 +1,56 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../config/db.js';
-import User from './User.js';
-import Host from './Host.js';
-import Property from './Property.js';
-import Admin from './Admin.js';
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const ApprovedHost = sequelize.define('ApprovedHost', {
-  id: {
-    type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
+/* =====================================================================
+   ApprovedHost Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const approvedHostSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
+    },
+    user_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global"
+      }
+    },
+    host_id: {
+      type: String,
+      required: true
+    },
+    property_id: {
+      type: String,
+      required: true
+    },
+    approved_by: {
+      type: String,
+      required: true
+    },
+    approved_at: {
+      type: String,
+      default: () => new Date().toISOString()
+    },
+    host_snapshot: {
+      type: Object
+    },
+    property_snapshot: {
+      type: Object
+    }
   },
-
-  user_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  host_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  property_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  approved_by: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-
-  approved_at: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  },
-
-  host_snapshot: {
-    type: DataTypes.JSON,
-    allowNull: true
-  },
-
-  property_snapshot: {
-    type: DataTypes.JSON,
-    allowNull: true
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
+);
 
-}, {
-  tableName: 'approved_hosts',
-  timestamps: true,
-  underscored: true
-});
-
-// Relations (Correct FK mapping)
-ApprovedHost.belongsTo(User, { foreignKey: 'user_id' });
-ApprovedHost.belongsTo(Host, { foreignKey: 'host_id' });
-ApprovedHost.belongsTo(Property, { foreignKey: 'property_id' });
-ApprovedHost.belongsTo(Admin, { foreignKey: 'approved_by' });
+const ApprovedHost = dynamoose.model("ApprovedHost", approvedHostSchema);
 
 export default ApprovedHost;

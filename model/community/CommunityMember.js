@@ -1,64 +1,44 @@
-// model/community/CommunityMember.js
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import Host from "../Host.js";          // ✅ IMPORT
-import User from "../User.js";          // ✅ IMPORT (for nested include)
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const CommunityMember = sequelize.define(
-  "CommunityMember",
-  {
-    id: {
-      type: DataTypes.BIGINT,
-      autoIncrement: true,
-      primaryKey: true
-    },
-    community_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-    user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-    role: {
-      type: DataTypes.ENUM("owner", "admin", "member"),
-      defaultValue: "member"
-    },
-    is_host: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false
+/* =====================================================================
+   CommunityMember Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const communityMemberSchema = new dynamoose.Schema({
+  id: {
+    type: String,
+    hashKey: true,
+    default: () => uuidv4()
+  },
+  community_id: {
+    type: String,
+    required: true,
+    index: {
+      name: "community_id-index",
+      type: "global",
+      rangeKey: "user_id"
     }
   },
-  {
-    tableName: "community_members",
-    timestamps: false,
-    indexes: [
-      { unique: true, fields: ["community_id", "user_id"] },
-      { fields: ["community_id"] },
-      { fields: ["community_id", "is_host"] }
-    ]
+  user_id: {
+    type: String,
+    required: true,
+    index: {
+      name: "user_id-index",
+      type: "global"
+    }
+  },
+  role: {
+    type: String,
+    default: "member",
+    enum: ["owner", "admin", "member"]
+  },
+  is_host: {
+    type: Boolean,
+    default: false
   }
-);
-
-/* =====================================================
-   ASSOCIATIONS (RUNTIME ONLY — NO DB CHANGE)
-===================================================== */
-
-// CommunityMember → Host (JOIN VIA user_id)
-CommunityMember.belongsTo(Host, {
-  foreignKey: "user_id",
-  targetKey: "user_id"
 });
 
-// Host → CommunityMember (inverse, REQUIRED for eager loading)
-Host.hasMany(CommunityMember, {
-  foreignKey: "user_id",
-  sourceKey: "user_id"
-});
-
-// Host → User (already correct, but ensure it exists once)
-Host.belongsTo(User, { foreignKey: "user_id" });
-User.hasOne(Host, { foreignKey: "user_id" });
+const CommunityMember = dynamoose.model("CommunityMember", communityMemberSchema);
 
 export default CommunityMember;

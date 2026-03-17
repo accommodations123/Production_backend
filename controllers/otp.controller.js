@@ -7,10 +7,11 @@ import User from "../model/User.js";
 
 import redis from "../config/redis.js";
 import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
-import { getCache, setCache, deleteCache,deleteCacheByPrefix } from "../services/cacheService.js";
+import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
+
 // OTP RATE LIMITER
 let otpLimiter;
 
@@ -81,29 +82,29 @@ export const sendOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    let user = await User.findOne({ where: { email } });
+    // Query by email GSI
+    const users = await User.query("email").eq(email).exec();
+    let user = users.length > 0 ? users[0] : null;
 
     if (user) {
       if (!user.verified) {
-        user.otp = otp;
-        user.otpExpires = expiresAt;
-        await user.save();
+        await User.update({ id: user.id }, { otp, otp_expires: expiresAt });
       }
     } else {
       user = await User.create({
         email,
         verified: false,
         otp,
-        otpExpires: expiresAt
+        otp_expires: expiresAt
       });
 
       // ✅ Only log USER_REGISTERED for brand new users
       AnalyticsEvent.create({
         event_type: "USER_REGISTERED",
         user_id: user.id,
-         country: getCountry(req)
+        country: getCountry(req)
       }).catch(console.error);
     }
 
@@ -125,7 +126,7 @@ export const sendOTP = async (req, res) => {
     AnalyticsEvent.create({
       event_type: "OTP_SENT",
       user_id: user.id,
-       country: getCountry(req)
+      country: getCountry(req)
     }).catch(console.error);
 
     logAudit({
@@ -158,7 +159,9 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "Email required" });
     }
 
-    const user = await User.findOne({ where: { email } });
+    // Query by email GSI
+    const users = await User.query("email").eq(email).exec();
+    const user = users.length > 0 ? users[0] : null;
 
     if (!user) {
       return res.status(400).json({ message: "User not found" });
@@ -188,7 +191,7 @@ export const verifyOTP = async (req, res) => {
       AnalyticsEvent.create({
         event_type: "USER_LOGIN",
         user_id: user.id,
-         country: getCountry(req)
+        country: getCountry(req)
       }).catch(console.error);
 
       return res.json({
@@ -210,8 +213,8 @@ export const verifyOTP = async (req, res) => {
 
     if (
       !user.otp ||
-      !user.otpExpires ||
-      new Date(user.otpExpires).getTime() < Date.now() ||
+      !user.otp_expires ||
+      new Date(user.otp_expires).getTime() < Date.now() ||
       String(user.otp).trim() !== String(otp).trim()
     ) {
       logAudit({
@@ -227,17 +230,18 @@ export const verifyOTP = async (req, res) => {
       AnalyticsEvent.create({
         event_type: "OTP_VERIFICATION_FAILED",
         user_id: user?.id || null,
-         country: getCountry(req)
+        country: getCountry(req)
       }).catch(console.error);
 
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
     // Mark verified
-    user.verified = true;
-    user.otp = null;
-    user.otpExpires = null;
-    await user.save();
+    await User.update({ id: user.id }, {
+      verified: true,
+      otp: null,
+      otp_expires: null
+    });
 
     const token = jwt.sign(
       { id: user.id, role: "user" },
@@ -274,7 +278,7 @@ export const verifyOTP = async (req, res) => {
     AnalyticsEvent.create({
       event_type: "USER_LOGIN",
       user_id: user.id,
-       country: getCountry(req)
+      country: getCountry(req)
     }).catch(console.error);
 
     return res.json({
@@ -327,106 +331,70 @@ export const logout = async (req, res) => {
    UPDATE USER PROFILE (Generic)
 ============================================================ */
 export const updateUser = async (req, res) => {
-
   try {
-
     const userId = req.user.id;
- 
-    const user = await User.findByPk(userId);
- 
+
+    const user = await User.get(userId);
+
     if (!user) {
-
       return res.status(404).json({
-
         success: false,
-
         message: "User not found",
-
       });
-
     }
- 
+
+    const updates = {};
+
     // ✅ If new profile image uploaded
-
     if (req.file?.key) {
-
-      user.profile_image = req.file.key; 
-
-      // store only key in DB (best practice)
-
+      updates.profile_image = req.file.key;
     }
- 
+
     // ✅ Update other fields
+    if (req.body.name) updates.name = req.body.name;
+    if (req.body.phone) updates.phone = req.body.phone;
 
-    if (req.body.name) user.name = req.body.name;
+    if (Object.keys(updates).length > 0) {
+      await User.update({ id: userId }, updates);
+    }
 
-    if (req.body.phone) user.phone = req.body.phone;
- 
-    await user.save();
- 
+    // Refetch
+    const updatedUser = await User.get(userId);
+
     // ✅ Audit log
-
     logAudit({
-
       action: "USER_PROFILE_UPDATED",
-
       actor: req.auditActor,
-
       target: { type: "user", id: userId },
-
       req,
-
     }).catch(console.error);
- 
+
     // ✅ Invalidate caches
-
     await deleteCacheByPrefix(`user:${userId}`);
-
     await deleteCacheByPrefix(`host:${userId}`);
- 
+
     // ✅ Build full CloudFront image URL for response
-
-    const profileImageUrl = user.profile_image
-
-      ? `${process.env.CLOUDFRONT_URL}/${user.profile_image}`
-
+    const profileImageUrl = updatedUser.profile_image
+      ? `${process.env.CLOUDFRONT_URL}/${updatedUser.profile_image}`
       : null;
- 
+
     return res.json({
-
       success: true,
-
       message: "Profile updated successfully",
-
       user: {
-
-        id: user.id,
-
-        name: user.name,
-
-        email: user.email,
-
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
         profile_image: profileImageUrl,
-
-        phone: user.phone,
-
+        phone: updatedUser.phone,
       },
-
     });
- 
+
   } catch (err) {
-
     console.error("Update User Error:", err);
-
     return res.status(500).json({
-
       success: false,
-
       message: "Server error",
-
     });
-
   }
-
 };
- 

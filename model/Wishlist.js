@@ -1,48 +1,44 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
-import User from "./User.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Wishlist = sequelize.define(
-    "Wishlist",
-    {
-        id: {
-            type: DataTypes.BIGINT,
-            autoIncrement: true,
-            primaryKey: true
-        },
-        user_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false
-        },
-        item_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false
-        },
-        item_type: {
-            type: DataTypes.ENUM(
-                "property",
-                "event",
-                "buysell",
-                "community",
-                "trip"
-            ),
-            allowNull: false
-        }
+/* =====================================================================
+   Wishlist Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const wishlistSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-    {
-        tableName: "wishlists",
-        timestamps: true,
-        underscored: true,
-        indexes: [
-            { unique: true, fields: ["user_id", "item_id", "item_type"] },
-            { fields: ["user_id"] },
-            { fields: ["user_id", "item_type"] }, // compound optimization
-            { fields: ["user_id", "created_at"] }
-        ]
+    user_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    item_id: {
+      type: String,
+      required: true
+    },
+    item_type: {
+      type: String,
+      required: true,
+      enum: ["property", "event", "buysell", "community", "trip"]
     }
+  },
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
+  }
 );
 
-Wishlist.belongsTo(User, { foreignKey: "user_id", onDelete: "CASCADE" });
-User.hasMany(Wishlist, { foreignKey: "user_id" });
+const Wishlist = dynamoose.model("Wishlist", wishlistSchema);
 
 export default Wishlist;

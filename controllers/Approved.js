@@ -2,7 +2,6 @@ import ApprovedHost from "../model/Approved.js";
 import Property from "../model/Property.js";
 import Host from "../model/Host.js";
 import User from "../model/User.js";
-import { Op, Sequelize } from "sequelize";
 import { getCache, setCache } from "../services/cacheService.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 
@@ -20,7 +19,6 @@ const safe = (v) => (v ? v : "all");
 
 export const getApprovedList = async (req, res) => {
   try {
-    // adminAuth middleware already guarantees this
     const country = normalize(req.headers["x-country"] || req.query.country);
     const state   = normalize(req.headers["x-state"] || req.query.state);
     const city    = normalize(req.headers["x-city"] || req.query.city);
@@ -34,35 +32,17 @@ export const getApprovedList = async (req, res) => {
       return res.json({ success: true, data: cached });
     }
 
-    /* ───────── JSON FILTERS (FIXED COLUMN ALIAS) ───────── */
+    /* ───────── SCAN + CLIENT-SIDE FILTER ───────── */
+    let list = await ApprovedHost.scan().exec();
 
-    const conditions = [];
+    // Filter by property_snapshot JSON fields
+    if (country) list = list.filter(item => normalize(item.property_snapshot?.country) === country);
+    if (state) list = list.filter(item => normalize(item.property_snapshot?.state) === state);
+    if (city) list = list.filter(item => normalize(item.property_snapshot?.city) === city);
+    if (zip) list = list.filter(item => normalize(item.property_snapshot?.zip_code) === zip);
 
-    const jsonEq = (path, value) =>
-      Sequelize.where(
-        Sequelize.fn(
-          "JSON_UNQUOTE",
-          Sequelize.fn(
-            "JSON_EXTRACT",
-            // 🔥 CRITICAL FIX: USE TABLE NAME, NOT MODEL NAME
-            Sequelize.col("approved_hosts.property_snapshot"),
-            path
-          )
-        ),
-        value
-      );
-
-    if (country) conditions.push(jsonEq("$.country", country));
-    if (state)   conditions.push(jsonEq("$.state", state));
-    if (city)    conditions.push(jsonEq("$.city", city));
-    if (zip)     conditions.push(jsonEq("$.zip_code", zip));
-
-    const where = conditions.length ? { [Op.and]: conditions } : {};
-
-    const list = await ApprovedHost.findAll({
-      where,
-      order: [["created_at", "DESC"]]
-    });
+    // Sort by created_at DESC
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     const formatted = list.map((item) => ({
       propertyId: item.property_id,
@@ -107,55 +87,48 @@ export const getApprovedWithHosts = async (req, res) => {
       return res.json({ success: true, data: cached });
     }
 
-    const where = {
-      status: "approved",
-      is_deleted: false,
-      is_expired: false,
-      listing_expires_at: {
-        [Op.gt]: new Date()
-      }
-    };
+    const now = new Date();
 
-    if (country) where.country = country;
-    if (state) where.state = state;
-    if (city) where.city = city;
-    if (zip_code) where.zip_code = zip_code;
+    // Query by status GSI
+    let properties = await Property.query("status").eq("approved").exec();
 
-    const properties = await Property.findAll({
-      where,
-      order: [["created_at", "DESC"]],
-      include: [
-        {
-          model: Host,
-          attributes: [
-            "id",
-            "full_name",
-            "status",
-            "phone",
-            "country",
-            "state",
-            "city"
-          ],
-          include: [
-            {
-              model: User,
-              attributes: ["id", "email"]
-            }
-          ]
-        }
-      ]
-    });
+    // Client-side filters
+    properties = properties.filter(p =>
+      !p.is_deleted &&
+      !p.is_expired &&
+      p.listing_expires_at &&
+      new Date(p.listing_expires_at) > now
+    );
 
-    const plain = properties.map(p => {
-      const pJson = p.toJSON();
-      if (pJson.photos) {
-        pJson.photos = pJson.photos.map(attachCloudFrontUrl);
+    if (country) properties = properties.filter(p => p.country === country);
+    if (state) properties = properties.filter(p => p.state === state);
+    if (city) properties = properties.filter(p => p.city === city);
+    if (zip_code) properties = properties.filter(p => p.zip_code === zip_code);
+
+    // Sort newest first
+    properties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    // Fetch host + user data manually (replaces Sequelize includes)
+    const plain = await Promise.all(properties.map(async (p) => {
+      const pObj = { ...p };
+      const host = await Host.get(p.host_id);
+      if (host) {
+        const user = await User.get(host.user_id);
+        pObj.Host = {
+          id: host.id,
+          full_name: host.full_name,
+          status: host.status,
+          phone: host.phone,
+          country: host.country,
+          state: host.state,
+          city: host.city,
+          User: user ? { id: user.id, email: user.email } : null
+        };
       }
-      if (pJson.video) {
-        pJson.video = attachCloudFrontUrl(pJson.video);
-      }
-      return processHostImages(pJson);
-    });
+      if (pObj.photos) pObj.photos = pObj.photos.map(attachCloudFrontUrl);
+      if (pObj.video) pObj.video = attachCloudFrontUrl(pObj.video);
+      return processHostImages(pObj);
+    }));
 
     await setCache(cacheKey, plain, 300);
 

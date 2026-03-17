@@ -72,7 +72,7 @@ export default async function adminAuth(req, res, next) {
 
     if (!admin) {
       // Fetch from DB (default scope excludes password, which is fine here)
-      const dbAdmin = await Admin.findByPk(adminId);
+      const dbAdmin = await Admin.get(adminId);
 
       if (!dbAdmin) {
         return res.status(401).json({

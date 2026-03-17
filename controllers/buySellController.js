@@ -1,96 +1,46 @@
 import BuySellListing from "../model/BuySellListing.js";
 import User from "../model/User.js";
-import { Op } from "sequelize";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
 import { attachCloudFrontUrl } from "../utils/imageUtils.js";
-/* =========================
-   CREATE LISTING
-   (User)
-========================= */
 
+/* =========================
+   CREATE LISTING (User)
+========================= */
 export const createBuySellListing = async (req, res) => {
     try {
-        // 🔒 AUTH GUARD (NON-NEGOTIABLE)
         if (!req.user || !req.user.id) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
         const userId = req.user.id;
-
-        // ✅ ALWAYS get email from DB
-        const user = await User.findByPk(userId, {
-            attributes: ["email"]
-        });
+        const user = await User.get(userId);
 
         if (!user || !user.email) {
-            return res.status(400).json({
-                message: "User email not found"
-            });
+            return res.status(400).json({ message: "User email not found" });
         }
 
         const {
-            title,
-            category,
-            subcategory,
-            price,
-            description,
-            country,
-            state,
-            city,
-            zip_code,
-            street_address,
-            name,
-            phone
+            title, category, subcategory, price, description,
+            country, state, city, zip_code, street_address, name, phone
         } = req.body;
 
-        if (
-            !title ||
-            !category ||
-            !price ||
-            !description ||
-            !country ||
-            !state ||
-            !city ||
-            !street_address ||
-            !name ||
-            !phone
-        ) {
-            return res.status(400).json({
-                message: "Missing required fields"
-            });
+        if (!title || !category || !price || !description || !country || !state || !city || !street_address || !name || !phone) {
+            return res.status(400).json({ message: "Missing required fields" });
         }
 
-        const galleryImages =
-            req.files?.map(file => file.location) || [];
+        const galleryImages = req.files?.map(file => file.location) || [];
 
         const listing = await BuySellListing.create({
-            user_id: userId,
-            title,
-            category,
-            subcategory,
-            price,
-            description,
-            country,
-            state,
-            city,
-            zip_code: zip_code || null,
-            street_address,
-            name,
-            email: user.email,   // ✅ GUARANTEED
-            phone,
-            images: galleryImages,
-            status: "pending"
+            user_id: userId, title, category, subcategory, price, description,
+            country, state, city, zip_code: zip_code || null, street_address,
+            name, email: user.email, phone, images: galleryImages, status: "pending"
         });
 
-        return res.status(201).json({
-            success: true,
-            message: "Listing submitted for approval",
-            listing
-        });
+        return res.status(201).json({ success: true, message: "Listing submitted for approval", listing });
 
     } catch (err) {
         console.error("CREATE BUY SELL ERROR:", err);
@@ -98,66 +48,51 @@ export const createBuySellListing = async (req, res) => {
     }
 };
 
-
-
 /* =========================
-   GET ACTIVE LISTINGS
-   (Public)
+   GET ACTIVE LISTINGS (Public)
 ========================= */
 export const getActiveBuySellListings = async (req, res) => {
     try {
-        const country =
-            req.headers["x-country"] || req.query.country || null;
-        const state =
-            req.headers["x-state"] || req.query.state || null;
-        const city =
-            req.headers["x-city"] || req.query.city || null;
-        const zip_code =
-            req.headers["x-zip-code"] || req.query.zip_code || null;
-
+        const country = req.headers["x-country"] || req.query.country || null;
+        const state = req.headers["x-state"] || req.query.state || null;
+        const city = req.headers["x-city"] || req.query.city || null;
+        const zip_code = req.headers["x-zip-code"] || req.query.zip_code || null;
         const { category, minPrice, maxPrice, search } = req.query;
 
-        const where = { status: "active" };
-
-        if (country) where.country = country;
-        if (state) where.state = state;            // ✅ ADD
-        if (city) where.city = city;
-        if (zip_code) where.zip_code = zip_code;
-
-        if (category) where.category = category;
-
-        if (minPrice || maxPrice) {
-            where.price = {};
-            if (minPrice) where.price[Op.gte] = Number(minPrice);
-            if (maxPrice) where.price[Op.lte] = Number(maxPrice);
-        }
-
-        if (search) {
-            where.title = { [Op.like]: `%${search}%` };
-        }
-
-        const cacheKey =
-            `active_buy_sell:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${category || "all"}:${minPrice || 0}:${maxPrice || 0}:${search || "none"}`;
+        const cacheKey = `active_buy_sell:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${category || "all"}:${minPrice || 0}:${maxPrice || 0}:${search || "none"}`;
 
         const cached = await getCache(cacheKey);
         if (cached) {
             return res.json({ success: true, listings: cached });
         }
 
-        const listings = await BuySellListing.findAll({
-            where,
-            order: [["created_at", "DESC"]],
-            limit: 50
-        });
+        // Query by status GSI
+        let listings = await BuySellListing.query("status").eq("active").exec();
+
+        // Client-side filtering
+        if (country) listings = listings.filter(l => l.country === country);
+        if (state) listings = listings.filter(l => l.state === state);
+        if (city) listings = listings.filter(l => l.city === city);
+        if (zip_code) listings = listings.filter(l => l.zip_code === zip_code);
+        if (category) listings = listings.filter(l => l.category === category);
+        if (minPrice) listings = listings.filter(l => Number(l.price) >= Number(minPrice));
+        if (maxPrice) listings = listings.filter(l => Number(l.price) <= Number(maxPrice));
+        if (search) {
+            const searchLower = search.toLowerCase();
+            listings = listings.filter(l => l.title?.toLowerCase().includes(searchLower));
+        }
+
+        // Sort + limit
+        listings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        listings = listings.slice(0, 50);
 
         const processedListings = listings.map(listing => {
-            const lJson = listing.toJSON();
-            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
-            return lJson;
+            const l = { ...listing };
+            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            return l;
         });
 
         await setCache(cacheKey, processedListings, 300);
-
         return res.json({ success: true, listings: processedListings });
 
     } catch (err) {
@@ -165,38 +100,25 @@ export const getActiveBuySellListings = async (req, res) => {
     }
 };
 
-
 /* =========================
    GET SINGLE LISTING
 ========================= */
 export const getBuySellListingById = async (req, res) => {
     try {
-        const listing = await BuySellListing.findOne({
-            where: {
-                id: req.params.id,
-                status: "active"
-            }
-        });
+        const listing = await BuySellListing.get(req.params.id);
 
-        if (!listing) {
-            return res.status(404).json({
-                message: "Listing not found"
-            });
+        if (!listing || listing.status !== "active") {
+            return res.status(404).json({ message: "Listing not found" });
         }
 
-        const processedListing = listing.toJSON();
+        const processedListing = { ...listing };
         if (processedListing.images) {
             processedListing.images = processedListing.images.map(attachCloudFrontUrl);
         }
 
-        return res.json({
-            success: true,
-            listing: processedListing
-        });
+        return res.json({ success: true, listing: processedListing });
     } catch (err) {
-        return res.status(500).json({
-            message: "Failed to fetch listing"
-        });
+        return res.status(500).json({ message: "Failed to fetch listing" });
     }
 };
 
@@ -205,35 +127,28 @@ export const getBuySellListingById = async (req, res) => {
 ========================= */
 export const getMyBuySellListings = async (req, res) => {
     try {
-        const listings = await BuySellListing.findAll({
-            where: { user_id: req.user.id },
-            order: [["created_at", "DESC"]]
-        });
+        // Query by user_id GSI
+        let listings = await BuySellListing.query("user_id").eq(req.user.id).exec();
+        listings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         const processedListings = listings.map(listing => {
-            const lJson = listing.toJSON();
-            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
-            return lJson;
+            const l = { ...listing };
+            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            return l;
         });
 
-        return res.json({
-            success: true,
-            listings: processedListings
-        });
+        return res.json({ success: true, listings: processedListings });
     } catch (err) {
-        return res.status(500).json({
-            message: "Failed to fetch user listings"
-        });
+        return res.status(500).json({ message: "Failed to fetch user listings" });
     }
 };
 
 /* =========================
-   UPDATE LISTING
-   (Owner only)
+   UPDATE LISTING (Owner only)
 ========================= */
 export const updateBuySellListing = async (req, res) => {
     try {
-        const listing = await BuySellListing.findByPk(req.params.id);
+        const listing = await BuySellListing.get(req.params.id);
 
         if (!listing) {
             return res.status(404).json({ message: "Listing not found" });
@@ -244,24 +159,10 @@ export const updateBuySellListing = async (req, res) => {
         }
 
         if (listing.status === "blocked") {
-            return res.status(400).json({
-                message: "Blocked listings cannot be edited"
-            });
+            return res.status(400).json({ message: "Blocked listings cannot be edited" });
         }
 
-        const allowed = [
-            "title",
-            "category",
-            "subcategory",
-            "price",
-            "description",
-            "state",
-            "city",
-            "zip_code",
-            "street_address",
-            "images"
-        ];
-
+        const allowed = ["title", "category", "subcategory", "price", "description", "state", "city", "zip_code", "street_address", "images"];
         const updates = {};
         for (const key of allowed) {
             if (req.body[key] !== undefined) {
@@ -269,22 +170,17 @@ export const updateBuySellListing = async (req, res) => {
             }
         }
 
-        await listing.update(updates);
+        await BuySellListing.update({ id: listing.id }, updates);
+        const updated = await BuySellListing.get(listing.id);
 
-
-        const processedListing = listing.toJSON();
+        const processedListing = { ...updated };
         if (processedListing.images) {
             processedListing.images = processedListing.images.map(attachCloudFrontUrl);
         }
 
-        return res.json({
-            success: true,
-            listing: processedListing
-        });
+        return res.json({ success: true, listing: processedListing });
     } catch (err) {
-        return res.status(500).json({
-            message: "Failed to update listing"
-        });
+        return res.status(500).json({ message: "Failed to update listing" });
     }
 };
 
@@ -293,26 +189,14 @@ export const updateBuySellListing = async (req, res) => {
 ========================= */
 export const markBuySellAsSold = async (req, res) => {
     try {
-        const listing = await BuySellListing.findByPk(req.params.id);
+        const listing = await BuySellListing.get(req.params.id);
+        if (!listing) return res.status(404).json({ message: "Listing not found" });
+        if (listing.user_id !== req.user.id) return res.status(403).json({ message: "Unauthorized" });
 
-        if (!listing) {
-            return res.status(404).json({ message: "Listing not found" });
-        }
-
-        if (listing.user_id !== req.user.id) {
-            return res.status(403).json({ message: "Unauthorized" });
-        }
-
-        await listing.update({ status: "sold" });
-
-        return res.json({
-            success: true,
-            message: "Listing marked as sold"
-        });
+        await BuySellListing.update({ id: listing.id }, { status: "sold" });
+        return res.json({ success: true, message: "Listing marked as sold" });
     } catch (err) {
-        return res.status(500).json({
-            message: "Failed to update status"
-        });
+        return res.status(500).json({ message: "Failed to update status" });
     }
 };
 
@@ -321,75 +205,51 @@ export const markBuySellAsSold = async (req, res) => {
 ========================= */
 export const deleteBuySellListing = async (req, res) => {
     try {
-        const listing = await BuySellListing.findByPk(req.params.id);
+        const listing = await BuySellListing.get(req.params.id);
+        if (!listing) return res.status(404).json({ message: "Listing not found" });
+        if (listing.user_id !== req.user.id) return res.status(403).json({ message: "Unauthorized" });
 
-        if (!listing) {
-            return res.status(404).json({
-                message: "Listing not found"
-            });
-        }
-
-        if (listing.user_id !== req.user.id) {
-            return res.status(403).json({
-                message: "Unauthorized"
-            });
-        }
-
-        // Soft delete
-        await listing.update({ status: "hidden" });
-
-        return res.json({
-            success: true,
-            message: "Listing removed successfully"
-        });
+        await BuySellListing.update({ id: listing.id }, { status: "hidden" });
+        return res.json({ success: true, message: "Listing removed successfully" });
     } catch (err) {
-        return res.status(500).json({
-            message: "Failed to remove listing"
-        });
+        return res.status(500).json({ message: "Failed to remove listing" });
     }
 };
 
-
 /* =========================
-   ADMIN CONTROLLERS
+   ADMIN: PENDING LISTINGS
 ========================= */
-
 export const getPendingBuySellListings = async (req, res) => {
     try {
         const country = req.query.country || null;
         const state = req.query.state || null;
 
-        const where = { status: "pending" };
-        if (country) where.country = country;
-        if (state) where.state = state;
-
-        const cacheKey =
-            `pending_buy_sell:${country || "all"}:${state || "all"}`;
-
+        const cacheKey = `pending_buy_sell:${country || "all"}:${state || "all"}`;
         const cached = await getCache(cacheKey);
         if (cached) {
             return res.json({ success: true, listings: cached });
         }
 
-        const listings = await BuySellListing.findAll({
-            where,
-            include: [
-                {
-                    model: User,
-                    attributes: ["id", "email"] // ✅ SOURCE OF TRUTH
-                }
-            ],
-            order: [["created_at", "ASC"]]
-        });
+        // Query by status GSI
+        let listings = await BuySellListing.query("status").eq("pending").exec();
 
-        const processedListings = listings.map(listing => {
-            const lJson = listing.toJSON();
-            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
-            return lJson;
-        });
+        if (country) listings = listings.filter(l => l.country === country);
+        if (state) listings = listings.filter(l => l.state === state);
+
+        // Sort ascending (oldest first for review)
+        listings.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        // Enrich with user data
+        const processedListings = await Promise.all(listings.map(async listing => {
+            const l = { ...listing };
+            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            // Fetch user info
+            const user = await User.get(l.user_id);
+            l.User = user ? { id: user.id, email: user.email } : null;
+            return l;
+        }));
 
         await setCache(cacheKey, processedListings, 300);
-
         return res.json({ success: true, listings: processedListings });
 
     } catch (err) {
@@ -398,26 +258,21 @@ export const getPendingBuySellListings = async (req, res) => {
     }
 };
 
-
-
 /* =========================
    APPROVE LISTING
 ========================= */
 export const approveBuySellListing = async (req, res) => {
     try {
-        const listing = await BuySellListing.findByPk(req.params.id);
-        if (!listing) {
-            return res.status(404).json({ message: "Listing not found" });
-        }
+        const listing = await BuySellListing.get(req.params.id);
+        if (!listing) return res.status(404).json({ message: "Listing not found" });
 
-        await listing.update({ status: "active" });
+        await BuySellListing.update({ id: listing.id }, { status: "active" });
 
         logAudit({
             action: "BUYSELL_LISTING_APPROVED",
             actor: { id: req.admin?.id || "system", role: "admin" },
             target: { type: "buy_sell_listing", id: listing.id },
-            severity: "MEDIUM",
-            req
+            severity: "MEDIUM", req
         }).catch(console.error);
 
         AnalyticsEvent.create({
@@ -426,32 +281,25 @@ export const approveBuySellListing = async (req, res) => {
             country: listing.country || null
         }).catch(console.error);
 
-        // 🔔 Notify owner
-        const user = await User.findByPk(listing.user_id);
-
+        // Notify owner
+        const user = await User.get(listing.user_id);
         if (user?.email) {
             try {
                 await notifyAndEmail({
-                    userId: user.id,
-                    email: user.email,
+                    userId: user.id, email: user.email,
                     type: NOTIFICATION_TYPES.BUYSELL_APPROVED,
                     title: "Listing approved",
                     message: "Your buy/sell listing has been approved.",
                     metadata: { listingId: listing.id }
                 });
-            } catch (err) {
-                console.error("Failed to notify user:", err);
-            }
+            } catch (err) { console.error("Failed to notify user:", err); }
         }
 
-        // 🧹 Cache - handled safely to prevent 504 Gateway Timeouts
         try {
             await deleteCacheByPrefix("pending_buy_sell");
             await deleteCacheByPrefix("active_buy_sell");
             await deleteCacheByPrefix("admin:buy_sell");
-        } catch (err) {
-            console.error("Cache clear failed, but proceeding:", err);
-        }
+        } catch (err) { console.error("Cache clear failed:", err); }
 
         return res.json({ success: true, message: "Listing approved" });
     } catch (err) {
@@ -460,25 +308,21 @@ export const approveBuySellListing = async (req, res) => {
     }
 };
 
-
 /* =========================
    BLOCK LISTING
 ========================= */
 export const blockBuySellListing = async (req, res) => {
     try {
-        const listing = await BuySellListing.findByPk(req.params.id);
+        const listing = await BuySellListing.get(req.params.id);
+        if (!listing) return res.status(404).json({ message: "Listing not found" });
 
-        if (!listing) {
-            return res.status(404).json({ message: "Listing not found" });
-        }
+        await BuySellListing.update({ id: listing.id }, { status: "blocked" });
 
-        await listing.update({ status: "blocked" });
         logAudit({
             action: "BUYSELL_LISTING_BLOCKED",
             actor: { id: req.admin?.id || "system", role: "admin" },
             target: { type: "buy_sell_listing", id: listing.id },
-            severity: "HIGH",
-            req
+            severity: "HIGH", req
         }).catch(console.error);
 
         AnalyticsEvent.create({
@@ -486,107 +330,86 @@ export const blockBuySellListing = async (req, res) => {
             user_id: req.admin?.id || "system",
             country: listing.country || null
         }).catch(console.error);
-        const user = await User.findByPk(listing.user_id);
 
-
+        const user = await User.get(listing.user_id);
         if (user?.email) {
             try {
                 await notifyAndEmail({
-                    userId: user.id,
-                    email: user.email,
+                    userId: user.id, email: user.email,
                     type: NOTIFICATION_TYPES.BUYSELL_REJECTED,
                     title: "Listing blocked",
                     message: "Your buy/sell listing was blocked by admin.",
                     metadata: { listingId: listing.id }
                 });
-            } catch (err) {
-                console.error("Failed to notify user:", err);
-            }
+            } catch (err) { console.error("Failed to notify user:", err); }
         }
+
         try {
             await deleteCacheByPrefix("pending_buy_sell");
             await deleteCacheByPrefix("active_buy_sell");
             await deleteCacheByPrefix("admin:buy_sell");
-        } catch (err) {
-            console.error("Cache clear failed, but proceeding:", err);
-        }
+        } catch (err) { console.error("Cache clear failed:", err); }
 
-
-
-        return res.json({
-            success: true,
-            message: "Listing blocked"
-        });
+        return res.json({ success: true, message: "Listing blocked" });
     } catch (err) {
-        return res.status(500).json({
-            message: "Failed to block listing"
-        });
+        return res.status(500).json({ message: "Failed to block listing" });
     }
 };
 
+/* =========================
+   ADMIN: APPROVED LISTINGS
+========================= */
 export const getAdminApprovedBuySellListings = async (req, res) => {
     try {
         const { country, state } = req.query;
-
-        const where = { status: "active" };
-        if (country) where.country = country;
-        if (state) where.state = state;
-
         const cacheKey = `admin:buy_sell:approved:${country || "all"}:${state || "all"}`;
         const cached = await getCache(cacheKey);
-        if (cached) {
-            return res.json({ success: true, listings: cached });
-        }
+        if (cached) return res.json({ success: true, listings: cached });
 
-        const listings = await BuySellListing.findAll({
-            where,
-            include: [{ model: User, attributes: ["id", "email"] }],
-            order: [["updated_at", "DESC"]]
-        });
+        let listings = await BuySellListing.query("status").eq("active").exec();
+        if (country) listings = listings.filter(l => l.country === country);
+        if (state) listings = listings.filter(l => l.state === state);
+        listings.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-        const processedListings = listings.map(listing => {
-            const lJson = listing.toJSON();
-            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
-            return lJson;
-        });
+        const processedListings = await Promise.all(listings.map(async listing => {
+            const l = { ...listing };
+            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            const user = await User.get(l.user_id);
+            l.User = user ? { id: user.id, email: user.email } : null;
+            return l;
+        }));
 
         await setCache(cacheKey, processedListings, 300);
-
         return res.json({ success: true, listings: processedListings });
     } catch (err) {
         return res.status(500).json({ message: "Failed to fetch approved listings" });
     }
 };
 
-
+/* =========================
+   ADMIN: BLOCKED LISTINGS
+========================= */
 export const getAdminBlockedBuySellListings = async (req, res) => {
     try {
         const { country, state } = req.query;
-
-        const where = { status: "blocked" };
-        if (country) where.country = country;
-        if (state) where.state = state;
-
         const cacheKey = `admin:buy_sell:blocked:${country || "all"}:${state || "all"}`;
         const cached = await getCache(cacheKey);
-        if (cached) {
-            return res.json({ success: true, listings: cached });
-        }
+        if (cached) return res.json({ success: true, listings: cached });
 
-        const listings = await BuySellListing.findAll({
-            where,
-            include: [{ model: User, attributes: ["id", "email"] }],
-            order: [["updated_at", "DESC"]]
-        });
+        let listings = await BuySellListing.scan().filter("status").eq("blocked").exec();
+        if (country) listings = listings.filter(l => l.country === country);
+        if (state) listings = listings.filter(l => l.state === state);
+        listings.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-        const processedListings = listings.map(listing => {
-            const lJson = listing.toJSON();
-            if (lJson.images) lJson.images = lJson.images.map(attachCloudFrontUrl);
-            return lJson;
-        });
+        const processedListings = await Promise.all(listings.map(async listing => {
+            const l = { ...listing };
+            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            const user = await User.get(l.user_id);
+            l.User = user ? { id: user.id, email: user.email } : null;
+            return l;
+        }));
 
         await setCache(cacheKey, processedListings, 300);
-
         return res.json({ success: true, listings: processedListings });
     } catch (err) {
         return res.status(500).json({ message: "Failed to fetch blocked listings" });

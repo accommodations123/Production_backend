@@ -1,74 +1,67 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import User from "../User.js";
-const CommunityPost = sequelize.define(
-  "CommunityPost",
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
+
+/* =====================================================================
+   CommunityPost Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const communityPostSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     community_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "community_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     },
-
     user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global"
+      }
     },
-
-    content: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
-
+    content: { type: String },
     media_urls: {
-      type: DataTypes.JSON,
-      defaultValue: []
-      // ["image.jpg", "video.mp4"]
+      type: Array,
+      schema: [String],
+      default: []
     },
-
     media_type: {
-      type: DataTypes.ENUM("text", "image", "video", "mixed"),
-      defaultValue: "text"
+      type: String,
+      default: "text",
+      enum: ["text", "image", "video", "mixed"]
     },
-
     likes_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
     comments_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
     status: {
-      type: DataTypes.ENUM("active", "hidden", "deleted"),
-      defaultValue: "active"
+      type: String,
+      default: "active",
+      enum: ["active", "hidden", "deleted"]
     }
   },
   {
-    tableName: "community_posts",
-    timestamps: true,
-    underscored: true,
-    indexes: [
-      { fields: ["community_id", "created_at"] },
-      { fields: ["user_id"] }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
-CommunityPost.belongsTo(User, {
-  foreignKey: "user_id",
-  as: "author"
-});
-User.hasMany(CommunityPost, {
-  foreignKey: "user_id",
-  as: "communityPosts"
-});
 
+const CommunityPost = dynamoose.model("CommunityPost", communityPostSchema);
 
 export default CommunityPost;

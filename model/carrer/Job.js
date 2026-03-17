@@ -1,154 +1,115 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../../config/db.js";
-import User from "../User.js";
+import dynamoose from "../../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Job = sequelize.define(
-  "Job",
+/* =====================================================================
+   Job Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const jobSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     created_by: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "created_by-index",
+        type: "global"
+      }
     },
-
     title: {
-      type: DataTypes.STRING(150),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     company: {
-      type: DataTypes.STRING(150),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     department: {
-      type: DataTypes.STRING(100),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     location: {
-      type: DataTypes.STRING(150),
-      allowNull: false
+      type: String,
+      required: true
     },
-    geo_restriction: {
-      type: DataTypes.STRING(150),
-      allowNull: true
-    },
-
+    geo_restriction: { type: String },
     work_style: {
-      type: DataTypes.ENUM("remote", "hybrid", "onsite"),
-      allowNull: false
+      type: String,
+      required: true,
+      enum: ["remote", "hybrid", "onsite"]
     },
-
     employment_type: {
-      type: DataTypes.STRING(50),
-      allowNull: false
-      // Contract | C2C | Full Time | Contract to Hire
+      type: String,
+      required: true
     },
-    contract_duration: {
-      type: DataTypes.STRING(50),
-      allowNull: true
-      // 6 months | Long Term | 12+ Months
-    },
+    contract_duration: { type: String },
     experience_level: {
-      type: DataTypes.STRING(50),
-      allowNull: false
-      // "12+ years", "Senior", "Lead"
+      type: String,
+      required: true
     },
-
-    salary_range: {
-      type: DataTypes.STRING(100),
-      allowNull: true
-    },
-
+    salary_range: { type: String },
     description: {
-      type: DataTypes.TEXT("long"),
-      allowNull: false
+      type: String,
+      required: true
     },
-
     requirements: {
-      type: DataTypes.JSON,
-      defaultValue: []
+      type: Array,
+      schema: [String],
+      default: []
     },
-
     responsibilities: {
-      type: DataTypes.JSON,
-      defaultValue: []
+      type: Array,
+      schema: [String],
+      default: []
     },
-
     skills: {
-      type: DataTypes.JSON,
-      defaultValue: () => ({
-        primary: [],
-        secondary: [],
-        nice_to_have: []
-      })
+      type: Object,
+      default: { primary: [], secondary: [], nice_to_have: [] }
     },
-
     mandatory_conditions: {
-      type: DataTypes.JSON,
-      defaultValue: []
-      // Ex-Equifax, Local only, F2F interview
+      type: Array,
+      schema: [String],
+      default: []
     },
-    /* ───────────────
-   METADATA
-─────────────── */
     metadata: {
-      type: DataTypes.JSON,
-      defaultValue: {}
-      // source, client domain, posting channel
+      type: Object,
+      default: {}
     },
-
     featured: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
+      type: Boolean,
+      default: false
     },
-
     views_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
     applications_count: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
+      type: Number,
+      default: 0
     },
-
     status: {
-      type: DataTypes.ENUM("draft", "active", "closed"),
-      defaultValue: "draft"
+      type: String,
+      default: "draft",
+      enum: ["draft", "active", "closed"],
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     }
   },
   {
-    tableName: "jobs",
-    timestamps: true,
-    underscored: true,
-    indexes: [
-      { fields: ["status"] },
-      { fields: ["department"] },
-      { fields: ["location"] },
-      { fields: ["employment_type"] },
-      { fields: ["work_style"] },
-      { fields: ["experience_level"] },
-      { fields: ["featured"] }
-    ]
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-/* RELATION */
-Job.belongsTo(User, {
-  foreignKey: "created_by",
-  as: "creator"
-});
-
-User.hasMany(Job, {
-  foreignKey: "created_by",
-  as: "jobs"
-});
+const Job = dynamoose.model("Job", jobSchema);
 
 export default Job;

@@ -3,18 +3,15 @@ import Property from "../model/Property.js";
 
 export const loadProperty = async (req, res, next) => {
   try {
-    const propertyId = Number(req.params.id);
+    const propertyId = req.params.id;
 
     if (!propertyId) {
       return res.status(400).json({ message: "Invalid property id" });
     }
 
-    const property = await Property.findOne({
-      where: {
-        id: propertyId,
+    const property = await Property.get(propertyId,
         is_deleted: false
-      }
-    });
+      );
 
     if (!property) {
       return res.status(404).json({

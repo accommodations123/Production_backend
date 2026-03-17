@@ -1,6 +1,28 @@
-// controllers/admin/adminAnalytics.controller.js
+// controllers/DashboardAnalytics/carrerAnalytics.controller.js
 import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
-import { Op, fn, col, literal } from "sequelize";
+
+/* ── HELPERS ─────────────────────────────────────────────────── */
+function countByField(events, field) {
+  const map = {};
+  for (const e of events) {
+    const key = e[field] || "unknown";
+    map[key] = (map[key] || 0) + 1;
+  }
+  return Object.entries(map)
+    .map(([k, total]) => ({ [field]: k, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function dailyTrend(events) {
+  const map = {};
+  for (const e of events) {
+    const date = (e.created_at || "").substring(0, 10);
+    map[date] = (map[date] || 0) + 1;
+  }
+  return Object.entries(map)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
 
 /* =====================================================
    📊 JOBS – OVERVIEW
@@ -10,19 +32,12 @@ export const getJobsOverview = async (req, res) => {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 90);
 
-    const stats = await AnalyticsEvent.findAll({
-      attributes: [
-        "event_type",
-        [fn("COUNT", col("id")), "total"]
-      ],
-      where: {
-        event_type: {
-          [Op.in]: ["JOB_CREATED", "JOB_VIEWED", "JOB_STATUS_CHANGED"]
-        },
-        created_at: { [Op.gte]: fromDate }
-      },
-      group: ["event_type"]
-    });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").in(["JOB_CREATED", "JOB_VIEWED", "JOB_STATUS_CHANGED"])
+      .exec();
+
+    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const stats = countByField(filtered, "event_type");
 
     res.json({ success: true, stats });
   } catch (err) {
@@ -39,18 +54,22 @@ export const getApplicationsFunnel = async (req, res) => {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 90);
 
-    const funnel = await AnalyticsEvent.findAll({
-      attributes: [
-        [literal("JSON_UNQUOTE(metadata->'$.to')"), "status"],
-        [fn("COUNT", col("id")), "total"]
-      ],
-      where: {
-        event_type: "APPLICATION_STATUS_CHANGED",
-        created_at: { [Op.gte]: fromDate }
-      },
-      group: [literal("JSON_UNQUOTE(metadata->'$.to')")],
-      order: [[literal("total"), "DESC"]]
-    });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").eq("APPLICATION_STATUS_CHANGED")
+      .exec();
+
+    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+
+    // Group by metadata.to status
+    const funnelMap = {};
+    for (const e of filtered) {
+      const status = e.metadata?.to || "unknown";
+      funnelMap[status] = (funnelMap[status] || 0) + 1;
+    }
+
+    const funnel = Object.entries(funnelMap)
+      .map(([status, total]) => ({ status, total }))
+      .sort((a, b) => b.total - a.total);
 
     res.json({ success: true, funnel });
   } catch (err) {
@@ -65,22 +84,15 @@ export const getApplicationsFunnel = async (req, res) => {
 export const getApplicationsDailyTrend = async (req, res) => {
   try {
     const days = Number(req.query.days || 30);
-
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
 
-    const trend = await AnalyticsEvent.findAll({
-      attributes: [
-        [fn("DATE", col("created_at")), "date"],
-        [fn("COUNT", col("id")), "count"]
-      ],
-      where: {
-        event_type: "JOB_APPLICATION_SUBMITTED",
-        created_at: { [Op.gte]: fromDate }
-      },
-      group: [literal("DATE(created_at)")],
-      order: [[literal("DATE(created_at)"), "ASC"]]
-    });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").eq("JOB_APPLICATION_SUBMITTED")
+      .exec();
+
+    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const trend = dailyTrend(filtered);
 
     res.json({ success: true, trend });
   } catch (err) {
@@ -94,18 +106,22 @@ export const getApplicationsDailyTrend = async (req, res) => {
    ===================================================== */
 export const getMostViewedJobs = async (req, res) => {
   try {
-    const data = await AnalyticsEvent.findAll({
-      attributes: [
-        ["event_id", "job_id"],
-        [fn("COUNT", col("id")), "views"]
-      ],
-      where: {
-        event_type: "JOB_VIEWED"
-      },
-      group: ["event_id"],
-      order: [[literal("views"), "DESC"]],
-      limit: 10
-    });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").eq("JOB_VIEWED")
+      .exec();
+
+    // Group by event_id (job_id) + count
+    const viewsMap = {};
+    for (const e of events) {
+      if (e.event_id) {
+        viewsMap[e.event_id] = (viewsMap[e.event_id] || 0) + 1;
+      }
+    }
+
+    const data = Object.entries(viewsMap)
+      .map(([job_id, views]) => ({ job_id, views }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 10);
 
     res.json({ success: true, data });
   } catch (err) {
@@ -122,24 +138,17 @@ export const getAdminActionsSummary = async (req, res) => {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 90);
 
-    const stats = await AnalyticsEvent.findAll({
-      attributes: [
-        "event_type",
-        [fn("COUNT", col("id")), "total"]
-      ],
-      where: {
-        event_type: {
-          [Op.in]: [
-            "JOB_CREATED",
-            "JOB_STATUS_CHANGED",
-            "APPLICATION_STATUS_CHANGED",
-            "APPLICATION_USER_NOTIFIED"
-          ]
-        },
-        created_at: { [Op.gte]: fromDate }
-      },
-      group: ["event_type"]
-    });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").in([
+        "JOB_CREATED",
+        "JOB_STATUS_CHANGED",
+        "APPLICATION_STATUS_CHANGED",
+        "APPLICATION_USER_NOTIFIED"
+      ])
+      .exec();
+
+    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const stats = countByField(filtered, "event_type");
 
     res.json({ success: true, stats });
   } catch (err) {

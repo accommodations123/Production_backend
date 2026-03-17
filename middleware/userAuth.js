@@ -20,7 +20,7 @@ export default async function userAuth(req, res, next) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const userId = Number(decoded.id);
+    const userId = decoded.id;  // UUID string now
 
     // 🚀 Redis first
     const cachedUser = await getCache(`user:${userId}`);
@@ -29,16 +29,8 @@ export default async function userAuth(req, res, next) {
       return next();
     }
 
-    // 🔥 DB fetch (ONLY EXISTING COLUMNS)
-    const dbUser = await User.findByPk(userId, {
-      attributes: [
-        "id",
-        "email",
-        "name",
-        "profile_image",
-        "verified"
-      ]
-    });
+    // 🔥 DB fetch
+    const dbUser = await User.get(userId);
 
     if (!dbUser) {
       return res.status(401).json({ message: "User not found" });
@@ -71,6 +63,3 @@ export default async function userAuth(req, res, next) {
     return res.status(401).json({ message: "Invalid session" });
   }
 }
-
-
-

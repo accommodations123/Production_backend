@@ -1,136 +1,88 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
-import User from "./User.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const BuySellListing = sequelize.define(
-    "BuySellListing",
-    {
-        id: {
-            type: DataTypes.INTEGER,
-            autoIncrement: true,
-            primaryKey: true
-        },
+/* =====================================================================
+   BuySellListing Model — DynamoDB (Dynamoose)
+   ===================================================================== */
 
-        // Owner: any authenticated user
-        user_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false
-        },
-
-        title: {
-            type: DataTypes.STRING(150),
-            allowNull: false
-        },
-
-        category: {
-            type: DataTypes.STRING(100),
-            allowNull: false
-        },
-
-        subcategory: {
-            type: DataTypes.STRING(100),
-            allowNull: true
-        },
-
-        price: {
-            type: DataTypes.DECIMAL(10, 2),
-            allowNull: false
-        },
-
-        description: {
-            type: DataTypes.TEXT,
-            allowNull: false
-        },
-        country: {
-            type: DataTypes.STRING(100),
-            allowNull: false
-        },
-        street_address: {               // ✅ ADDED
-            type: DataTypes.TEXT,
-            allowNull: false
-        },
-
-        city: {
-            type: DataTypes.STRING(100),
-            allowNull: false
-        },
-
-        zip_code: {
-            type: DataTypes.STRING(20),
-            allowNull: true
-        },
-        state: {                        // ✅ ADDED
-            type: DataTypes.STRING(100),
-            allowNull: false
-        },
-
-
-        // Snapshot contact details (not tied to Host)
-        name: {
-            type: DataTypes.STRING(100),
-            allowNull: false
-        },
-
-        // email: {
-        //     type: DataTypes.STRING(150),
-        //     allowNull: false,
-        //     validate: { isEmail: true }
-        // },
-
-        phone: {
-            type: DataTypes.STRING(20),
-            allowNull: false
-        },
-
-        images: {
-            type: DataTypes.JSON,
-            allowNull: true,
-            comment: "Array of image URLs"
-        },
-
-        status: {
-            type: DataTypes.ENUM(
-                "draft",
-                "pending",
-                "active",
-                "sold",
-                "hidden",
-                "blocked"
-            ),
-            defaultValue: "pending"
-        }
-
+const buySellListingSchema = new dynamoose.Schema(
+  {
+    id: {
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-    {
-        tableName: "buy_sell_listings",
-        timestamps: true,
-        underscored: true,
-        indexes: [
-            { fields: ["user_id"] },
-            { fields: ["category", "status"] },
-            { fields: ["status", "created_at"] },
-            { fields: ["price"] },
-
-            // Location indexes
-            { fields: ["country"] },
-            { fields: ["country", "state"] },
-            { fields: ["country", "state", "city"] },
-            { fields: ["country", "state", "city", "zip_code"] }
-        ]
-
+    user_id: {
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    title: {
+      type: String,
+      required: true
+    },
+    category: {
+      type: String,
+      required: true
+    },
+    subcategory: { type: String },
+    price: {
+      type: Number,
+      required: true
+    },
+    description: {
+      type: String,
+      required: true
+    },
+    country: {
+      type: String,
+      required: true,
+      index: {
+        name: "country-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
+    },
+    street_address: { type: String },
+    city: { type: String },
+    zip_code: { type: String },
+    state: { type: String },
+    name: {
+      type: String,
+      required: true
+    },
+    phone: {
+      type: String,
+      required: true
+    },
+    images: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    status: {
+      type: String,
+      default: "pending",
+      enum: ["draft", "pending", "active", "sold", "hidden", "blocked"],
+      index: {
+        name: "status-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     }
+  },
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
+  }
 );
 
-/* Associations */
-
-BuySellListing.belongsTo(User, {
-    foreignKey: "user_id",
-    onDelete: "CASCADE",
-    onUpdate: "CASCADE"
-});
-
-User.hasMany(BuySellListing, {
-    foreignKey: "user_id"
-});
+const BuySellListing = dynamoose.model("BuySellListing", buySellListingSchema);
 
 export default BuySellListing;

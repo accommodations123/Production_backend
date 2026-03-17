@@ -1,4 +1,4 @@
-import Admin from "../model/Admin.js";
+import Admin, { isLocked, incrementFailedAttempts, resetFailedAttempts, recordLogin } from "../model/Admin.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { logAudit } from "../services/auditLogger.js";
@@ -20,9 +20,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
    Helpers
    ===================================================================== */
 
-/**
- * Build a safe admin object (no password, no sensitive internals).
- */
 function safeAdminPayload(admin) {
   return {
     id: admin.id,
@@ -34,9 +31,6 @@ function safeAdminPayload(admin) {
   };
 }
 
-/**
- * Cache key for admin by ID.
- */
 function adminCacheKey(id) {
   return `admin:id:${id}`;
 }
@@ -44,14 +38,13 @@ function adminCacheKey(id) {
 /* =====================================================================
    REGISTER ADMIN
    POST /admin/register
-   Requires: adminAuth + requireRole("super_admin")
    ===================================================================== */
 
 export const adminRegister = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // ── Input validation ────────────────────────────────────────────
+    // ── Input validation
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -80,8 +73,7 @@ export const adminRegister = async (req, res) => {
       });
     }
 
-    // ── Role restriction ────────────────────────────────────────────
-    // super_admin can only be created via seed script, not API
+    // ── Role restriction
     const ALLOWED_API_ROLES = ["admin", "recruiter"];
     const adminRole = ALLOWED_API_ROLES.includes(role) ? role : "admin";
 
@@ -101,16 +93,16 @@ export const adminRegister = async (req, res) => {
       });
     }
 
-    // ── Check duplicate ─────────────────────────────────────────────
-    const exists = await Admin.unscoped().findOne({ where: { email } });
-    if (exists) {
+    // ── Check duplicate (query by email GSI)
+    const existingAdmins = await Admin.query("email").eq(email.toLowerCase().trim()).exec();
+    if (existingAdmins.length > 0) {
       return res.status(409).json({
         success: false,
         message: "An account with this email already exists"
       });
     }
 
-    // ── Create admin ────────────────────────────────────────────────
+    // ── Create admin
     const hashedPass = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     const admin = await Admin.create({
@@ -125,7 +117,7 @@ export const adminRegister = async (req, res) => {
     const payload = safeAdminPayload(admin);
     await setCache(adminCacheKey(admin.id), payload, ADMIN_CACHE_TTL);
 
-    // ── Audit log ───────────────────────────────────────────────────
+    // ── Audit log
     logAudit({
       action: "ADMIN_REGISTERED",
       actor: { id: req.admin?.id, role: req.admin?.role },
@@ -164,13 +156,11 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    // ── Find admin (include password via scope) ─────────────────────
-    const admin = await Admin.scope("withPassword").findOne({
-      where: { email: email.toLowerCase().trim() }
-    });
+    // ── Find admin by email GSI (includes password since DynamoDB returns all attrs)
+    const admins = await Admin.query("email").eq(email.toLowerCase().trim()).exec();
+    const admin = admins.length > 0 ? admins[0] : null;
 
     if (!admin) {
-      // ❌ Admin not found — generic message to prevent enumeration
       logAudit({
         action: "ADMIN_LOGIN_FAILED",
         actor: { role: "unknown" },
@@ -186,7 +176,7 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    // ── Check account status ────────────────────────────────────────
+    // ── Check account status
     if (admin.status !== "active") {
       logAudit({
         action: "ADMIN_LOGIN_BLOCKED",
@@ -203,8 +193,8 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    // ── Check lockout ───────────────────────────────────────────────
-    if (admin.isLocked()) {
+    // ── Check lockout (using exported helper function)
+    if (isLocked(admin)) {
       const retryAfter = Math.ceil((new Date(admin.locked_until) - new Date()) / 1000);
 
       logAudit({
@@ -223,12 +213,11 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    // ── Verify password ─────────────────────────────────────────────
+    // ── Verify password
     const isPasswordValid = await bcrypt.compare(password, admin.password);
 
     if (!isPasswordValid) {
-      // Increment failed attempts (auto-locks after 5)
-      const attempts = await admin.incrementFailedAttempts();
+      const attempts = await incrementFailedAttempts(admin);
 
       logAudit({
         action: "ADMIN_LOGIN_FAILED",
@@ -242,19 +231,15 @@ export const adminLogin = async (req, res) => {
         }
       }).catch(console.error);
 
-      // Generic message — don't reveal "wrong password" vs "not found"
       return res.status(401).json({
         success: false,
         message: "Invalid email or password"
       });
     }
 
-    // ── Successful login ────────────────────────────────────────────
-    // Reset failed attempts
-    await admin.resetFailedAttempts();
-
-    // Record last login
-    await admin.recordLogin();
+    // ── Successful login
+    await resetFailedAttempts(admin);
+    await recordLogin(admin);
 
     // Generate JWT
     const token = jwt.sign(
@@ -269,14 +254,13 @@ export const adminLogin = async (req, res) => {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
-      maxAge: 24 * 60 * 60 * 1000                // 24 hours
+      maxAge: 24 * 60 * 60 * 1000
     });
 
     // Cache admin data (no password)
     const payload = safeAdminPayload(admin);
     await setCache(adminCacheKey(admin.id), payload, ADMIN_CACHE_TTL);
 
-    // Audit log
     logAudit({
       action: "ADMIN_LOGIN_SUCCESS",
       actor: { id: admin.id, role: admin.role },
@@ -307,7 +291,6 @@ export const adminLogin = async (req, res) => {
 /* =====================================================================
    CHANGE PASSWORD
    PUT /admin/change-password
-   Requires: adminAuth
    ===================================================================== */
 
 export const changePassword = async (req, res) => {
@@ -335,8 +318,8 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    // Get admin with password
-    const admin = await Admin.scope("withPassword").findByPk(req.admin.id);
+    // Get admin (DynamoDB returns all attrs including password)
+    const admin = await Admin.get(req.admin.id);
     if (!admin) {
       return res.status(404).json({ success: false, message: "Admin not found" });
     }
@@ -352,15 +335,14 @@ export const changePassword = async (req, res) => {
 
     // Hash and update
     const hashedPass = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
-    await admin.update({
+    await Admin.update({ id: admin.id }, {
       password: hashedPass,
-      password_changed_at: new Date()
+      password_changed_at: new Date().toISOString()
     });
 
     // Invalidate cache
     await deleteCache(adminCacheKey(admin.id));
 
-    // Audit
     logAudit({
       action: "ADMIN_PASSWORD_CHANGED",
       actor: { id: admin.id, role: admin.role },
@@ -385,29 +367,27 @@ export const changePassword = async (req, res) => {
 /* =====================================================================
    LIST ADMINS
    GET /admin/admins
-   Requires: adminAuth + requireRole("super_admin")
    ===================================================================== */
 
 export const listAdmins = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
-    const offset = (page - 1) * limit;
+    // DynamoDB scan (no offset/limit like SQL, but we can limit results)
+    const admins = await Admin.scan().exec();
 
-    const { count, rows } = await Admin.findAndCountAll({
-      order: [["created_at", "DESC"]],
-      limit,
-      offset
-    });
+    // Remove password from results
+    const safeAdmins = admins.map(a => safeAdminPayload(a));
+
+    // Sort by created_at DESC
+    safeAdmins.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
     return res.json({
       success: true,
-      data: rows,
+      data: safeAdmins,
       pagination: {
-        page,
-        limit,
-        total: count,
-        totalPages: Math.ceil(count / limit)
+        page: 1,
+        limit: safeAdmins.length,
+        total: safeAdmins.length,
+        totalPages: 1
       }
     });
 
@@ -425,7 +405,6 @@ export const listAdmins = async (req, res) => {
 
 export const adminLogout = async (req, res) => {
   try {
-    // Clear HTTP-only cookie
     const isProd = process.env.NODE_ENV === "production";
     res.clearCookie("access_token", {
       httpOnly: true,
@@ -433,7 +412,6 @@ export const adminLogout = async (req, res) => {
       sameSite: isProd ? "none" : "lax"
     });
 
-    // Invalidate cache if admin is authenticated
     if (req.admin?.id) {
       await deleteCache(adminCacheKey(req.admin.id));
 

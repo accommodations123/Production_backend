@@ -1,68 +1,61 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
-import User from "./User.js";
+import dynamoose from "../config/db.js";
+import { v4 as uuidv4 } from "uuid";
 
-const Notification = sequelize.define(
-  "Notification",
+/* =====================================================================
+   Notification Model — DynamoDB (Dynamoose)
+   ===================================================================== */
+
+const notificationSchema = new dynamoose.Schema(
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true
+      type: String,
+      hashKey: true,
+      default: () => uuidv4()
     },
-
     user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
+      type: String,
+      required: true,
+      index: {
+        name: "user_id-index",
+        type: "global",
+        rangeKey: "created_at"
+      }
     },
-
     title: {
-      type: DataTypes.STRING,
-      allowNull: false
+      type: String,
+      required: true
     },
-
     message: {
-      type: DataTypes.TEXT,
-      allowNull: false
+      type: String,
+      required: true
     },
-
     type: {
-      type: DataTypes.STRING,
-      allowNull: false
+      type: String,
+      required: true
     },
-
     entity_type: {
-      type: DataTypes.STRING,
-      defaultValue: "event"
+      type: String,
+      default: "event"
     },
-
-    entity_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    },
-    metadata: {
-      type: DataTypes.JSON,
-      allowNull: true
-    },
-
+    entity_id: { type: String },
+    metadata: { type: Object },
     is_read: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
+      type: Boolean,
+      default: false
     },
-     is_deleted: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
+    is_deleted: {
+      type: Boolean,
+      default: false
     }
   },
   {
-    tableName: "notifications",
-    timestamps: true,
-    underscored: true
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at"
+    }
   }
 );
 
-// Association
-Notification.belongsTo(User, { foreignKey: "user_id", onDelete: "CASCADE" });
-User.hasMany(Notification, { foreignKey: "user_id" });
+const Notification = dynamoose.model("Notification", notificationSchema);
 
 export default Notification;
