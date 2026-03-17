@@ -20,10 +20,6 @@ if (!isProd && process.env.DYNAMODB_LOCAL === "true") {
   // ── AWS DynamoDB (Production) ────────────────────────────────────
   const ddb = new dynamoose.aws.ddb.DynamoDB({
     region: process.env.AWS_REGION || "us-east-2",
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    }
   });
   dynamoose.aws.ddb.set(ddb);
 }
