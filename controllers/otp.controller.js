@@ -44,10 +44,15 @@ const transporter = nodemailer.createTransport({
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 
 const getCountry = (req) => {
-  if (req.headers["x-country"]) return req.headers["x-country"];
-  const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.ip;
-  const geo = geoip.lookup(ip);
-  return geo?.country || null;
+  try {
+    if (req.headers["x-country"]) return req.headers["x-country"];
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0] || req.ip;
+    const geo = ip ? geoip.lookup(ip) : null;
+    return geo?.country || null;
+  } catch (err) {
+    console.error("GeoIP lookup error:", err.message);
+    return null;
+  }
 };
 
 /* ============================================================
@@ -108,19 +113,23 @@ export const sendOTP = async (req, res) => {
       }).catch(console.error);
     }
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your OTP Verification Code",
-      html: `
-        <div style="font-family: Arial; max-width: 420px; margin: auto;">
-          <h2>Verify Your Account</h2>
-          <p>Your OTP is:</p>
-          <h1 style="letter-spacing: 6px;">${otp}</h1>
-          <p>This code is valid for 5 minutes.</p>
-        </div>
-      `
-    });
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "Your OTP Verification Code",
+        html: `
+          <div style="font-family: Arial; max-width: 420px; margin: auto;">
+            <h2>Verify Your Account</h2>
+            <p>Your OTP is:</p>
+            <h1 style="letter-spacing: 6px;">${otp}</h1>
+            <p>This code is valid for 5 minutes.</p>
+          </div>
+        `
+      });
+    } catch (mailError) {
+      console.error("⚠️ Mailer Error (OTP still saved, check console):", otp, mailError.message);
+    }
 
     // ✅ Log OTP_SENT for every OTP request
     AnalyticsEvent.create({
@@ -236,11 +245,10 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    // Mark verified
+    // Mark verified — use $REMOVE for String fields (Dynamoose rejects null for String type)
     await User.update({ id: user.id }, {
-      verified: true,
-      otp: null,
-      otp_expires: null
+      $SET: { verified: true },
+      $REMOVE: ["otp", "otp_expires"]
     });
 
     const token = jwt.sign(
