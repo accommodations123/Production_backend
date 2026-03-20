@@ -41,8 +41,9 @@ function processEventImages(e) {
 export const createEventDraft = async (req, res) => {
   try {
     const userId = req.user.id;
+
     const hosts = await Host.query("user_id").eq(userId).exec();
-    const host = hosts[0];
+    const host = hosts?.[0];
 
     if (!host) {
       return res.status(400).json({
@@ -51,35 +52,78 @@ export const createEventDraft = async (req, res) => {
       });
     }
 
-    const { title, type, start_date, start_time, end_date, end_time } = req.body;
+    const { title, start_date, start_time, end_date, end_time } = req.body;
+    const type = req.body.type || req.body.event_type;
 
     if (!title || !start_date || !start_time) {
-      return res.status(400).json({ success: false, message: "Missing required fields (title, start_date, start_time)." });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields"
+      });
+    }
+
+    const startDateObj = new Date(start_date);
+    if (isNaN(startDateObj)) {
+      return res.status(400).json({ message: "Invalid start_date" });
+    }
+
+    if (end_date) {
+      const endDateObj = new Date(end_date);
+
+      if (isNaN(endDateObj)) {
+        return res.status(400).json({ message: "Invalid end_date" });
+      }
+
+      if (endDateObj < startDateObj) {
+        return res.status(400).json({
+          message: "End date cannot be before start date"
+        });
+      }
+    }
+
+    if (
+      end_date &&
+      start_date === end_date &&
+      end_time &&
+      start_time >= end_time
+    ) {
+      return res.status(400).json({
+        message: "End time must be after start time"
+      });
     }
 
     const eventData = {
-      host_id: host.id, title, type, start_date, start_time, status: "draft"
+      host_id: host.id,
+      title,
+      start_date,
+      start_time,
+      status: "draft",
+      ...(type && { type }),
+      ...(end_date && { end_date }),
+      ...(end_time && { end_time })
     };
-    if (end_date) eventData.end_date = end_date;
-    if (end_time) eventData.end_time = end_time;
 
     const event = await Event.create(eventData);
 
-    const analyticsData = {
-      event_type: "EVENT_DRAFT_CREATED", user_id: userId, host_id: host.id,
-      event_id: event.id
-    };
-    if (host.country) analyticsData.country = host.country;
-    if (host.state) analyticsData.state = host.state;
-
-    AnalyticsEvent.create(analyticsData).catch(err => console.error("ANALYTICS EVENT FAILED:", err));
+    AnalyticsEvent.create({
+      event_type: "EVENT_DRAFT_CREATED",
+      user_id: userId,
+      host_id: host.id,
+      event_id: event.id,
+      ...(host.country && { country: host.country }),
+      ...(host.state && { state: host.state })
+    }).catch(console.error);
 
     await deleteCacheByPrefix("pending_events:");
-    return res.json({ success: true, eventId: event.id, message: "Event draft created successfully." });
+
+    return res.json({
+      success: true,
+      eventId: event.id
+    });
 
   } catch (err) {
-    console.log("Create Event Error:", err);
-    return res.status(500).json({ message: "Server error." });
+    console.error("CREATE EVENT ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -91,9 +135,25 @@ export const updateBasicInfo = async (req, res) => {
     const event = req.event;
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
-    await Event.update({ id: event.id }, {
-      title: req.body.title, description: req.body.description, type: req.body.type
+    const type = req.body.type || req.body.event_type;
+    const setFields = {};
+    const removeFields = [];
+
+    const fields = { title: req.body.title, description: req.body.description, type };
+
+    Object.keys(fields).forEach(key => {
+      const val = fields[key];
+      if (val === undefined || val === null || val === "") removeFields.push(key);
+      else setFields[key] = val;
     });
+
+    const dynamoUpdate = {};
+    if (Object.keys(setFields).length > 0) dynamoUpdate.$SET = setFields;
+    if (removeFields.length > 0) dynamoUpdate.$REMOVE = removeFields;
+
+    if (Object.keys(dynamoUpdate).length > 0) {
+      await Event.update({ id: event.id }, dynamoUpdate);
+    }
 
     AnalyticsEvent.create({
       event_type: "EVENT_BASIC_INFO_UPDATED", user_id: req.user.id,
@@ -118,18 +178,28 @@ export const updateLocation = async (req, res) => {
     const event = req.event;
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
-    const updateData = {
-      country: req.body.country, state: req.body.state, city: req.body.city,
-      street_address: req.body.street_address, landmark: req.body.landmark
-    };
-    if (req.body.zip_code) updateData.zip_code = req.body.zip_code;
+    const setFields = {};
+    const removeFields = [];
 
-    // Remove undefined values to avoid Dynamoose errors
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined || updateData[key] === null) delete updateData[key];
+    const fields = {
+      country: req.body.country, state: req.body.state, city: req.body.city,
+      street_address: req.body.street_address, landmark: req.body.landmark,
+      zip_code: req.body.zip_code
+    };
+
+    Object.keys(fields).forEach(key => {
+      const val = fields[key];
+      if (val === undefined || val === null || val === "") removeFields.push(key);
+      else setFields[key] = val;
     });
 
-    await Event.update({ id: event.id }, updateData);
+    const dynamoUpdate = {};
+    if (Object.keys(setFields).length > 0) dynamoUpdate.$SET = setFields;
+    if (removeFields.length > 0) dynamoUpdate.$REMOVE = removeFields;
+
+    if (Object.keys(dynamoUpdate).length > 0) {
+      await Event.update({ id: event.id }, dynamoUpdate);
+    }
 
     AnalyticsEvent.create({
       event_type: "EVENT_LOCATION_UPDATED", user_id: req.user.id,
@@ -154,25 +224,35 @@ export const updateSchedule = async (req, res) => {
     const event = req.event;
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
-    const endDate = req.body.end_date !== undefined && req.body.end_date !== "" ? req.body.end_date : event.end_date;
-    const endTime = req.body.end_time !== undefined && req.body.end_time !== "" ? req.body.end_time : event.end_time;
+    const endDate = req.body.end_date !== undefined ? req.body.end_date : event.end_date;
+    const endTime = req.body.end_time !== undefined ? req.body.end_time : event.end_time;
 
-    if (endDate && new Date(endDate) < new Date(event.start_date)) {
+    if (endDate && endDate !== "" && new Date(endDate) < new Date(event.start_date)) {
       return res.status(400).json({ message: "End date cannot be before start date" });
     }
 
-    if (endDate && event.start_date === endDate && endTime && event.start_time >= endTime) {
+    if (endDate && endDate !== "" && event.start_date === endDate && endTime && endTime !== "" && event.start_time >= endTime) {
       return res.status(400).json({ message: "End time must be after start time" });
     }
 
-    await Event.update({ id: event.id }, {
-      schedule: req.body.schedule || event.schedule, end_date: endDate, end_time: endTime
-    });
+    const setFields = { schedule: req.body.schedule || event.schedule };
+    const removeFields = [];
+
+    if (endDate === "" || endDate === null) removeFields.push("end_date");
+    else if (endDate) setFields.end_date = endDate;
+
+    if (endTime === "" || endTime === null) removeFields.push("end_time");
+    else if (endTime) setFields.end_time = endTime;
+
+    const dynamoUpdate = { $SET: setFields };
+    if (removeFields.length > 0) dynamoUpdate.$REMOVE = removeFields;
+
+    await Event.update({ id: event.id }, dynamoUpdate);
 
     AnalyticsEvent.create({
       event_type: "EVENT_SCHEDULE_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
-    });
+    }).catch(console.error);
 
     await deleteCache(`event:${event.id}`);
     const updated = await Event.get(event.id);
@@ -198,16 +278,20 @@ export const updateVenue = async (req, res) => {
     const setFields = {};
     const removeFields = [];
 
-    // Always set these if provided
-    if (venue_name) setFields.venue_name = venue_name;
-    if (venue_description) setFields.venue_description = venue_description;
-    if (parking_info) setFields.parking_info = parking_info;
-    if (accessibility_info) setFields.accessibility_info = accessibility_info;
+    const fields = {
+      venue_name, venue_description, parking_info, accessibility_info,
+      google_maps_url, event_mode
+    };
+
+    Object.keys(fields).forEach(key => {
+      const val = fields[key];
+      if (val === undefined || val === null || val === "") removeFields.push(key);
+      else setFields[key] = val;
+    });
+
     if (latitude !== undefined && latitude !== null) setFields.latitude = latitude;
     if (longitude !== undefined && longitude !== null) setFields.longitude = longitude;
-    if (google_maps_url) setFields.google_maps_url = google_maps_url;
     if (included_items) setFields.included_items = included_items;
-    if (event_mode) setFields.event_mode = event_mode;
 
     if (event_mode === "online" || event_mode === "hybrid") {
       if (event_url) setFields.event_url = event_url;
@@ -635,44 +719,51 @@ export const joinEvent = async (req, res) => {
     const userId = req.user.id;
 
     const event = await Event.get(eventId);
-    if (!event) return res.status(404).json({ message: "Event not found" });
-
-    // Prevent duplicate join
-    const participants = await EventParticipant.query("event_id").eq(eventId).exec();
-    if (participants.some(p => p.user_id === userId)) {
-      return res.status(400).json({ message: "You have already joined this event" });
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
     }
 
-    await EventParticipant.create({ event_id: eventId, user_id: userId });
+    // Efficient check (requires GSI)
+    const existing = await EventParticipant
+      .query("event_id")
+      .eq(eventId)
+      .where("user_id")
+      .eq(userId)
+      .exec();
 
-    AnalyticsEvent.create({
-      event_type: "EVENT_JOINED", user_id: userId, event_id: event.id,
-      host_id: event.host_id, country: event.country, state: event.state
+    if (existing.length > 0) {
+      return res.status(400).json({
+        message: "Already joined"
+      });
+    }
+
+    await EventParticipant.create({
+      event_id: eventId,
+      user_id: userId
     });
 
-    // Increment count
-    const newCount = (event.attendees_count || 0) + 1;
-    await Event.update({ id: event.id }, { attendees_count: newCount });
+    // Atomic increment
+    await Event.update(
+      { id: eventId },
+      { $ADD: { attendees_count: 1 } }
+    );
 
-    await deleteCache(`event:${event.id}`);
+    AnalyticsEvent.create({
+      event_type: "EVENT_JOINED",
+      user_id: userId,
+      event_id: eventId,
+      host_id: event.host_id
+    }).catch(console.error);
+
+    await deleteCache(`event:${eventId}`);
     await deleteCacheByPrefix("approved_events:");
     await deleteCacheByPrefix(`host_events:${event.host_id}`);
 
-    // Notify HOST
-    const host = await Host.get(event.host_id);
-    if (host) {
-      const milestones = [1, 10, 25, 50, 100];
-      if (milestones.includes(newCount)) {
-        const io = getIO();
-        io.to(`user:${host.user_id}`).emit("notification", {
-          type: "EVENT_MILESTONE", title: "Event update",
-          message: `${newCount} people have joined your event`,
-          eventId: event.id, attendees_count: newCount
-        });
-      }
-    }
+    return res.json({
+      success: true,
+      message: "Joined event"
+    });
 
-    return res.json({ success: true, message: "Joined event", attendees_count: newCount });
   } catch (err) {
     console.error("JOIN EVENT ERROR:", err);
     return res.status(500).json({ message: "Server error" });
@@ -687,45 +778,50 @@ export const leaveEvent = async (req, res) => {
     const eventId = req.params.id;
     const userId = req.user.id;
 
-    const participants = await EventParticipant.query("event_id").eq(eventId).exec();
-    const participant = participants.find(p => p.user_id === userId);
+    const existing = await EventParticipant
+      .query("event_id")
+      .eq(eventId)
+      .where("user_id")
+      .eq(userId)
+      .exec();
 
-    if (!participant) {
-      return res.status(400).json({ message: "You have not joined this event" });
+    if (existing.length === 0) {
+      return res.status(400).json({
+        message: "You have not joined this event"
+      });
     }
 
-    await EventParticipant.delete(participant.id);
+    await EventParticipant.delete(existing[0].id);
 
     const event = await Event.get(eventId);
-    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Atomic decrement with guard
+    if ((event.attendees_count || 0) > 0) {
+      await Event.update(
+        { id: eventId },
+        { $ADD: { attendees_count: -1 } }
+      );
+    }
 
     AnalyticsEvent.create({
-      event_type: "EVENT_LEFT", user_id: userId,
-      host_id: event.host_id, event_id: event.id,
-      country: event.country, state: event.state
-    });
+      event_type: "EVENT_LEFT",
+      user_id: userId,
+      event_id: eventId,
+      host_id: event.host_id
+    }).catch(console.error);
 
-    const newCount = Math.max(0, (event.attendees_count || 0) - 1);
-    await Event.update({ id: event.id }, { attendees_count: newCount });
-
-    await deleteCache(`event:${event.id}`);
+    await deleteCache(`event:${eventId}`);
     await deleteCacheByPrefix("approved_events:");
     await deleteCacheByPrefix(`host_events:${event.host_id}`);
 
-    const leaveMilestones = [0, 9, 24, 49];
-    if (leaveMilestones.includes(newCount)) {
-      try {
-        const host = await Host.get(event.host_id);
-        const io = getIO();
-        let message = newCount === 0 ? "Your event now has no attendees" : `Attendee count dropped to ${newCount}`;
-        io.to(`user:${host.user_id}`).emit("notification", {
-          type: "EVENT_LEAVE_MILESTONE", title: "Event update",
-          message, eventId: event.id, attendees_count: newCount
-        });
-      } catch (err) { console.error("NOTIFICATION ERROR (LEAVE):", err); }
-    }
+    return res.json({
+      success: true,
+      message: "Left event"
+    });
 
-    return res.json({ success: true, message: "Left event", attendees_count: newCount });
   } catch (err) {
     console.error("LEAVE EVENT ERROR:", err);
     return res.status(500).json({ message: "Server error" });
