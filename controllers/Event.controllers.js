@@ -15,20 +15,23 @@ import Joi from "joi";
 // ======================================================
 const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+const VALID_EVENT_TYPES = ["public", "private", "festival", "meetup", "party", "music", "sports", "conference", "workshop", "charity", "networking", "cultural", "other"];
+const VALID_EVENT_MODES = ["in-person", "offline", "online", "hybrid"];
+
 const createEventDraftSchema = Joi.object({
   title: Joi.string().trim().required(),
-  type: Joi.string().trim().optional(),
+  type: Joi.string().trim().valid(...VALID_EVENT_TYPES).optional(),
   start_date: Joi.string().isoDate().required(),
   start_time: Joi.string().pattern(timePattern).required(),
   end_date: Joi.string().isoDate().allow("").optional(),
   end_time: Joi.string().pattern(timePattern).allow("").optional()
-}); 
+});
 
 const eventBasicInfoSchema = Joi.object({
   title: Joi.string().trim().required(),
   description: Joi.string().trim().allow("").optional(),
-  type: Joi.string().trim().optional(),
-  event_type: Joi.string().trim().optional()
+  type: Joi.string().trim().valid(...VALID_EVENT_TYPES).optional(),
+  event_type: Joi.string().trim().valid(...VALID_EVENT_TYPES).optional()
 });
 
 const eventLocationSchema = Joi.object({
@@ -55,7 +58,7 @@ const eventVenueSchema = Joi.object({
   longitude: Joi.number().optional(),
   google_maps_url: Joi.string().uri().allow("").optional(),
   included_items: Joi.array().items(Joi.string()).optional(),
-  event_mode: Joi.string().valid("in-person", "online", "hybrid").optional(),
+  event_mode: Joi.string().valid(...VALID_EVENT_MODES).optional(),
   event_url: Joi.string().uri().allow("").optional(),
   online_instructions: Joi.string().trim().allow("").optional()
 });

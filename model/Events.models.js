@@ -34,7 +34,7 @@ const eventSchema = new dynamoose.Schema(
 
     type: {
       type: String,
-      enum: ["public", "private", "festival", "meetup", "party", "other"],
+      enum: ["public", "private", "festival", "meetup", "party", "music", "sports", "conference", "workshop", "charity", "networking", "cultural", "other"],
       default: "public"
     },
 
@@ -112,8 +112,8 @@ const eventSchema = new dynamoose.Schema(
 
     event_mode: {
       type: String,
-      enum: ["offline", "online", "hybrid"],
-      default: "offline"
+      enum: ["in-person", "offline", "online", "hybrid"],
+      default: "in-person"
     },
 
     event_url: String,
