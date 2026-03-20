@@ -1,10 +1,6 @@
 import dynamoose from "../config/db.js";
 import { v4 as uuidv4 } from "uuid";
 
-/* =====================================================================
-   Event Model — DynamoDB (Dynamoose)
-   ===================================================================== */
-
 const eventSchema = new dynamoose.Schema(
   {
     id: {
@@ -12,104 +8,117 @@ const eventSchema = new dynamoose.Schema(
       hashKey: true,
       default: () => uuidv4()
     },
+
     host_id: {
       type: String,
       required: true,
       index: {
         name: "host_id-index",
-        type: "global",
+        global: true,
         rangeKey: "created_at"
       }
     },
-    title: {
-      type: String,
-      required: true
+
+    host_user_id: {
+      type: String
     },
-    description: { type: String },
+
+    title: String,
+    description: String,
+
     included_items: {
       type: Array,
       schema: [String],
       default: []
     },
+
     type: {
       type: String,
-      default: "public",
-      enum: ["public", "private", "festival", "meetup", "party", "other"]
+      enum: ["public", "private", "festival", "meetup", "party", "other"],
+      default: "public"
     },
+
+    // LOCATION (GSI optimized)
     country: {
       type: String,
       index: {
         name: "country-index",
-        type: "global",
+        global: true,
         rangeKey: "created_at"
       }
     },
-    state: { type: String },
-    city: { type: String },
-    zip_code: { type: String },
-    street_address: { type: String },
-    landmark: { type: String },
-    start_date: {
-      type: String,
-      required: true
-    },
-    end_date: { type: String },
-    start_time: {
-      type: String,
-      required: true
-    },
-    end_time: { type: String },
+    state: String,
+    city: String,
+    zip_code: String,
+    street_address: String,
+    landmark: String,
+
+    start_date: String,
+    end_date: String,
+    start_time: String,
+    end_time: String,
+
     schedule: {
       type: Array,
       schema: [Object],
       default: []
     },
-    venue_name: { type: String },
-    venue_description: { type: String },
-    parking_info: { type: String },
-    accessibility_info: { type: String },
-    google_maps_url: { type: String },
-    latitude: { type: Number },
-    longitude: { type: Number },
-    banner_image: { type: String },
+
+    venue_name: String,
+    venue_description: String,
+    parking_info: String,
+    accessibility_info: String,
+    google_maps_url: String,
+    latitude: Number,
+    longitude: Number,
+
+    banner_image: String,
     gallery_images: {
       type: Array,
       schema: [String],
       default: []
     },
+
     price: {
       type: Number,
       default: 0
     },
+
     attendees_count: {
       type: Number,
       default: 0
     },
+
     rating: {
       type: Number,
       default: 0
     },
+
     status: {
       type: String,
-      default: "draft",
       enum: ["draft", "pending", "approved", "rejected"],
+      default: "draft",
       index: {
         name: "status-index",
-        type: "global",
+        global: true,
         rangeKey: "created_at"
       }
     },
+
     rejection_reason: {
       type: String,
       default: ""
     },
+
     event_mode: {
       type: String,
-      default: "offline",
-      enum: ["offline", "online", "hybrid"]
+      enum: ["offline", "online", "hybrid"],
+      default: "offline"
     },
-    event_url: { type: String },
-    online_instructions: { type: String },
+
+    event_url: String,
+    online_instructions: String,
+
     is_deleted: {
       type: Boolean,
       default: false
@@ -123,6 +132,4 @@ const eventSchema = new dynamoose.Schema(
   }
 );
 
-const Event = dynamoose.model("Event", eventSchema);
-
-export default Event;
+export default dynamoose.model("Event", eventSchema);

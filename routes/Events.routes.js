@@ -29,6 +29,7 @@ import { multerErrorHandler } from '../middleware/uploads/multerErrorHandler.js'
 import { uploadEventImages } from "../middleware/uploads/event.upload.js";
 import optionalAuth from "../middleware/joinleaveAuth.js";
 import { eventWriteGuard, eventParticipationGuard } from "../middleware/eventWriteGuard.js";
+import { eventJoinLimiter } from "../middleware/rateLimiter.js";
 const router = express.Router();
 
 /* -----------------------------------------
@@ -61,8 +62,8 @@ router.put("/submit/:id", userauth, eventWriteGuard, submitEvent);
 
 //USER ACTIONS FOR EVENTS
 
-router.post("/:id/join", userauth, eventParticipationGuard, joinEvent);
-router.post("/:id/leave", userauth, eventParticipationGuard, leaveEvent);
+router.post("/:id/join", userauth, eventJoinLimiter, eventParticipationGuard, joinEvent);
+router.post("/:id/leave", userauth, eventJoinLimiter, eventParticipationGuard, leaveEvent);
 
 // Host’s own events (My Events)
 router.get("/host/my-events", userauth, getMyEvents);

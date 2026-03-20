@@ -47,3 +47,28 @@ export const resourceRateLimit = async (req, res, next) => {
     });
   }
 };
+
+let eventLimiter;
+if (redis) {
+  eventLimiter = new RateLimiterRedis({
+    storeClient: redis,
+    points: 5,
+    duration: 60
+  });
+} else {
+  eventLimiter = new RateLimiterMemory({
+    points: 5,
+    duration: 60
+  });
+}
+
+export const eventJoinLimiter = async (req, res, next) => {
+  try {
+    const key = `event_join:${req.user?.id || req.ip}:${req.params.id}`;
+    await eventLimiter.consume(key, 1);
+    next();
+  } catch {
+    return res.status(429).json({ success: false, message: "Too many join/leave requests. Please try again later." });
+  }
+};
+

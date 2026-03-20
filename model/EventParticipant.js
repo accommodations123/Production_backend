@@ -1,43 +1,34 @@
 import dynamoose from "../config/db.js";
-import { v4 as uuidv4 } from "uuid";
-
-/* =====================================================================
-   EventParticipant Model — DynamoDB (Dynamoose)
-   ===================================================================== */
 
 const eventParticipantSchema = new dynamoose.Schema(
   {
-    id: {
-      type: String,
-      hashKey: true,
-      default: () => uuidv4()
-    },
     event_id: {
       type: String,
-      required: true,
-      index: {
-        name: "event_id-index",
-        type: "global",
-        rangeKey: "user_id"
-      }
+      hashKey: true
     },
+
     user_id: {
       type: String,
-      required: true,
+      rangeKey: true
+    },
+
+    joined_at: {
+      type: Date,
+      default: Date.now,
       index: {
         name: "user_id-index",
-        type: "global"
+        global: true,
+        hashKey: "user_id",
+        rangeKey: "joined_at"
       }
     }
   },
   {
-    timestamps: {
-      createdAt: "created_at",
-      updatedAt: "updated_at"
-    }
+    timestamps: true
   }
 );
 
-const EventParticipant = dynamoose.model("EventParticipant", eventParticipantSchema);
-
-export default EventParticipant;
+export default dynamoose.model(
+  "EventParticipant",
+  eventParticipantSchema
+);
