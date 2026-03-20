@@ -65,10 +65,14 @@ export const createEventDraft = async (req, res) => {
 
     const event = await Event.create(eventData);
 
-    await AnalyticsEvent.create({
+    const analyticsData = {
       event_type: "EVENT_DRAFT_CREATED", user_id: userId, host_id: host.id,
-      event_id: event.id, country: host.country, state: host.state
-    });
+      event_id: event.id
+    };
+    if (host.country) analyticsData.country = host.country;
+    if (host.state) analyticsData.state = host.state;
+
+    AnalyticsEvent.create(analyticsData).catch(err => console.error("ANALYTICS EVENT FAILED:", err));
 
     await deleteCacheByPrefix("pending_events:");
     return res.json({ success: true, eventId: event.id, message: "Event draft created successfully." });
@@ -91,7 +95,7 @@ export const updateBasicInfo = async (req, res) => {
       title: req.body.title, description: req.body.description, type: req.body.type
     });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_BASIC_INFO_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id,
       country: event.country, state: event.state, metadata: { step: "basic_info" }
@@ -127,7 +131,7 @@ export const updateLocation = async (req, res) => {
 
     await Event.update({ id: event.id }, updateData);
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_LOCATION_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id,
       country: req.body.country, state: req.body.state
@@ -165,7 +169,7 @@ export const updateSchedule = async (req, res) => {
       schedule: req.body.schedule || event.schedule, end_date: endDate, end_time: endTime
     });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_SCHEDULE_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
     });
@@ -223,7 +227,7 @@ export const updateVenue = async (req, res) => {
     if (Object.keys(setFields).length > 0) dynamoUpdate.$SET = setFields;
     if (removeFields.length > 0) dynamoUpdate.$REMOVE = removeFields;
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_VENUE_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
     });
@@ -261,7 +265,7 @@ export const updateMedia = async (req, res) => {
 
     await Event.update({ id: event.id }, updateData);
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_MEDIA_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
     });
@@ -285,7 +289,7 @@ export const updatePricing = async (req, res) => {
 
     await Event.update({ id: event.id }, { price: req.body.price });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_PRICING_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
     });
@@ -317,7 +321,7 @@ export const submitEvent = async (req, res) => {
 
     await Event.update({ id: event.id }, { status: "pending" });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_SUBMITTED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
     });
@@ -641,7 +645,7 @@ export const joinEvent = async (req, res) => {
 
     await EventParticipant.create({ event_id: eventId, user_id: userId });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_JOINED", user_id: userId, event_id: event.id,
       host_id: event.host_id, country: event.country, state: event.state
     });
@@ -695,7 +699,7 @@ export const leaveEvent = async (req, res) => {
     const event = await Event.get(eventId);
     if (!event) return res.status(404).json({ message: "Event not found" });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_LEFT", user_id: userId,
       host_id: event.host_id, event_id: event.id,
       country: event.country, state: event.state
@@ -739,7 +743,7 @@ export const softDeleteEvent = async (req, res) => {
 
     await Event.update({ id: event.id }, { is_deleted: true });
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       event_type: "EVENT_DELETED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id,
       country: event.country, state: event.state
