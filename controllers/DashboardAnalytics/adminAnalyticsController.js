@@ -1,3 +1,4 @@
+import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
 import { getCache, setCache } from "../../services/cacheService.js";
 
 /* =========================================================
@@ -9,33 +10,36 @@ export const getAnalyticsSummary = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
-    const [rows] = await sequelize.query(`
-      SELECT
-        SUM(CASE WHEN event_type = 'HOST_CREATED' THEN 1 ELSE 0 END) AS host_created,
-        SUM(CASE WHEN event_type = 'HOST_APPROVED' THEN 1 ELSE 0 END) AS host_approved,
-        SUM(CASE WHEN event_type = 'HOST_REJECTED' THEN 1 ELSE 0 END) AS host_rejected,
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 30);
 
-        SUM(CASE WHEN event_type = 'PROPERTY_DRAFT_CREATED' THEN 1 ELSE 0 END) AS property_draft,
-        SUM(CASE WHEN event_type = 'PROPERTY_SUBMITTED' THEN 1 ELSE 0 END) AS property_submitted,
-        SUM(CASE WHEN event_type = 'PROPERTY_APPROVED' THEN 1 ELSE 0 END) AS property_approved,
-        SUM(CASE WHEN event_type = 'PROPERTY_REJECTED' THEN 1 ELSE 0 END) AS property_rejected
-      FROM analytics_events
-      WHERE created_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY
-    `);
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").in([
+        "HOST_CREATED", "HOST_APPROVED", "HOST_REJECTED",
+        "PROPERTY_DRAFT_CREATED", "PROPERTY_SUBMITTED",
+        "PROPERTY_APPROVED", "PROPERTY_REJECTED"
+      ])
+      .exec();
 
-    const d = rows[0];
+    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+
+    // Client-side aggregation
+    const counts = {};
+    for (const e of filtered) {
+      counts[e.event_type] = (counts[e.event_type] || 0) + 1;
+    }
 
     const response = {
       hosts: {
-        created: Number(d.host_created || 0),
-        approved: Number(d.host_approved || 0),
-        rejected: Number(d.host_rejected || 0)
+        created:  counts.HOST_CREATED  || 0,
+        approved: counts.HOST_APPROVED || 0,
+        rejected: counts.HOST_REJECTED || 0
       },
       properties: {
-        drafted: Number(d.property_draft || 0),
-        submitted: Number(d.property_submitted || 0),
-        approved: Number(d.property_approved || 0),
-        rejected: Number(d.property_rejected || 0)
+        drafted:   counts.PROPERTY_DRAFT_CREATED || 0,
+        submitted: counts.PROPERTY_SUBMITTED     || 0,
+        approved:  counts.PROPERTY_APPROVED      || 0,
+        rejected:  counts.PROPERTY_REJECTED      || 0
       }
     };
 
@@ -77,19 +81,23 @@ export const getAnalyticsTimeseries = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
-    const since = new Date(Date.now() - days * 86400000);
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - days);
 
-    const [rows] = await sequelize.query(`
-      SELECT DATE(created_at) AS day, COUNT(*) AS total
-      FROM analytics_events
-      WHERE event_type = :event
-        AND created_at >= :since
-      GROUP BY day
-      ORDER BY day ASC
-    `, { replacements: { event, since } });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").eq(event)
+      .exec();
 
-    const map = new Map(rows.map(r => [r.day, Number(r.total)]));
+    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
 
+    // Build date → count map
+    const map = {};
+    for (const e of filtered) {
+      const day = (e.created_at || "").substring(0, 10);
+      map[day] = (map[day] || 0) + 1;
+    }
+
+    // Gapless labels
     const labels = [];
     const values = [];
 
@@ -99,7 +107,7 @@ export const getAnalyticsTimeseries = async (req, res) => {
       const key = d.toISOString().slice(0, 10);
 
       labels.push(key);
-      values.push(map.get(key) || 0);
+      values.push(map[key] || 0);
     }
 
     const response = { labels, values };
@@ -136,15 +144,22 @@ export const getAnalyticsByLocation = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
-    const [rows] = await sequelize.query(`
-      SELECT country, state, COUNT(*) AS count
-      FROM analytics_events
-      WHERE event_type = :event
-        AND country IS NOT NULL
-      GROUP BY country, state
-      ORDER BY count DESC
-      LIMIT 20
-    `, { replacements: { event } });
+    const events = await AnalyticsEvent.scan()
+      .filter("event_type").eq(event)
+      .exec();
+
+    // Client-side GROUP BY country, state + COUNT
+    const geoMap = {};
+    for (const e of events) {
+      if (!e.country) continue;
+      const key = `${e.country}||${e.state || ""}`;
+      if (!geoMap[key]) geoMap[key] = { country: e.country, state: e.state || null, count: 0 };
+      geoMap[key].count++;
+    }
+
+    const rows = Object.values(geoMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
 
     await setCache(cacheKey, rows, 600);
     return res.json(rows);
