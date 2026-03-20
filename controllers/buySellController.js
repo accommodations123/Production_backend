@@ -34,11 +34,14 @@ export const createBuySellListing = async (req, res) => {
 
         const galleryImages = req.files?.map(file => file.location) || [];
 
-        const listing = await BuySellListing.create({
+        const listingData = {
             user_id: userId, title, category, subcategory, price, description,
-            country, state, city, zip_code: zip_code || null, street_address,
+            country, state, city, street_address,
             name, email: user.email, phone, images: galleryImages, status: "pending"
-        });
+        };
+        if (zip_code) listingData.zip_code = zip_code;
+
+        const listing = await BuySellListing.create(listingData);
 
         return res.status(201).json({ success: true, message: "Listing submitted for approval", listing });
 
@@ -278,7 +281,7 @@ export const approveBuySellListing = async (req, res) => {
         AnalyticsEvent.create({
             event_type: "BUYSELL_LISTING_APPROVED",
             user_id: req.admin?.id || "system",
-            country: listing.country || null
+            country: listing.country || undefined
         }).catch(console.error);
 
         // Notify owner
@@ -328,7 +331,7 @@ export const blockBuySellListing = async (req, res) => {
         AnalyticsEvent.create({
             event_type: "BUYSELL_LISTING_BLOCKED",
             user_id: req.admin?.id || "system",
-            country: listing.country || null
+            country: listing.country || undefined
         }).catch(console.error);
 
         const user = await User.get(listing.user_id);

@@ -57,10 +57,13 @@ export const createEventDraft = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing required fields (title, start_date, start_time)." });
     }
 
-    const event = await Event.create({
-      host_id: host.id, title, type, start_date, start_time,
-      end_date: end_date || null, end_time: end_time || null, status: "draft"
-    });
+    const eventData = {
+      host_id: host.id, title, type, start_date, start_time, status: "draft"
+    };
+    if (end_date) eventData.end_date = end_date;
+    if (end_time) eventData.end_time = end_time;
+
+    const event = await Event.create(eventData);
 
     await AnalyticsEvent.create({
       event_type: "EVENT_DRAFT_CREATED", user_id: userId, host_id: host.id,
@@ -111,11 +114,18 @@ export const updateLocation = async (req, res) => {
     const event = req.event;
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
 
-    await Event.update({ id: event.id }, {
+    const updateData = {
       country: req.body.country, state: req.body.state, city: req.body.city,
-      zip_code: req.body.zip_code || null, street_address: req.body.street_address,
-      landmark: req.body.landmark
+      street_address: req.body.street_address, landmark: req.body.landmark
+    };
+    if (req.body.zip_code) updateData.zip_code = req.body.zip_code;
+
+    // Remove undefined values to avoid Dynamoose errors
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined || updateData[key] === null) delete updateData[key];
     });
+
+    await Event.update({ id: event.id }, updateData);
 
     await AnalyticsEvent.create({
       event_type: "EVENT_LOCATION_UPDATED", user_id: req.user.id,
@@ -180,31 +190,47 @@ export const updateVenue = async (req, res) => {
     const { venue_name, venue_description, parking_info, accessibility_info,
       latitude, longitude, google_maps_url, included_items, event_mode, event_url, online_instructions } = req.body;
 
-    const updateData = {
-      venue_name, venue_description, parking_info, accessibility_info,
-      latitude, longitude, google_maps_url, included_items, event_mode
-    };
+    // Build the $SET and $REMOVE lists for Dynamoose
+    const setFields = {};
+    const removeFields = [];
+
+    // Always set these if provided
+    if (venue_name) setFields.venue_name = venue_name;
+    if (venue_description) setFields.venue_description = venue_description;
+    if (parking_info) setFields.parking_info = parking_info;
+    if (accessibility_info) setFields.accessibility_info = accessibility_info;
+    if (latitude !== undefined && latitude !== null) setFields.latitude = latitude;
+    if (longitude !== undefined && longitude !== null) setFields.longitude = longitude;
+    if (google_maps_url) setFields.google_maps_url = google_maps_url;
+    if (included_items) setFields.included_items = included_items;
+    if (event_mode) setFields.event_mode = event_mode;
 
     if (event_mode === "online" || event_mode === "hybrid") {
-      updateData.event_url = event_url;
-      updateData.online_instructions = online_instructions;
+      if (event_url) setFields.event_url = event_url;
+      if (online_instructions) setFields.online_instructions = online_instructions;
     } else {
-      updateData.event_url = null;
-      updateData.online_instructions = null;
+      removeFields.push("event_url", "online_instructions");
     }
 
     if (event_mode === "online") {
-      updateData.venue_name = null; updateData.venue_description = null;
-      updateData.parking_info = null; updateData.accessibility_info = null;
-      updateData.latitude = null; updateData.longitude = null; updateData.google_maps_url = null;
+      removeFields.push("venue_name", "venue_description", "parking_info", "accessibility_info", "google_maps_url");
+      // latitude & longitude are Number type, safe to set to 0
+      setFields.latitude = 0;
+      setFields.longitude = 0;
     }
+
+    const dynamoUpdate = {};
+    if (Object.keys(setFields).length > 0) dynamoUpdate.$SET = setFields;
+    if (removeFields.length > 0) dynamoUpdate.$REMOVE = removeFields;
 
     await AnalyticsEvent.create({
       event_type: "EVENT_VENUE_UPDATED", user_id: req.user.id,
       host_id: event.host_id, event_id: event.id, country: event.country, state: event.state
     });
 
-    await Event.update({ id: event.id }, updateData);
+    if (Object.keys(dynamoUpdate).length > 0) {
+      await Event.update({ id: event.id }, dynamoUpdate);
+    }
 
     await deleteCache(`event:${event.id}`);
     await deleteCacheByPrefix("approved_events:");

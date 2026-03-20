@@ -45,7 +45,7 @@ export const createDraft = async (req, res) => {
       user_id: userId,
       host_id: host.id,
       property_id: property.id,
-      country: req.headers["x-country"] || null
+      country: req.headers["x-country"] || undefined
     }).catch(err => {
       console.error("ANALYTICS EVENT FAILED:", err);
     });
@@ -111,13 +111,20 @@ export const saveAddress = async (req, res) => {
       });
     }
 
-    await Property.update({ id: property.id }, {
+    const updateData = {
       country: req.body.country,
       state: req.body.state,
       city: req.body.city,
-      zip_code: req.body.zip_code || null,
       street_address: req.body.street_address
+    };
+    if (req.body.zip_code) updateData.zip_code = req.body.zip_code;
+
+    // Remove undefined/null values to avoid Dynamoose errors
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined || updateData[key] === null) delete updateData[key];
     });
+
+    await Property.update({ id: property.id }, updateData);
 
     const updated = await Property.get(property.id);
 
@@ -290,7 +297,7 @@ export const submitProperty = async (req, res) => {
       user_id: property.user_id,
       host_id: property.host_id,
       property_id: property.id,
-      country: req.headers["x-country"] || property.country || null,
+      country: req.headers["x-country"] || property.country || undefined,
       created_at: new Date().toISOString()
     }).catch(err => {
       console.error("ANALYTICS EVENT FAILED:", err);
@@ -364,12 +371,14 @@ export const softDeleteProperty = async (req, res) => {
     const userId = req.user.id;
     const reason = req.body?.reason || null;
 
-    await Property.update({ id: property.id }, {
+    const updateData = {
       is_deleted: true,
       deleted_at: new Date().toISOString(),
-      deleted_by: userId,
-      delete_reason: reason
-    });
+      deleted_by: userId
+    };
+    if (reason) updateData.delete_reason = reason;
+
+    await Property.update({ id: property.id }, updateData);
 
     await deleteCache(`property:${property.id}`);
     await deleteCacheByPrefix(`user_listings:${userId}`);
@@ -623,10 +632,10 @@ export const getPropertyById = async (req, res) => {
     // ===== ANALYTICS =====
     AnalyticsEvent.create({
       event_type: "PROPERTY_VIEWED",
-      user_id: req.user?.id || null,
+      user_id: req.user?.id || undefined,
       property_id: id,
-      country: req.headers["x-country"] || plain.country || null,
-      state: req.headers["x-state"] || plain.state || null,
+      country: req.headers["x-country"] || plain.country || undefined,
+      state: req.headers["x-state"] || plain.state || undefined,
       created_at: new Date().toISOString()
     }).catch(() => { });
 

@@ -36,7 +36,9 @@ export const createPost = async (req, res) => {
     let mediaType = "text";
     if (uploadedMedia.length && content) mediaType = "mixed";
     else if (uploadedMedia.length) mediaType = "image";
-    const created = await CommunityPost.create({ community_id: communityId, user_id: userId, content: content || null, media_urls: uploadedMedia, media_type: mediaType });
+    const postData = { community_id: communityId, user_id: userId, media_urls: uploadedMedia, media_type: mediaType };
+    if (content) postData.content = content;
+    const created = await CommunityPost.create(postData);
     await Community.update({ id: communityId }, { posts_count: (community.posts_count || 0) + 1 });
     await trackCommunityEvent({ event_type: "COMMUNITY_POST_CREATED", user_id: userId, community, metadata: { post_id: created.id } });
     const user = await User.get(userId);
