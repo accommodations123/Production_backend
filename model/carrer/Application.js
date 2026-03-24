@@ -48,8 +48,7 @@ const applicationSchema = new dynamoose.Schema(
     linkedin_url: { type: String },
     portfolio_url: { type: String },
     resume_url: {
-      type: String,
-      required: true
+      type: String
     },
     experience: {
       type: Array,

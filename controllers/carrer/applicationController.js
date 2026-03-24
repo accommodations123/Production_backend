@@ -8,6 +8,28 @@ import { trackEvent } from "../../services/Analytics.js";
 import { logAudit } from "../../services/auditLogger.js";
 import { notifyAndEmail } from "../../services/notificationDispatcher.js";
 
+/**
+ * Parse experience from FormData.
+ * Frontend sends a string (e.g. "5+ years") but DynamoDB model expects Array of Objects.
+ * Old MySQL JSON column auto-accepted any value; Dynamoose is strict.
+ */
+const parseExperience = (experience) => {
+  if (!experience) return [];
+  if (Array.isArray(experience)) return experience;
+  // If it's a JSON string of an array, parse it
+  if (typeof experience === "string") {
+    try {
+      const parsed = JSON.parse(experience);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+      // Not valid JSON — wrap the string in an object
+    }
+    // Wrap plain string in an array of objects (e.g. "5+ years" → [{ description: "5+ years" }])
+    return [{ description: experience }];
+  }
+  return [];
+};
+
 const VALID_STATUSES = ["submitted", "viewed", "reviewing", "interview", "offer", "rejected"];
 const STATUS_TRANSITIONS = {
   submitted: ["viewed"],
@@ -40,10 +62,14 @@ export const applyJob = async (req, res) => {
       return res.status(409).json({ message: "Already applied to this job" });
     }
 
+    const resumeUrl = req.file?.location || null;
+
     const application = await Application.create({
       job_id, user_id: req.user.id, first_name, last_name, email, phone,
-      linkedin_url, portfolio_url, experience: experience || [],
-      resume_url: req.file?.location || null, status: "submitted"
+      linkedin_url, portfolio_url,
+      experience: parseExperience(experience),
+      ...(resumeUrl ? { resume_url: resumeUrl } : {}), // Only set if present (field is no longer required)
+      status: "submitted"
     });
 
     // Increment applications count

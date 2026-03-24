@@ -149,9 +149,19 @@ export const joinCommunity = async (req, res) => {
       return res.status(400).json({ message: "Already a member of this community" });
     }
 
-    // Check host status
-    const hosts = await Host.query("user_id").eq(userId).exec();
-    if (!hosts[0]) {
+    // Check host status (same restriction as original MySQL version)
+    let isHost = false;
+    try {
+      const hosts = await Host.query("user_id").eq(userId).exec();
+      if (hosts && hosts[0] && hosts[0].status === "approved") {
+        isHost = true;
+      }
+    } catch (hostErr) {
+      console.error("Host lookup error:", hostErr);
+      // If Host table/GSI query fails, don't block — treat as non-host
+    }
+
+    if (!isHost) {
       return res.status(403).json({ message: "Only approved hosts can join this community" });
     }
 
@@ -159,10 +169,12 @@ export const joinCommunity = async (req, res) => {
       community_id: communityId, user_id: userId, role: "member", is_host: true
     });
 
-    await Community.update({ id: communityId }, {
+    // Update counts — host_count is now in the schema
+    const updateData = {
       members_count: (community.members_count || 0) + 1,
       host_count: (community.host_count || 0) + 1
-    });
+    };
+    await Community.update({ id: communityId }, updateData);
 
     trackCommunityEvent({
       event_type: "COMMUNITY_JOINED", user_id: userId,
@@ -170,6 +182,7 @@ export const joinCommunity = async (req, res) => {
     }).catch(console.error);
 
     deleteCache(`community:id:${communityId}`).catch(console.error);
+    deleteCache(`community:idOrSlug:${communityId}`).catch(console.error);
     deleteCacheByPrefix("communities:list:").catch(console.error);
 
     return res.json({ success: true, message: "Joined community successfully" });

@@ -35,8 +35,9 @@ export const createBuySellListing = async (req, res) => {
         const galleryImages = req.files?.map(file => file.location) || [];
 
         const listingData = {
-            user_id: userId, title, category, subcategory, price, description,
-            country, state, city, street_address,
+            user_id: userId, title, category, subcategory,
+            price: Number(price), // FormData sends strings; DynamoDB model expects Number
+            description, country, state, city, street_address,
             name, email: user.email, phone, images: galleryImages, status: "pending"
         };
         if (zip_code) listingData.zip_code = zip_code;

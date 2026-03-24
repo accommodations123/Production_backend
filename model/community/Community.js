@@ -67,6 +67,10 @@ const communitySchema = new dynamoose.Schema(
       type: Number,
       default: 1
     },
+    host_count: {
+      type: Number,
+      default: 0
+    },
     posts_count: {
       type: Number,
       default: 0
