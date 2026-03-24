@@ -16,7 +16,12 @@ export default async function optionalAuth(req, res, next) {
       return next();
     }
 
-    // 2️⃣ Verify token (access tokens only)
+    // 2️⃣ If userAuth already set req.user, don't overwrite
+    if (req.user?.id) {
+      return next();
+    }
+
+    // 3️⃣ Verify token (access tokens only)
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (!decoded?.id) {
@@ -24,19 +29,20 @@ export default async function optionalAuth(req, res, next) {
       return next();
     }
 
-    const userId = Number(decoded.id);
+    // DynamoDB uses UUID strings — do NOT convert to Number
+    const userId = String(decoded.id);
 
-    // 3️⃣ Cache lookup (optimization only)
+    // 4️⃣ Cache lookup (optimization only)
     const cachedUser = await getCache(`user:${userId}`);
 
-    if (cachedUser && cachedUser.id === userId) {
+    if (cachedUser && String(cachedUser.id) === userId) {
       // Trust only minimal, non-privileged fields
       req.user = {
         id: cachedUser.id,
         role: cachedUser.role || "user"
       };
     } else {
-      // 4️⃣ Safe fallback (token is source of truth)
+      // 5️⃣ Safe fallback (token is source of truth)
       req.user = {
         id: userId,
         role: decoded.role || "user"
