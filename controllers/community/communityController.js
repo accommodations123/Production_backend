@@ -22,7 +22,9 @@ const getCommunityIdFromParam = async (paramId) => {
 };
 
 function processCommunityImages(community) {
-  const c = { ...community };
+  // Dynamoose Documents need .toJSON() to get a plain object;
+  // Sequelize used .toJSON() too. Spreading alone may miss properties.
+  const c = typeof community.toJSON === 'function' ? community.toJSON() : { ...community };
   if (c.avatar_image) c.avatar_image = attachCloudFrontUrl(c.avatar_image);
   if (c.cover_image) c.cover_image = attachCloudFrontUrl(c.cover_image);
   return c;
