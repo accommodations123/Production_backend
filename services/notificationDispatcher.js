@@ -2,6 +2,7 @@
 import Notification from "../model/Notification.js";
 import { getIO } from "./socket.js";
 import { createJob } from "../services/queues/emailQueue.js";
+import { sendNotificationEmail } from "./emailService.js";
 
 export const notifyAndEmail = async ({
   userId,
@@ -35,18 +36,27 @@ export const notifyAndEmail = async ({
     console.error("SOCKET EMIT FAILED:", err.message);
   }
 
-  // 3️⃣ Email (async, non-blocking, QUEUED CORRECTLY)
+  // 3️⃣ Email — try queue first, fall back to direct send
   if (email) {
-    console.log(`📡 Queueing email to: ${email} (Type: ${type})`);
-    createJob(type, {
-      type,            // 👈 explicit
-      to: email,
-      data: metadata   // 👈 matches emailService contract
-    }).catch(err => {
-      console.error("❌ QUEUE_ERROR:", err.message);
-    });
+    console.log(`📡 Sending email to: ${email} (Type: ${type})`);
+    try {
+      await createJob(type, {
+        type,
+        to: email,
+        data: metadata
+      });
+      console.log(`✅ Email job queued for: ${email}`);
+    } catch (queueErr) {
+      console.warn("⚠️ Queue unavailable, sending email directly:", queueErr.message);
+      try {
+        await sendNotificationEmail({ to: email, type, data: metadata });
+        console.log(`✅ Email sent directly to: ${email}`);
+      } catch (emailErr) {
+        console.error("❌ DIRECT_EMAIL_FAILED:", emailErr.message);
+      }
+    }
   } else {
-    console.warn("⚠️ No email provided, skipping queue.");
+    console.warn("⚠️ No email provided, skipping email.");
   }
 
   return notification;

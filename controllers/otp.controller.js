@@ -220,29 +220,49 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "OTP required" });
     }
 
-    if (
-      !user.otp ||
-      !user.otp_expires ||
-      new Date(user.otp_expires).getTime() < Date.now() ||
-      String(user.otp).trim() !== String(otp).trim()
-    ) {
+    // Check if OTP exists
+    if (!user.otp || !user.otp_expires) {
+      return res.status(400).json({ message: "No OTP found. Please request a new one." });
+    }
+
+    // Check if OTP expired
+    if (new Date(user.otp_expires).getTime() < Date.now()) {
       logAudit({
         action: "OTP_VERIFICATION_FAILED",
         actor: { role: "system" },
         target: { type: "user", id: user?.id },
         severity: "HIGH",
         req,
-        metadata: { email }
+        metadata: { email, reason: "expired" }
       }).catch(console.error);
 
-      // ✅ Log OTP_VERIFICATION_FAILED analytics event
       AnalyticsEvent.create({
         event_type: "OTP_VERIFICATION_FAILED",
         user_id: user?.id || null,
         country: getCountry(req)
       }).catch(console.error);
 
-      return res.status(400).json({ message: "Invalid or expired OTP" });
+      return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+    }
+
+    // Check if OTP is wrong
+    if (String(user.otp).trim() !== String(otp).trim()) {
+      logAudit({
+        action: "OTP_VERIFICATION_FAILED",
+        actor: { role: "system" },
+        target: { type: "user", id: user?.id },
+        severity: "HIGH",
+        req,
+        metadata: { email, reason: "wrong_otp" }
+      }).catch(console.error);
+
+      AnalyticsEvent.create({
+        event_type: "OTP_VERIFICATION_FAILED",
+        user_id: user?.id || null,
+        country: getCountry(req)
+      }).catch(console.error);
+
+      return res.status(400).json({ message: "Wrong OTP. Please check and try again." });
     }
 
     // Mark verified — use $REMOVE for String fields (Dynamoose rejects null for String type)

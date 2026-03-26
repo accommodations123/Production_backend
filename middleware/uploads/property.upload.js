@@ -12,7 +12,7 @@ export const uploadPropertyImages = multer({
       cb(null, `properties/images/${Date.now()}-${file.originalname}`);
     }
   }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     file.mimetype.startsWith("image/")
       ? cb(null, true)

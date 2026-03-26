@@ -16,7 +16,7 @@ const uploadResume = multer({
     }
   }),
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB — matches frontend allowance
+    fileSize: 10 * 1024 * 1024 // 10MB — matches frontend allowance
   },
   fileFilter: (req, file, cb) => {
     const allowed = [

@@ -4,7 +4,7 @@ import { s3 } from "../../config/s3.js";
 
 /*
   COMMUNITY POST MEDIA
-  - images: max 5 MB
+  - images: max 10 MB
   - videos: max 50 MB
 */
 
@@ -36,8 +36,8 @@ export const uploadCommunityMedia = multer({
     }
 
     // Optional: enforce image size separately
-    if (isImage && file.size > 5 * 1024 * 1024) {
-      return cb(new Error("Image size must be under 5MB"));
+    if (isImage && file.size > 10 * 1024 * 1024) {
+      return cb(new Error("Image size must be under 10MB"));
     }
 
     cb(null, true);
