@@ -1,7 +1,10 @@
 export const attachCloudFrontUrl = (imagePath) => {
     if (!imagePath || typeof imagePath !== 'string') return imagePath;
 
-    const baseUrl = process.env.CLOUDFRONT_URL || 'https://d3dqp3l6ug81j3.cloudfront.net';
+    const baseUrl = process.env.CLOUDFRONT_URL || 
+      (process.env.AWS_BUCKET && process.env.AWS_REGION 
+        ? `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com`
+        : 'https://d3dqp3l6ug81j3.cloudfront.net');
 
     const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 

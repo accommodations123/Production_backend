@@ -8,6 +8,7 @@ import User from "../model/User.js";
 const redis = null;
 import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
+import { attachCloudFrontUrl } from "../utils/imageUtils.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
@@ -403,7 +404,7 @@ export const updateUser = async (req, res) => {
 
     // ✅ Build full CloudFront image URL for response
     const profileImageUrl = updatedUser.profile_image
-      ? `${process.env.CLOUDFRONT_URL}/${updatedUser.profile_image}`
+      ? attachCloudFrontUrl(updatedUser.profile_image)
       : null;
 
     return res.json({
