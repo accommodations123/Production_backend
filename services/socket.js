@@ -1,8 +1,6 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
-import { createClient } from "redis";
-import { createAdapter } from "@socket.io/redis-adapter";
 
 let io;
 
@@ -33,42 +31,7 @@ export const initSocket = async (httpServer) => {
     pingInterval: 25000,
     pingTimeout: 20000
   });
-
-  /* =========================================================
-     REDIS ADAPTER (HORIZONTAL SCALING)
-  ========================================================= */
- /* =========================================================
-   REDIS ADAPTER (HORIZONTAL SCALING)
-========================================================= */
- 
-const redisHost = process.env.REDIS_HOST;
-const redisPort = process.env.REDIS_PORT || 6379;
- 
-let pubClient;
-let subClient;
- 
-if (!redisHost) {
-  console.warn("⚠️ REDIS_HOST not set — Socket.IO running WITHOUT Redis");
-} else {
-  const redisUrl = `redis://${redisHost}:${redisPort}`;
- 
-  pubClient = createClient({ url: redisUrl });
-  subClient = pubClient.duplicate();
- 
-  pubClient.on("error", (err) =>
-    console.error("❌ Redis pub error:", err.message)
-  );
-  subClient.on("error", (err) =>
-    console.error("❌ Redis sub error:", err.message)
-  );
- 
-  await pubClient.connect();
-  await subClient.connect();
- 
-  io.adapter(createAdapter(pubClient, subClient));
- 
-  console.log("✅ Socket.IO Redis adapter connected:", redisUrl);
-}
+  console.log("🔌 Socket.IO running directly (Redis horizontal scaling adapter removed)");
 
   /* =========================================================
      SOCKET AUTH MIDDLEWARE

@@ -1,4 +1,4 @@
-import redis from "../config/redis.js";
+const redis = null;
 import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
 
 let limiter;

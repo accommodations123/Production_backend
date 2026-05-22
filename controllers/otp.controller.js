@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import User from "../model/User.js";
 
-import redis from "../config/redis.js";
+const redis = null;
 import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { logAudit } from "../services/auditLogger.js";

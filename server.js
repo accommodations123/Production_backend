@@ -43,7 +43,6 @@ import contactRoutes from './routes/contactRoutes.js'
 import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
 
 /* ===================== WORKERS ===================== */
-import "./services/workers/emailWorker.js";
 
 /* ===================== APP ===================== */
 const app = express();
