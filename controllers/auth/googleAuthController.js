@@ -8,12 +8,30 @@ import { attachCloudFrontUrl } from "../../utils/imageUtils.js";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
+const getRedirectUri = (req) => {
+  let redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  
+  // Auto-correct if set to frontend callback instead of backend callback
+  if (redirectUri === "https://nextkinlife.live/auth/google/callback") {
+    return "https://api.nextkinlife.live/auth/google/callback";
+  }
+  if (redirectUri === "http://localhost:5173/auth/google/callback") {
+    return "http://localhost:5000/auth/google/callback";
+  }
+  
+  if (!redirectUri) {
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    return `${protocol}://${req.get('host')}/auth/google/callback`;
+  }
+  return redirectUri;
+};
+
 /* 1️⃣ Redirect user to Google */
 export const googleLogin = (req, res) => {
   const url =
     "https://accounts.google.com/o/oauth2/v2/auth" +
     `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
-    `&redirect_uri=${process.env.GOOGLE_REDIRECT_URI}` +
+    `&redirect_uri=${getRedirectUri(req)}` +
     "&response_type=code" +
     "&scope=openid%20email%20profile";
 
@@ -31,7 +49,7 @@ export const googleCallback = async (req, res) => {
     const tokenRes = await axios.post(GOOGLE_TOKEN_URL, {
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      redirect_uri: getRedirectUri(req),
       grant_type: "authorization_code",
       code
     });
