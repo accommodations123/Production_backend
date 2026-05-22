@@ -74,10 +74,10 @@ export const getActiveBuySellListings = async (req, res) => {
         let listings = await BuySellListing.query("status").eq("active").exec();
 
         // Client-side filtering with robust case-insensitive comparisons
-        if (country) listings = listings.filter(l => l.country?.toLowerCase() === country.toLowerCase());
-        if (state) listings = listings.filter(l => l.state?.toLowerCase() === state.toLowerCase());
-        if (city) listings = listings.filter(l => l.city?.toLowerCase() === city.toLowerCase());
-        if (zip_code) listings = listings.filter(l => l.zip_code?.toLowerCase() === zip_code.toLowerCase());
+        if (country) listings = listings.filter(l => l.country?.toLowerCase().trim() === country.toLowerCase().trim());
+        if (state) listings = listings.filter(l => l.state?.toLowerCase().trim() === state.toLowerCase().trim());
+        if (city) listings = listings.filter(l => l.city?.toLowerCase().trim() === city.toLowerCase().trim());
+        if (zip_code) listings = listings.filter(l => l.zip_code?.toLowerCase().trim() === zip_code.toLowerCase().trim());
         if (category) listings = listings.filter(l => l.category?.toLowerCase() === category.toLowerCase());
         if (minPrice) listings = listings.filter(l => Number(l.price) >= Number(minPrice));
         if (maxPrice) listings = listings.filter(l => Number(l.price) <= Number(maxPrice));
