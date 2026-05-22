@@ -166,7 +166,7 @@ export const updateBuySellListing = async (req, res) => {
             return res.status(400).json({ message: "Blocked listings cannot be edited" });
         }
 
-        const allowed = ["title", "category", "subcategory", "price", "description", "state", "city", "zip_code", "street_address", "images"];
+        const allowed = ["title", "category", "subcategory", "description", "state", "city", "zip_code", "street_address"];
         const updates = {};
         for (const key of allowed) {
             if (req.body[key] !== undefined) {
@@ -174,7 +174,47 @@ export const updateBuySellListing = async (req, res) => {
             }
         }
 
+        if (req.body.price !== undefined) {
+            updates.price = Number(req.body.price);
+        }
+
+        // Merge images
+        const cloudFrontBase = process.env.CLOUDFRONT_URL || 'https://d3dqp3l6ug81j3.cloudfront.net';
+        const cleanCFBase = cloudFrontBase.endsWith('/') ? cloudFrontBase.slice(0, -1) : cloudFrontBase;
+        const s3Base = process.env.AWS_BUCKET && process.env.AWS_REGION 
+          ? `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com` 
+          : null;
+
+        let existingImages = [];
+        if (req.body.existingImages) {
+            try {
+                const parsed = typeof req.body.existingImages === "string" 
+                    ? JSON.parse(req.body.existingImages) 
+                    : req.body.existingImages;
+                if (Array.isArray(parsed)) {
+                    existingImages = parsed.map(img => {
+                        if (typeof img === 'string' && img.startsWith(cleanCFBase)) {
+                            const key = img.substring(cleanCFBase.length + 1);
+                            return s3Base ? `${s3Base}/${key}` : key;
+                        }
+                        return img;
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to parse existingImages:", e);
+            }
+        } else if (listing.images) {
+            existingImages = listing.images;
+        }
+
+        const newUploadedImages = req.files?.map(file => file.location) || [];
+        updates.images = [...existingImages, ...newUploadedImages];
+
         await BuySellListing.update({ id: listing.id }, updates);
+        
+        // Clear active listings cache
+        await deleteCacheByPrefix("active_buy_sell").catch(err => console.error("Cache clear failed:", err));
+
         const updated = await BuySellListing.get(listing.id);
 
         const processedListing = { ...updated };
@@ -184,6 +224,7 @@ export const updateBuySellListing = async (req, res) => {
 
         return res.json({ success: true, listing: processedListing });
     } catch (err) {
+        console.error("Failed to update listing:", err);
         return res.status(500).json({ message: "Failed to update listing" });
     }
 };

@@ -45,7 +45,7 @@ router.get("/get/:id", getBuySellListingById);
 router.get("/my-buy-sell", userAuth, getMyBuySellListings);
 
 // Update listing (owner only)
-router.put("/update/:id", userAuth, updateBuySellListing);
+router.put("/update/:id", userAuth, uploadListingImages.array("galleryImages", 10), multerErrorHandler, updateBuySellListing);
 
 // Mark listing as sold
 router.patch("/buy-sell/:id/sold", userAuth, markBuySellAsSold);
