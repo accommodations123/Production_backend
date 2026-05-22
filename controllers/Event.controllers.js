@@ -2,6 +2,7 @@ import Event from "../model/Events.models.js";
 import Host from "../model/Host.js";
 import User from "../model/User.js";
 import EventParticipant from "../model/EventParticipant.js";
+import dynamoose from "dynamoose";
 import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
@@ -742,7 +743,7 @@ export const joinEvent = async (req, res) => {
     try {
       await EventParticipant.create(
         { event_id: eventId, user_id: userId },
-        { condition: "attribute_not_exists(event_id) AND attribute_not_exists(user_id)" }
+        { overwrite: false }
       );
     } catch (err) {
       if (err.name === "ConditionalCheckFailedException" || err.code === "ConditionalCheckFailedException") {
@@ -780,9 +781,10 @@ export const leaveEvent = async (req, res) => {
 
     // Strict condition delete
     try {
+      const condition = new dynamoose.Condition().where("user_id").exists();
       await EventParticipant.delete(
         { event_id: eventId, user_id: userId },
-        { condition: "attribute_exists(user_id)" }
+        { condition }
       );
     } catch (err) {
       if (err.name === "ConditionalCheckFailedException" || err.code === "ConditionalCheckFailedException") {
