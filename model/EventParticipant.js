@@ -9,18 +9,17 @@ const eventParticipantSchema = new dynamoose.Schema(
 
     user_id: {
       type: String,
-      rangeKey: true
+      rangeKey: true,
+      index: {
+        name: "user_id-index",
+        global: true,
+        rangeKey: "joined_at"
+      }
     },
 
     joined_at: {
       type: Date,
-      default: Date.now,
-      index: {
-        name: "user_id-index",
-        global: true,
-        hashKey: "user_id",
-        rangeKey: "joined_at"
-      }
+      default: Date.now
     }
   },
   {

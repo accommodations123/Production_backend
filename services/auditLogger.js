@@ -13,19 +13,19 @@ export async function logAudit({
       action,
 
       // 🔐 WHO DID IT
-      actor_user_id: actor.user_id || null,
-      actor_host_id: actor.host_id || null,
-      actor_admin_id: actor.admin_id || null,
+      actor_user_id: actor.user_id || undefined,
+      actor_host_id: actor.host_id || undefined,
+      actor_admin_id: actor.admin_id || undefined,
 
       // 🎯 WHAT WAS TOUCHED
-      target_type: target.type || null,
-      target_id: target.id || null,
+      target_type: target.type || undefined,
+      target_id: target.id || undefined,
 
       severity,
 
       // 🌐 REQUEST CONTEXT
-      ip_address: req.ip,
-      user_agent: req.headers["user-agent"],
+      ip_address: req?.ip || undefined,
+      user_agent: req?.headers?.["user-agent"] || undefined,
 
       metadata
     });
