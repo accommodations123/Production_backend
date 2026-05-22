@@ -73,12 +73,12 @@ export const getActiveBuySellListings = async (req, res) => {
         // Query by status GSI
         let listings = await BuySellListing.query("status").eq("active").exec();
 
-        // Client-side filtering
-        if (country) listings = listings.filter(l => l.country === country);
-        if (state) listings = listings.filter(l => l.state === state);
-        if (city) listings = listings.filter(l => l.city === city);
-        if (zip_code) listings = listings.filter(l => l.zip_code === zip_code);
-        if (category) listings = listings.filter(l => l.category === category);
+        // Client-side filtering with robust case-insensitive comparisons
+        if (country) listings = listings.filter(l => l.country?.toLowerCase() === country.toLowerCase());
+        if (state) listings = listings.filter(l => l.state?.toLowerCase() === state.toLowerCase());
+        if (city) listings = listings.filter(l => l.city?.toLowerCase() === city.toLowerCase());
+        if (zip_code) listings = listings.filter(l => l.zip_code?.toLowerCase() === zip_code.toLowerCase());
+        if (category) listings = listings.filter(l => l.category?.toLowerCase() === category.toLowerCase());
         if (minPrice) listings = listings.filter(l => Number(l.price) >= Number(minPrice));
         if (maxPrice) listings = listings.filter(l => Number(l.price) <= Number(maxPrice));
         if (search) {
