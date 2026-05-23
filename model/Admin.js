@@ -87,7 +87,7 @@ export async function resetFailedAttempts(admin) {
   if (admin.failed_login_attempts > 0 || admin.locked_until) {
     await Admin.update({ id: admin.id }, {
       failed_login_attempts: 0,
-      locked_until: null
+      locked_until: ""
     });
   }
 }
