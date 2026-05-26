@@ -13,19 +13,19 @@ export const trackEvent = async ({
     await AnalyticsEvent.create({
       event_type,
 
-      user_id: actor.user_id || null,
-      host_id: actor.host_id || null,
+      user_id: actor.user_id || undefined,
+      host_id: actor.host_id || undefined,
 
       property_id:
-        entity.type === "property" ? entity.id : null,
+        entity.type === "property" ? entity.id : undefined,
 
       event_id:
         entity.type && entity.type !== "property"
           ? entity.id
-          : null,
+          : undefined,
 
-      country: location.country || null,
-      state: location.state || null,
+      country: location.country || undefined,
+      state: location.state || undefined,
 
       metadata
     });

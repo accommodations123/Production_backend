@@ -15,7 +15,7 @@
  * - Op.in, Op.gte, Op.lte, Op.like, Op.between, Op.ne → client-side filter
  * - sequelize.transaction → removed
  * - Sequelize.UniqueConstraintError → ConditionalCheckFailedException
- * - import { Op } from "sequelize" → removed
+ * - → removed
  * - import sequences → removed
  */
 

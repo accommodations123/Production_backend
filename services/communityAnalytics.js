@@ -3,18 +3,18 @@ import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 
 export const trackCommunityEvent = async ({
   event_type,
-  user_id = null,
+  user_id = undefined,
   community = null,
-  country = null,
-  state = null,
+  country = undefined,
+  state = undefined,
   metadata = {}
 }) => {
   try {
     await AnalyticsEvent.create({
       event_type,
       user_id,
-      country: country ?? community?.country ?? null,
-      state: state ?? community?.state ?? null,
+      country: country ?? community?.country ?? undefined,
+      state: state ?? community?.state ?? undefined,
       metadata: {
         ...metadata,
         community_id: community?.id

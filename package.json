@@ -4,7 +4,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "dev": "NODE_ENV=development nodemon your-server-file.js"
+    "dev": "node --watch server.js"
   },
   "keywords": [],
   "author": "",

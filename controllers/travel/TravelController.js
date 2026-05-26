@@ -474,7 +474,7 @@ export const adminBlockHost = async (req, res) => {
     await Promise.all(relatedMatches.map(m => TravelMatch.update({ id: m.id }, { status: "cancelled" })));
 
     logAudit({ action: "ADMIN_BLOCKED_HOST", actor: { id: req.admin.id, role: "admin" }, target: { type: "host", id: host.id }, severity: "CRITICAL", req }).catch(console.error);
-    AnalyticsEvent.create({ event_type: "HOST_BLOCKED", user_id: req.admin.id, country: host.country || null }).catch(console.error);
+    AnalyticsEvent.create({ event_type: "HOST_BLOCKED", user_id: req.admin.id, country: host.country || undefined }).catch(console.error);
     await deleteCacheByPrefix("travel:");
     await deleteCacheByPrefix("host:");
     await deleteCacheByPrefix("admin:");
