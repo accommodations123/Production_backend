@@ -6,6 +6,7 @@ import User from "../../model/User.js";
 import Host from "../../model/Host.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
 import { trackCommunityEvent } from "../../services/communityAnalytics.js";
+import { attachCloudFrontUrl } from "../../utils/imageUtils.js";
 
 const isAdminOrOwner = (community, userId) => {
   if (!Array.isArray(community.members)) return false;
@@ -43,7 +44,7 @@ export const createPost = async (req, res) => {
     await trackCommunityEvent({ event_type: "COMMUNITY_POST_CREATED", user_id: userId, community, metadata: { post_id: created.id } });
     const user = await User.get(userId);
     const host = hostResults[0];
-    const post = { ...created, author: { id: userId, profile_image: user?.profile_image || null, Host: host ? { full_name: host.full_name, country: host.country, state: host.state, city: host.city, status: host.status } : null } };
+    const post = { ...created, author: { id: userId, profile_image: user?.profile_image ? attachCloudFrontUrl(user.profile_image) : null, Host: host ? { full_name: host.full_name, country: host.country, state: host.state, city: host.city, status: host.status } : null } };
     await deleteCacheByPrefix(`community:${communityId}:feed:`);
     return res.json({ success: true, post });
   } catch (err) {
@@ -67,7 +68,7 @@ export const getFeed = async (req, res) => {
       const user = await User.get(post.user_id);
       const hostResults = await Host.query("user_id").eq(post.user_id).exec();
       const host = hostResults[0];
-      return { ...post, author: { id: post.user_id, profile_image: user?.profile_image || null, Host: host ? { full_name: host.full_name, country: host.country, state: host.state, city: host.city, status: host.status } : null } };
+      return { ...post, author: { id: post.user_id, profile_image: user?.profile_image ? attachCloudFrontUrl(user.profile_image) : null, Host: host ? { full_name: host.full_name, country: host.country, state: host.state, city: host.city, status: host.status } : null } };
     }));
     return res.json({ success: true, page, posts: enrichedPosts });
   } catch (err) {
