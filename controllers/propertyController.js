@@ -415,10 +415,10 @@ export const getApprovedListings = async (req, res) => {
   try {
     const now = new Date();
 
-    const country = req.headers["x-country"] || req.query.country || null;
-    const state = req.headers["x-state"] || req.query.state || null;
-    const city = req.headers["x-city"] || req.query.city || null;
-    const zip_code = req.headers["x-zip-code"] || req.query.zip_code || null;
+    const country = req.query.country || req.headers["x-country"] || null;
+    const state = req.query.state || req.headers["x-state"] || null;
+    const city = req.query.city || req.headers["x-city"] || null;
+    const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
 
     const cacheKey = `approved_listings:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}`;
 
@@ -484,10 +484,10 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
-    const country = req.headers["x-country"] || req.query.country || null;
-    const state = req.headers["x-state"] || req.query.state || null;
-    const city = req.headers["x-city"] || req.query.city || null;
-    const zip_code = req.headers["x-zip-code"] || req.query.zip_code || null;
+    const country = req.query.country || req.headers["x-country"] || null;
+    const state = req.query.state || req.headers["x-state"] || null;
+    const city = req.query.city || req.headers["x-city"] || null;
+    const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
     const { minPrice, maxPrice } = req.query;
 
     const cacheKey = `all_properties:${page}:${limit}:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${minPrice || 0}:${maxPrice || 0}`;

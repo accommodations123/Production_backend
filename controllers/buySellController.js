@@ -63,10 +63,10 @@ export const getActiveBuySellListings = async (req, res) => {
             "x-state": req.headers["x-state"],
             "x-city": req.headers["x-city"]
         });
-        const country = req.headers["x-country"] || req.query.country || null;
-        const state = req.headers["x-state"] || req.query.state || null;
-        const city = req.headers["x-city"] || req.query.city || null;
-        const zip_code = req.headers["x-zip-code"] || req.query.zip_code || null;
+        const country = req.query.country || req.headers["x-country"] || null;
+        const state = req.query.state || req.headers["x-state"] || null;
+        const city = req.query.city || req.headers["x-city"] || null;
+        const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
         const { category, minPrice, maxPrice, search } = req.query;
 
         const cacheKey = `active_buy_sell:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${category || "all"}:${minPrice || 0}:${maxPrice || 0}:${search || "none"}`;

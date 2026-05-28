@@ -19,10 +19,10 @@ const safe = (v) => (v ? v : "all");
 
 export const getApprovedList = async (req, res) => {
   try {
-    const country = normalize(req.headers["x-country"] || req.query.country);
-    const state   = normalize(req.headers["x-state"] || req.query.state);
-    const city    = normalize(req.headers["x-city"] || req.query.city);
-    const zip     = normalize(req.headers["x-zip-code"] || req.query.zip_code);
+    const country = normalize(req.query.country || req.headers["x-country"]);
+    const state   = normalize(req.query.state || req.headers["x-state"]);
+    const city    = normalize(req.query.city || req.headers["x-city"]);
+    const zip     = normalize(req.query.zip_code || req.headers["x-zip-code"]);
 
     const cacheKey =
       `approved_snapshot_list:${safe(country)}:${safe(state)}:${safe(city)}:${safe(zip)}`;
@@ -74,10 +74,10 @@ export const getApprovedList = async (req, res) => {
 
 export const getApprovedWithHosts = async (req, res) => {
   try {
-    const country  = req.headers["x-country"] || req.query.country || null;
-    const state    = req.headers["x-state"] || req.query.state || null;
-    const city     = req.headers["x-city"] || req.query.city || null;
-    const zip_code = req.headers["x-zip-code"] || req.query.zip_code || null;
+    const country  = req.query.country || req.headers["x-country"] || null;
+    const state    = req.query.state || req.headers["x-state"] || null;
+    const city     = req.query.city || req.headers["x-city"] || null;
+    const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
 
     const cacheKey =
       `approved_properties_with_hosts:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}`;
