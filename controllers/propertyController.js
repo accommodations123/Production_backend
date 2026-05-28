@@ -438,10 +438,10 @@ export const getApprovedListings = async (req, res) => {
       new Date(p.listing_expires_at) > now
     );
 
-    if (country) properties = properties.filter(p => p.country === country);
-    if (state) properties = properties.filter(p => p.state === state);
-    if (city) properties = properties.filter(p => p.city === city);
-    if (zip_code) properties = properties.filter(p => p.zip_code === zip_code);
+    if (country) properties = properties.filter(p => p.country?.toLowerCase().trim() === country.toLowerCase().trim());
+    if (state) properties = properties.filter(p => p.state?.toLowerCase().trim() === state.toLowerCase().trim());
+    if (city) properties = properties.filter(p => p.city?.toLowerCase().trim() === city.toLowerCase().trim());
+    if (zip_code) properties = properties.filter(p => p.zip_code?.toLowerCase().trim() === zip_code.toLowerCase().trim());
 
     // Sort by created_at DESC
     properties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -510,10 +510,10 @@ export const getAllPropertiesWithHosts = async (req, res) => {
       return false;
     });
 
-    if (country) allProperties = allProperties.filter(p => p.country === country);
-    if (state) allProperties = allProperties.filter(p => p.state === state);
-    if (city) allProperties = allProperties.filter(p => p.city === city);
-    if (zip_code) allProperties = allProperties.filter(p => p.zip_code === zip_code);
+    if (country) allProperties = allProperties.filter(p => p.country?.toLowerCase().trim() === country.toLowerCase().trim());
+    if (state) allProperties = allProperties.filter(p => p.state?.toLowerCase().trim() === state.toLowerCase().trim());
+    if (city) allProperties = allProperties.filter(p => p.city?.toLowerCase().trim() === city.toLowerCase().trim());
+    if (zip_code) allProperties = allProperties.filter(p => p.zip_code?.toLowerCase().trim() === zip_code.toLowerCase().trim());
 
     if (minPrice) allProperties = allProperties.filter(p => (p.price_per_month || 0) >= Number(minPrice));
     if (maxPrice) allProperties = allProperties.filter(p => (p.price_per_month || 0) <= Number(maxPrice));

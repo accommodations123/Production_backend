@@ -100,10 +100,10 @@ export const getApprovedWithHosts = async (req, res) => {
       new Date(p.listing_expires_at) > now
     );
 
-    if (country) properties = properties.filter(p => p.country === country);
-    if (state) properties = properties.filter(p => p.state === state);
-    if (city) properties = properties.filter(p => p.city === city);
-    if (zip_code) properties = properties.filter(p => p.zip_code === zip_code);
+    if (country) properties = properties.filter(p => p.country?.toLowerCase().trim() === country.toLowerCase().trim());
+    if (state) properties = properties.filter(p => p.state?.toLowerCase().trim() === state.toLowerCase().trim());
+    if (city) properties = properties.filter(p => p.city?.toLowerCase().trim() === city.toLowerCase().trim());
+    if (zip_code) properties = properties.filter(p => p.zip_code?.toLowerCase().trim() === zip_code.toLowerCase().trim());
 
     // Sort newest first
     properties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
