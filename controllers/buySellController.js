@@ -57,6 +57,12 @@ export const createBuySellListing = async (req, res) => {
 ========================= */
 export const getActiveBuySellListings = async (req, res) => {
     try {
+        console.log("GET ACTIVE BUY-SELL LISTINGS REQ QUERY:", req.query);
+        console.log("GET ACTIVE BUY-SELL LISTINGS REQ HEADERS:", {
+            "x-country": req.headers["x-country"],
+            "x-state": req.headers["x-state"],
+            "x-city": req.headers["x-city"]
+        });
         const country = req.headers["x-country"] || req.query.country || null;
         const state = req.headers["x-state"] || req.query.state || null;
         const city = req.headers["x-city"] || req.query.city || null;
@@ -73,10 +79,30 @@ export const getActiveBuySellListings = async (req, res) => {
         // Query by status GSI
         let listings = await BuySellListing.query("status").eq("active").exec();
 
+        console.log("ALL ACTIVE LISTINGS FROM DYNAMODB:", listings.map(l => ({ title: l.title, country: l.country, state: l.state, city: l.city })));
+
         // Client-side filtering with robust case-insensitive comparisons
-        if (country) listings = listings.filter(l => l.country?.toLowerCase().trim() === country.toLowerCase().trim());
-        if (state) listings = listings.filter(l => l.state?.toLowerCase().trim() === state.toLowerCase().trim());
-        if (city) listings = listings.filter(l => l.city?.toLowerCase().trim() === city.toLowerCase().trim());
+        if (country) {
+            listings = listings.filter(l => {
+                const match = l.country?.toLowerCase().trim() === country.toLowerCase().trim();
+                console.log(`Country Match [${l.title}]: DB='${l.country}', Filter='${country}' => ${match}`);
+                return match;
+            });
+        }
+        if (state) {
+            listings = listings.filter(l => {
+                const match = l.state?.toLowerCase().trim() === state.toLowerCase().trim();
+                console.log(`State Match [${l.title}]: DB='${l.state}', Filter='${state}' => ${match}`);
+                return match;
+            });
+        }
+        if (city) {
+            listings = listings.filter(l => {
+                const match = l.city?.toLowerCase().trim() === city.toLowerCase().trim();
+                console.log(`City Match [${l.title}]: DB='${l.city}', Filter='${city}' => ${match}`);
+                return match;
+            });
+        }
         if (zip_code) listings = listings.filter(l => l.zip_code?.toLowerCase().trim() === zip_code.toLowerCase().trim());
         if (category) listings = listings.filter(l => l.category?.toLowerCase() === category.toLowerCase());
         if (minPrice) listings = listings.filter(l => Number(l.price) >= Number(minPrice));

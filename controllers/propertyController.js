@@ -79,15 +79,27 @@ export const saveBasicInfo = async (req, res) => {
       });
     }
 
-    await Property.update({ id: property.id }, {
+    const updateData = {
       title: req.body.title,
       description: req.body.description,
       guests: req.body.guests,
       bedrooms: req.body.bedrooms,
       bathrooms: req.body.bathrooms,
       pets_allowed: req.body.petsAllowed,
-      area: req.body.area
+      area: req.body.area,
+      category_id: req.body.categoryId || req.body.category_id,
+      property_type: req.body.propertyType || req.body.property_type,
+      privacy_type: req.body.privacyType || req.body.privacy_type
+    };
+
+    // Remove undefined/null values to avoid Dynamoose errors and maintain database purity
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined || updateData[key] === null) {
+        delete updateData[key];
+      }
     });
+
+    await Property.update({ id: property.id }, updateData);
 
     const updated = await Property.get(property.id);
 
@@ -96,6 +108,7 @@ export const saveBasicInfo = async (req, res) => {
 
     return res.json({ success: true, property: updated });
   } catch (err) {
+    console.error("SAVE BASIC INFO ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
