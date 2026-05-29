@@ -1,5 +1,6 @@
 import BuySellListing from "../model/BuySellListing.js";
 import User from "../model/User.js";
+import Host from "../model/Host.js";
 import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
@@ -141,9 +142,21 @@ export const getBuySellListingById = async (req, res) => {
             return res.status(404).json({ message: "Listing not found" });
         }
 
-        const processedListing = { ...listing };
+        const processedListing = JSON.parse(JSON.stringify(listing));
         if (processedListing.images) {
             processedListing.images = processedListing.images.map(attachCloudFrontUrl);
+        }
+
+        // Fetch seller's host profile for additional contact details
+        try {
+            const hosts = await Host.query("user_id").eq(processedListing.user_id).exec();
+            const host = hosts?.[0];
+            if (host) {
+                processedListing.sellerInstagram = host.instagram || "";
+                processedListing.sellerEmail = host.email || processedListing.email || "";
+            }
+        } catch (hostErr) {
+            console.error("Failed to enrich listing with host profile:", hostErr);
         }
 
         return res.json({ success: true, listing: processedListing });

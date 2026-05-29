@@ -22,9 +22,14 @@ const uploadResume = multer({
     const allowed = [
       "application/pdf",
       "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/octet-stream",
+      "application/x-zip-compressed"
     ];
-    if (!allowed.includes(file.mimetype)) {
+    const ext = file.originalname.split(".").pop().toLowerCase();
+    const isAllowedExt = ["pdf", "doc", "docx"].includes(ext);
+
+    if (!allowed.includes(file.mimetype) && !isAllowedExt) {
       return cb(new Error("Only PDF and Word documents are allowed"));
     }
     cb(null, true);
