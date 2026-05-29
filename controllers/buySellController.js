@@ -64,11 +64,31 @@ export const getActiveBuySellListings = async (req, res) => {
             "x-state": req.headers["x-state"],
             "x-city": req.headers["x-city"]
         });
-        const country = req.query.country || req.headers["x-country"] || null;
+        // 100% robust country/state/city resolution: query parameter takes strict priority to bypass CDN header injection
+        let country = req.query.country || null;
+        if (!country) {
+            const rawHeader = req.headers["x-country"] || null;
+            // Only fall back to header country if it is a full name, not a CDN geo-code like 'IN' / 'US'
+            if (rawHeader && rawHeader.trim().length > 2) {
+                country = rawHeader;
+            }
+        }
+
         const state = req.query.state || req.headers["x-state"] || null;
         const city = req.query.city || req.headers["x-city"] || null;
         const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
         const { category, minPrice, maxPrice, search } = req.query;
+
+        // Normalize country names helper (maps geo codes & varying spellings)
+        const normalizeCountryName = (cName) => {
+            if (!cName) return "";
+            const norm = cName.toString().trim().toUpperCase();
+            if (norm === "IN" || norm === "INDIA") return "india";
+            if (norm === "US" || norm === "USA" || norm === "UNITED STATES" || norm === "UNITED STATES OF AMERICA") {
+                return "united states of america";
+            }
+            return norm.toLowerCase();
+        };
 
         const cacheKey = `active_buy_sell:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${category || "all"}:${minPrice || 0}:${maxPrice || 0}:${search || "none"}`;
 
@@ -84,8 +104,10 @@ export const getActiveBuySellListings = async (req, res) => {
 
         // Client-side filtering with robust case-insensitive comparisons
         if (country) {
+            const filterCountry = normalizeCountryName(country);
             listings = listings.filter(l => {
-                const match = l.country?.toLowerCase().trim() === country.toLowerCase().trim();
+                const dbCountry = normalizeCountryName(l.country);
+                const match = dbCountry === filterCountry;
                 console.log(`Country Match [${l.title}]: DB='${l.country}', Filter='${country}' => ${match}`);
                 return match;
             });
