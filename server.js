@@ -76,7 +76,10 @@ app.use(
       "Pragma",
       "pragma",
       "x-country",
-      "x-country-code"
+      "x-country-code",
+      "x-state",
+      "x-city",
+      "x-zip-code"
     ]
   })
 );
