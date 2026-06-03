@@ -198,9 +198,20 @@ export const updateHost = async (req, res) => {
 
     await Host.update({ id: hostId }, hostUpdates);
 
-    /* USER PROFILE IMAGE UPDATE */
+    /* USER MODEL UPDATE (Keep in sync) */
+    const userUpdates = {};
+    if (req.body.full_name) {
+      userUpdates.name = req.body.full_name;
+    }
+    if (req.body.phone) {
+      userUpdates.phone = req.body.phone;
+    }
     if (req.file?.location) {
-      await User.update({ id: userId }, { profile_image: req.file.location });
+      userUpdates.profile_image = req.file.location;
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await User.update({ id: userId }, userUpdates);
     }
 
     AnalyticsEvent.create({
@@ -237,7 +248,9 @@ export const updateHost = async (req, res) => {
         host: updatedHost,
         user: {
           id: updatedUser.id,
-          profile_image: attachCloudFrontUrl(updatedUser.profile_image)
+          name: updatedUser.name,
+          profile_image: attachCloudFrontUrl(updatedUser.profile_image),
+          phone: updatedUser.phone
         }
       }
     });

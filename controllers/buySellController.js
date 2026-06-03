@@ -139,11 +139,23 @@ export const getActiveBuySellListings = async (req, res) => {
         listings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         listings = listings.slice(0, 50);
 
-        const processedListings = listings.map(listing => {
-            const l = { ...listing };
+        const processedListings = await Promise.all(listings.map(async listing => {
+            const l = JSON.parse(JSON.stringify(listing));
             if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            try {
+                const hosts = await Host.query("user_id").eq(l.user_id).exec();
+                const host = hosts?.[0];
+                if (host) {
+                    l.sellerInstagram = host.instagram || "";
+                    l.sellerFacebook = host.facebook || "";
+                    l.sellerEmail = host.email || l.email || "";
+                    l.sellerPhone = host.phone || l.phone || "";
+                }
+            } catch (hostErr) {
+                console.error("Failed to enrich listing with host profile:", hostErr);
+            }
             return l;
-        });
+        }));
 
         await setCache(cacheKey, processedListings, 300);
         return res.json({ success: true, listings: processedListings });
@@ -175,7 +187,9 @@ export const getBuySellListingById = async (req, res) => {
             const host = hosts?.[0];
             if (host) {
                 processedListing.sellerInstagram = host.instagram || "";
+                processedListing.sellerFacebook = host.facebook || "";
                 processedListing.sellerEmail = host.email || processedListing.email || "";
+                processedListing.sellerPhone = host.phone || processedListing.phone || "";
             }
         } catch (hostErr) {
             console.error("Failed to enrich listing with host profile:", hostErr);
@@ -196,11 +210,23 @@ export const getMyBuySellListings = async (req, res) => {
         let listings = await BuySellListing.query("user_id").eq(req.user.id).exec();
         listings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-        const processedListings = listings.map(listing => {
-            const l = { ...listing };
+        const processedListings = await Promise.all(listings.map(async listing => {
+            const l = JSON.parse(JSON.stringify(listing));
             if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+            try {
+                const hosts = await Host.query("user_id").eq(l.user_id).exec();
+                const host = hosts?.[0];
+                if (host) {
+                    l.sellerInstagram = host.instagram || "";
+                    l.sellerFacebook = host.facebook || "";
+                    l.sellerEmail = host.email || l.email || "";
+                    l.sellerPhone = host.phone || l.phone || "";
+                }
+            } catch (hostErr) {
+                console.error("Failed to enrich listing with host profile:", hostErr);
+            }
             return l;
-        });
+        }));
 
         return res.json({ success: true, listings: processedListings });
     } catch (err) {
