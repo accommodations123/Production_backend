@@ -66,7 +66,7 @@ const travelTripSchema = new dynamoose.Schema(
     },
     status: {
       type: String,
-      default: "active",
+      default: "pending",
       index: {
         name: "status-index",
         type: "global",
