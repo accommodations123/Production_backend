@@ -28,6 +28,12 @@ const jobSchema = new dynamoose.Schema(
       type: String,
       required: true
     },
+    client_name: {
+      type: String
+    },
+    vendor_name: {
+      type: String
+    },
     department: {
       type: String,
       required: true
@@ -46,12 +52,28 @@ const jobSchema = new dynamoose.Schema(
       type: String,
       required: true
     },
+    position_type: {
+      type: String,
+      enum: ["C2C", "W2", "Contract", "Full Time"]
+    },
     contract_duration: { type: String },
     experience_level: {
       type: String,
       required: true
     },
     salary_range: { type: String },
+    pay_min: { type: Number },
+    pay_max: { type: Number },
+    pay_type: {
+      type: String,
+      enum: ["hourly", "salary"]
+    },
+    visa_status: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    start_date: { type: String },
     description: {
       type: String,
       required: true
@@ -66,14 +88,46 @@ const jobSchema = new dynamoose.Schema(
       schema: [String],
       default: []
     },
+    preferred_skills: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
+    benefits: {
+      type: Array,
+      schema: [String],
+      default: []
+    },
     skills: {
       type: Object,
+      schema: {
+        primary: {
+          type: Array,
+          schema: [String]
+        },
+        secondary: {
+          type: Array,
+          schema: [String]
+        },
+        nice_to_have: {
+          type: Array,
+          schema: [String]
+        }
+      },
       default: { primary: [], secondary: [], nice_to_have: [] }
     },
     mandatory_conditions: {
       type: Array,
       schema: [String],
       default: []
+    },
+    recruiter_name: { type: String },
+    recruiter_email: { type: String },
+    recruiter_phone: { type: String },
+    recruiter_linkedin: { type: String },
+    company_linkedin: {
+      type: String,
+      default: "https://linkedin.com/company/nextkinlife"
     },
     metadata: {
       type: Object,
@@ -93,8 +147,8 @@ const jobSchema = new dynamoose.Schema(
     },
     status: {
       type: String,
-      default: "draft",
-      enum: ["draft", "active", "closed"],
+      default: "active",
+      enum: ["active", "closed", "draft"],
       index: {
         name: "status-index",
         type: "global",

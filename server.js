@@ -119,7 +119,7 @@ app.use("/community", communityRoutes);
 app.use("/community", communityContentRoutes);
 app.use("/auth", authRoutes);
 app.use("/travel", travelRoutes);
-app.use("/carrer", careerRoutes);
+app.use("/career", careerRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/eventanalytics", eventAnalytics);
 app.use("/buysellanalytics", buySellAnalytics);

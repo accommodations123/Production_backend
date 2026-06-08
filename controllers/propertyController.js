@@ -128,13 +128,16 @@ export const saveAddress = async (req, res) => {
       country: req.body.country,
       state: req.body.state,
       city: req.body.city,
-      street_address: req.body.street_address
+      street_address: req.body.street_address || req.body.address,
+      zip_code: req.body.zip_code || req.body.pincode || "",
+      latitude: req.body.latitude !== undefined && req.body.latitude !== null ? Number(req.body.latitude) : null,
+      longitude: req.body.longitude !== undefined && req.body.longitude !== null ? Number(req.body.longitude) : null,
+      location_privacy: req.body.location_privacy || req.body.locationPrivacy || "approximate"
     };
-    if (req.body.zip_code) updateData.zip_code = req.body.zip_code;
 
-    // Remove undefined/null values to avoid Dynamoose errors
+    // Remove undefined values to avoid Dynamoose errors (allow null coordinates if empty)
     Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined || updateData[key] === null) delete updateData[key];
+      if (updateData[key] === undefined) delete updateData[key];
     });
 
     await Property.update({ id: property.id }, updateData);
@@ -269,12 +272,20 @@ export const savePricing = async (req, res) => {
       });
     }
 
-    await Property.update({ id: property.id }, {
-      price_per_hour: req.body.pricePerHour,
-      price_per_night: req.body.pricePerNight,
-      price_per_month: req.body.pricePerMonth,
+    const updateData = {
+      price_per_hour: req.body.pricePerHour !== undefined && req.body.pricePerHour !== null ? Number(req.body.pricePerHour) : null,
+      price_per_night: req.body.pricePerNight !== undefined && req.body.pricePerNight !== null ? Number(req.body.pricePerNight) : null,
+      price_per_week: req.body.pricePerWeek !== undefined && req.body.pricePerWeek !== null ? Number(req.body.pricePerWeek) : (req.body.price_per_week !== undefined && req.body.price_per_week !== null ? Number(req.body.price_per_week) : null),
+      price_per_month: req.body.pricePerMonth !== undefined && req.body.pricePerMonth !== null ? Number(req.body.pricePerMonth) : null,
       currency: req.body.currency
+    };
+
+    // Remove undefined values to avoid Dynamoose errors
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) delete updateData[key];
     });
+
+    await Property.update({ id: property.id }, updateData);
 
     const updated = await Property.get(property.id);
 

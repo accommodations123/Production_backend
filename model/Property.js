@@ -47,6 +47,13 @@ const propertySchema = new dynamoose.Schema(
     city: { type: String },
     zip_code: { type: String },
     street_address: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    location_privacy: {
+      type: String,
+      default: "approximate",
+      enum: ["exact", "approximate"]
+    },
     photos: {
       type: Array,
       schema: [String],
@@ -65,6 +72,7 @@ const propertySchema = new dynamoose.Schema(
     },
     price_per_hour: { type: Number },
     price_per_night: { type: Number },
+    price_per_week: { type: Number },
     price_per_month: { type: Number },
     currency: {
       type: String,

@@ -77,7 +77,9 @@ export const getActiveBuySellListings = async (req, res) => {
         const state = req.query.state || req.headers["x-state"] || null;
         const city = req.query.city || req.headers["x-city"] || null;
         const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
-        const { category, minPrice, maxPrice, search } = req.query;
+        const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+        const offset = (page - 1) * limit;
 
         // Normalize country names helper (maps geo codes & varying spellings)
         const normalizeCountryName = (cName) => {
@@ -90,11 +92,11 @@ export const getActiveBuySellListings = async (req, res) => {
             return norm.toLowerCase();
         };
 
-        const cacheKey = `active_buy_sell:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${category || "all"}:${minPrice || 0}:${maxPrice || 0}:${search || "none"}`;
+        const cacheKey = `active_buy_sell:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${category || "all"}:${minPrice || 0}:${maxPrice || 0}:${search || "none"}:${page}:${limit}`;
 
         const cached = await getCache(cacheKey);
         if (cached) {
-            return res.json({ success: true, listings: cached });
+            return res.json(cached.listings ? cached : { success: true, listings: cached });
         }
 
         // Query by status GSI
@@ -137,9 +139,10 @@ export const getActiveBuySellListings = async (req, res) => {
 
         // Sort + limit
         listings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        listings = listings.slice(0, 50);
+        const count = listings.length;
+        const paginatedListings = listings.slice(offset, offset + limit);
 
-        const processedListings = await Promise.all(listings.map(async listing => {
+        const processedListings = await Promise.all(paginatedListings.map(async listing => {
             const l = JSON.parse(JSON.stringify(listing));
             if (l.images) l.images = l.images.map(attachCloudFrontUrl);
             try {
@@ -157,8 +160,16 @@ export const getActiveBuySellListings = async (req, res) => {
             return l;
         }));
 
-        await setCache(cacheKey, processedListings, 300);
-        return res.json({ success: true, listings: processedListings });
+        const responseData = {
+            success: true,
+            listings: processedListings,
+            total: count,
+            page,
+            limit,
+            totalPages: Math.ceil(count / limit)
+        };
+        await setCache(cacheKey, responseData, 300);
+        return res.json(responseData);
 
     } catch (err) {
         return res.status(500).json({ message: "Failed to fetch listings" });

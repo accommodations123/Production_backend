@@ -29,12 +29,13 @@ const applicationSchema = new dynamoose.Schema(
       }
     },
     first_name: {
-      type: String,
-      required: true
+      type: String
     },
     last_name: {
-      type: String,
-      required: true
+      type: String
+    },
+    full_name: {
+      type: String
     },
     email: {
       type: String,
@@ -49,6 +50,16 @@ const applicationSchema = new dynamoose.Schema(
     portfolio_url: { type: String },
     resume_url: {
       type: String
+    },
+    current_location: { type: String },
+    work_authorization: { type: String },
+    years_of_experience: { type: String },
+    job_email_key: {
+      type: String,
+      index: {
+        name: "job-email-index",
+        type: "global"
+      }
     },
     experience: {
       type: Array,

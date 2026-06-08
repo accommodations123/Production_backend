@@ -45,10 +45,38 @@ export const applyJob = async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Login required" });
 
-    const { job_id, first_name, last_name, email, phone, linkedin_url, portfolio_url, experience } = req.body;
+    // Resume file validation on backend
+    if (!req.file) {
+      return res.status(400).json({ message: "Resume file is required" });
+    }
 
-    if (!job_id || !first_name || !last_name || !email) {
-      return res.status(400).json({ message: "Missing required fields" });
+    const allowedMimeTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: "Only PDF, DOC, and DOCX files are allowed" });
+    }
+
+    const maxFileSize = 5 * 1024 * 1024; // 5MB
+    if (req.file.size > maxFileSize) {
+      return res.status(400).json({ message: "Resume file size must be less than 5MB" });
+    }
+
+    const {
+      job_id,
+      full_name,
+      email,
+      phone,
+      linkedin_url,
+      current_location,
+      work_authorization,
+      years_of_experience
+    } = req.body;
+
+    if (!job_id || !full_name || !email) {
+      return res.status(400).json({ message: "Missing required fields: job_id, full_name, or email" });
     }
 
     const job = await Job.get(job_id);
@@ -56,19 +84,36 @@ export const applyJob = async (req, res) => {
       return res.status(404).json({ message: "Job not available" });
     }
 
-    // Check if already applied
-    const existingApps = await Application.query("job_id").eq(job_id).exec();
-    if (existingApps.some(a => a.user_id === req.user.id)) {
-      return res.status(409).json({ message: "Already applied to this job" });
+    const normalizedEmail = email.toLowerCase().trim();
+    const jobEmailKey = `${job_id}#${normalizedEmail}`;
+
+    // Check duplicate applications (same job_id + email) utilizing job_email_key GSI query
+    const existing = await Application.query("job_email_key").eq(jobEmailKey).exec();
+    if (existing.length > 0) {
+      return res.status(409).json({ message: "You have already applied to this job." });
     }
 
-    const resumeUrl = req.file?.location || null;
+    const resumeUrl = req.file?.location || req.file?.path || null;
+
+    // Derive first_name and last_name for compatibility
+    const names = (full_name || "").trim().split(/\s+/);
+    const derivedFirstName = names[0] || "";
+    const derivedLastName = names.slice(1).join(" ") || "";
 
     const application = await Application.create({
-      job_id, user_id: req.user.id, first_name, last_name, email, phone,
-      linkedin_url, portfolio_url,
-      experience: parseExperience(experience),
-      ...(resumeUrl ? { resume_url: resumeUrl } : {}), // Only set if present (field is no longer required)
+      job_id,
+      user_id: req.user.id,
+      full_name,
+      first_name: derivedFirstName,
+      last_name: derivedLastName,
+      email,
+      phone,
+      linkedin_url,
+      current_location,
+      work_authorization,
+      years_of_experience,
+      job_email_key: jobEmailKey,
+      resume_url: resumeUrl,
       status: "submitted"
     });
 
@@ -224,8 +269,10 @@ export const getAllApplications = async (req, res) => {
         User.get(app.user_id).catch(() => null)
       ]);
       return {
-        id: app.id, status: app.status, first_name: app.first_name,
-        last_name: app.last_name, email: app.email, phone: app.phone,
+        id: app.id, status: app.status,
+        first_name: app.first_name, last_name: app.last_name,
+        full_name: app.full_name || `${app.first_name || ""} ${app.last_name || ""}`.trim(),
+        email: app.email, phone: app.phone,
         experience: app.experience, resume_url: app.resume_url,
         created_at: app.created_at, job_id: app.job_id, user_id: app.user_id,
         job: job ? { id: job.id, title: job.title } : null,
@@ -276,7 +323,11 @@ export const getAdminApplicationById = async (req, res) => {
 
     // Enrich with job data
     const job = await Job.get(application.job_id);
-    const result = { ...application, job: job ? { id: job.id, title: job.title } : null };
+    const result = {
+      ...application,
+      full_name: application.full_name || `${application.first_name || ""} ${application.last_name || ""}`.trim(),
+      job: job ? { id: job.id, title: job.title } : null
+    };
 
     return res.json({ success: true, application: result });
   } catch (err) {
