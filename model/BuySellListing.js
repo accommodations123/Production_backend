@@ -64,6 +64,13 @@ const buySellListingSchema = new dynamoose.Schema(
       schema: [String],
       default: []
     },
+    condition: { type: String },
+    make: { type: String },
+    model: { type: String },
+    year: { type: String },
+    mileage: { type: String },
+    fuel_type: { type: String },
+    transmission: { type: String },
     status: {
       type: String,
       default: "pending",

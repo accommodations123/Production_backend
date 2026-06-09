@@ -26,22 +26,32 @@ export const createBuySellListing = async (req, res) => {
 
         const {
             title, category, subcategory, price, description,
-            country, state, city, zip_code, street_address, name, phone
+            country, state, city, zip_code, street_address, name, phone,
+            condition, make, model, year, mileage, fuel_type, transmission
         } = req.body;
 
-        if (!title || !category || !price || !description || !country || !state || !city || !street_address || !name || !phone) {
+        if (!title || !category || !subcategory || !condition || !price || !description || !country || !state || !city || !street_address || !name || !phone) {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
         const galleryImages = req.files?.map(file => file.location) || [];
 
         const listingData = {
-            user_id: userId, title, category, subcategory,
+            user_id: userId, title, category, subcategory, condition,
             price: Number(price), // FormData sends strings; DynamoDB model expects Number
             description, country, state, city, street_address,
             name, email: user.email, phone, images: galleryImages, status: "pending"
         };
         if (zip_code) listingData.zip_code = zip_code;
+
+        if (category === "Vehicles") {
+            if (make) listingData.make = make;
+            if (model) listingData.model = model;
+            if (year) listingData.year = year;
+            if (mileage) listingData.mileage = mileage;
+            if (fuel_type) listingData.fuel_type = fuel_type;
+            if (transmission) listingData.transmission = transmission;
+        }
 
         const listing = await BuySellListing.create(listingData);
 
@@ -77,6 +87,10 @@ export const getActiveBuySellListings = async (req, res) => {
         const state = req.query.state || req.headers["x-state"] || null;
         const city = req.query.city || req.headers["x-city"] || null;
         const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
+        const category = req.query.category || null;
+        const minPrice = req.query.minPrice || null;
+        const maxPrice = req.query.maxPrice || null;
+        const search = req.query.search || null;
         const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
         const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
         const offset = (page - 1) * limit;
@@ -264,7 +278,10 @@ export const updateBuySellListing = async (req, res) => {
             return res.status(400).json({ message: "Blocked listings cannot be edited" });
         }
 
-        const allowed = ["title", "category", "subcategory", "description", "state", "city", "zip_code", "street_address"];
+        const allowed = [
+            "title", "category", "subcategory", "description", "state", "city", "zip_code", "street_address",
+            "condition", "make", "model", "year", "mileage", "fuel_type", "transmission"
+        ];
         const updates = {};
         for (const key of allowed) {
             if (req.body[key] !== undefined) {
