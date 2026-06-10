@@ -24,7 +24,7 @@ router.get("/jobs/:id", getJobById);
 
 router.post("/applications", userAuth, uploadResume.single("resume"), applyJob);
 
-router.get("/applications/me", userAuth, getMyApplications);
+router.get("/applications/me", userAuth, getMyApplications)
 
 /* =====================================================
    ADMIN ROUTES (BEARER AUTH)
