@@ -34,15 +34,10 @@ const jobSchema = new dynamoose.Schema(
     vendor_name: {
       type: String
     },
-    department: {
-      type: String,
-      required: true
-    },
     location: {
       type: String,
       required: true
     },
-    geo_restriction: { type: String },
     work_style: {
       type: String,
       required: true,
@@ -54,7 +49,7 @@ const jobSchema = new dynamoose.Schema(
     },
     position_type: {
       type: String,
-      enum: ["C2C", "W2", "Contract", "Full Time"]
+      enum: ["C2C", "W2", "Contract", "Full Time", "Part Time", "Contract to Hire"]
     },
     contract_duration: { type: String },
     experience_level: {
@@ -116,11 +111,6 @@ const jobSchema = new dynamoose.Schema(
       },
       default: { primary: [], secondary: [], nice_to_have: [] }
     },
-    mandatory_conditions: {
-      type: Array,
-      schema: [String],
-      default: []
-    },
     recruiter_name: { type: String },
     recruiter_email: { type: String },
     recruiter_phone: { type: String },
@@ -133,26 +123,18 @@ const jobSchema = new dynamoose.Schema(
       type: Object,
       default: {}
     },
-    featured: {
-      type: Boolean,
-      default: false
-    },
     views_count: {
-      type: Number,
-      default: 0
-    },
-    applications_count: {
       type: Number,
       default: 0
     },
     status: {
       type: String,
-      default: "active",
+      required: true,
+      default: "draft",
       enum: ["active", "closed", "draft"],
       index: {
         name: "status-index",
-        type: "global",
-        rangeKey: "created_at"
+        type: "global"
       }
     }
   },

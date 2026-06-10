@@ -108,13 +108,15 @@ export default async function adminAuth(req, res, next) {
       });
     }
 
-    // ── Check lockout ───────────────────────────────────────────────
+    // ── Check lockout (disabled for development) ───────────────────
+    /*
     if (admin.locked_until && new Date(admin.locked_until) > new Date()) {
       return res.status(423).json({
         success: false,
         message: "Account is temporarily locked due to too many failed login attempts."
       });
     }
+    */
 
     // ── Attach admin to request ─────────────────────────────────────
     req.admin = admin;

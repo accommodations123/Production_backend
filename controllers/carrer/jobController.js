@@ -39,6 +39,98 @@ const normalizeJsonArray = (val) => {
   return [];
 };
 
+const US_STATES = [
+  "al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in", "ia", "ks", "ky", "la", "me", "md",
+  "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj", "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc",
+  "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi", "wy", "pr", "vi", "gu", "mp", "as"
+];
+
+const containsWholeWord = (str, word) => {
+  const words = str.split(/[\s,.\-\/]+/);
+  return words.includes(word);
+};
+
+const matchJobLocation = (jobLocation, queryLocation) => {
+  const loc = (jobLocation || "").toLowerCase().trim();
+  const q = (queryLocation || "").toLowerCase().trim();
+  
+  if (!q) return true;
+  
+  // Direct inclusion check (avoid matching substring for country codes or short keywords)
+  if (q !== "india" && q !== "in" && q !== "south africa" && q !== "sa" && q !== "za" && loc.includes(q)) {
+    return true;
+  }
+  
+  // If query is USA/US/United States, match typical US job locations
+  if (q === "united states of america" || q === "united states" || q === "usa" || q === "us") {
+    if (loc.includes("usa") || loc.includes("us") || loc.includes("united states")) {
+      return true;
+    }
+    const words = loc.split(/[\s,]+/);
+    if (words.some(word => US_STATES.includes(word))) {
+      return true;
+    }
+    if (loc === "remote" || loc.includes("remote")) {
+      return true;
+    }
+  }
+  
+  // UK / United Kingdom
+  if (q === "united kingdom" || q === "uk") {
+    if (loc.includes("uk") || loc.includes("united kingdom") || loc.includes("gb") || loc.includes("great britain") || loc.includes("london")) {
+      return true;
+    }
+  }
+
+  // Canada
+  if (q === "canada" || q === "ca") {
+    const CAN_PROVINCES = ["on", "qc", "bc", "ab", "mb", "sk", "ns", "nb", "nl", "pe"];
+    if (loc.includes("canada") || loc.includes("ca") || loc.split(/[\s,]+/).some(w => CAN_PROVINCES.includes(w))) {
+      return true;
+    }
+  }
+
+  // South Africa / SA / ZA
+  if (q === "south africa" || q === "sa" || q === "za") {
+    if (containsWholeWord(loc, "south africa") || containsWholeWord(loc, "sa") || containsWholeWord(loc, "za")) {
+      return true;
+    }
+    const SA_LOCATIONS = [
+      "johannesburg", "cape town", "durban", "pretoria", "port elizabeth", 
+      "gauteng", "western cape", "kwazulu-natal", "eastern cape", "free state", 
+      "limpopo", "mpumalanga", "north west", "northern cape"
+    ];
+    if (SA_LOCATIONS.some(l => loc.includes(l))) {
+      return true;
+    }
+  }
+
+  // India / IN
+  if (q === "india" || q === "in") {
+    if (containsWholeWord(loc, "india")) {
+      return true;
+    }
+    const IN_LOCATIONS = [
+      "bangalore", "bengaluru", "mumbai", "delhi", "chennai", "hyderabad", "pune", "kolkata", "noida", "gurgaon", "gurugram",
+      "karnataka", "maharashtra", "tamil nadu", "telangana", "delhi ncr", "haryana", "uttar pradesh", "west bengal"
+    ];
+    if (IN_LOCATIONS.some(l => loc.includes(l))) {
+      return true;
+    }
+    if (q === "in") {
+      const words = loc.split(/[\s,]+/);
+      if (words.includes("in")) {
+        const isUS = loc.includes("usa") || loc.includes("united states") || words.some(w => w !== "in" && US_STATES.includes(w));
+        if (!isUS) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+};
+
 export const createJob = async (req, res) => {
   try {
     if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
@@ -46,7 +138,6 @@ export const createJob = async (req, res) => {
     const REQUIRED_FIELDS = [
       "title",
       "company",
-      "department",
       "location",
       "description"
     ];
@@ -71,9 +162,7 @@ export const createJob = async (req, res) => {
       "company",
       "client_name",
       "vendor_name",
-      "department",
       "location",
-      "geo_restriction",
       "employment_type",
       "position_type",
       "contract_duration",
@@ -91,7 +180,6 @@ export const createJob = async (req, res) => {
       "preferred_skills",
       "benefits",
       "skills",
-      "mandatory_conditions",
       "recruiter_name",
       "recruiter_email",
       "recruiter_phone",
@@ -115,7 +203,6 @@ export const createJob = async (req, res) => {
     payload.visa_status = normalizeJsonArray(payload.visa_status);
     payload.benefits = normalizeJsonArray(payload.benefits);
     payload.skills = normalizeSkills(payload.skills);
-    payload.mandatory_conditions ??= [];
     payload.metadata ??= {};
 
     const job = await Job.create({
@@ -128,7 +215,7 @@ export const createJob = async (req, res) => {
       event_type: "JOB_CREATED",
       actor: { user_id: req.admin.id },
       entity: { type: "job", id: job.id },
-      metadata: { department: job.department, employment_type: job.employment_type }
+      metadata: { employment_type: job.employment_type }
     }).catch(console.error);
 
     logAudit({
@@ -233,7 +320,7 @@ export const getJobs = async (req, res) => {
     }
     if (req.query.location) {
       const loc = req.query.location.toLowerCase().trim();
-      jobs = jobs.filter(j => (j.location || "").toLowerCase().includes(loc));
+      jobs = jobs.filter(j => matchJobLocation(j.location, loc));
     }
 
     // 7. Text Search (across job title, description, client name, vendor name)

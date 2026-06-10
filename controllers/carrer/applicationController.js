@@ -8,6 +8,11 @@ import { trackEvent } from "../../services/Analytics.js";
 import { logAudit } from "../../services/auditLogger.js";
 import { notifyAndEmail } from "../../services/notificationDispatcher.js";
 
+const FALLBACK_JOB_TITLES = {
+  "2b3e71fa-4565-4067-8ac4-cffd8a59b627": "Senior Java Backend Developer",
+  "3eb26e3c-7af7-457f-ab4f-bfbb1a435e9e": "Full Stack Developer"
+};
+
 /**
  * Parse experience from FormData.
  * Frontend sends a string (e.g. "5+ years") but DynamoDB model expects Array of Objects.
@@ -31,14 +36,6 @@ const parseExperience = (experience) => {
 };
 
 const VALID_STATUSES = ["submitted", "viewed", "reviewing", "interview", "offer", "rejected"];
-const STATUS_TRANSITIONS = {
-  submitted: ["viewed"],
-  viewed: ["reviewing", "rejected"],
-  reviewing: ["interview", "rejected"],
-  interview: ["offer", "rejected"],
-  offer: [],
-  rejected: []
-};
 
 /* ================= APPLY JOB ================= */
 export const applyJob = async (req, res) => {
@@ -102,6 +99,7 @@ export const applyJob = async (req, res) => {
 
     const application = await Application.create({
       job_id,
+      job_title: job.title,
       user_id: req.user.id,
       full_name,
       first_name: derivedFirstName,
@@ -116,9 +114,6 @@ export const applyJob = async (req, res) => {
       resume_url: resumeUrl,
       status: "submitted"
     });
-
-    // Increment applications count
-    await Job.update({ id: job.id }, { applications_count: (job.applications_count || 0) + 1 });
 
     trackEvent({
       event_type: "JOB_APPLICATION_SUBMITTED",
@@ -217,9 +212,6 @@ export const updateApplicationStatus = async (req, res) => {
     const prev = application.status;
     if (prev === status) return res.status(400).json({ message: "Status already set" });
 
-    if (!STATUS_TRANSITIONS[prev]?.includes(status)) {
-      return res.status(400).json({ message: `Invalid transition from ${prev} to ${status}` });
-    }
 
     await Application.update({ id: application.id }, { status });
 
@@ -274,7 +266,9 @@ export const getAllApplications = async (req, res) => {
         full_name: app.full_name || `${app.first_name || ""} ${app.last_name || ""}`.trim(),
         email: app.email, phone: app.phone,
         experience: app.experience, resume_url: app.resume_url,
+        years_of_experience: app.years_of_experience,
         created_at: app.created_at, job_id: app.job_id, user_id: app.user_id,
+        job_title: job ? job.title : (app.job_title || FALLBACK_JOB_TITLES[app.job_id] || "Unknown Position"),
         job: job ? { id: job.id, title: job.title } : null,
         user: user ? { id: user.id, email: user.email } : null
       };
@@ -326,6 +320,7 @@ export const getAdminApplicationById = async (req, res) => {
     const result = {
       ...application,
       full_name: application.full_name || `${application.first_name || ""} ${application.last_name || ""}`.trim(),
+      job_title: job ? job.title : (application.job_title || FALLBACK_JOB_TITLES[application.job_id] || "Unknown Position"),
       job: job ? { id: job.id, title: job.title } : null
     };
 

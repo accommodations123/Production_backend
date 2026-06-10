@@ -21,6 +21,9 @@ const applicationSchema = new dynamoose.Schema(
         rangeKey: "created_at"
       }
     },
+    job_title: {
+      type: String
+    },
     user_id: {
       type: String,
       index: {

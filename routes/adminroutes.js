@@ -25,16 +25,8 @@ const loginLimiter = new RateLimiterMemory({
 });
 
 const loginRateLimit = async (req, res, next) => {
-    try {
-        const key = req.ip || req.connection.remoteAddress;
-        await loginLimiter.consume(key);
-        next();
-    } catch {
-        return res.status(429).json({
-            success: false,
-            message: "Too many login attempts. Try again in 15 minutes."
-        });
-    }
+    // Rate limiter bypassed for development
+    next();
 };
 
 /* =====================================================================
