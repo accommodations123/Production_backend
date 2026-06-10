@@ -260,7 +260,7 @@ export const getMyJobs = async (req, res) => {
 export const getJobs = async (req, res) => {
   try {
     const statusQuery = req.query.status || "active";
-    let jobs = await Job.query("status").eq(statusQuery).exec();
+    let jobs = await Job.scan("status").eq(statusQuery).exec();
 
     // 2. Position Type
     if (req.query.positionType) {
