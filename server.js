@@ -43,6 +43,12 @@ import contactRoutes from './routes/contactRoutes.js'
 import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js";
 
 /* ===================== WORKERS ===================== */
+import cron from "node-cron";
+import { runExpiryChecks } from "./services/expiryService.js";
+cron.schedule("*/5 * * * *", async () => {
+  console.log("[Cron Worker] Running 5-minute expiry scan...");
+  await runExpiryChecks();
+});
 
 /* ===================== APP ===================== */
 const app = express();

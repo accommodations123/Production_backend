@@ -1,5 +1,6 @@
 import dynamoose from "../../config/db.js";
 import { v4 as uuidv4 } from "uuid";
+import { nowUTC } from "../../utils/dateTimeUtils.js";
 
 /* =====================================================================
    AnalyticsEvent Model — DynamoDB (Dynamoose)
@@ -29,7 +30,7 @@ const analyticsEventSchema = new dynamoose.Schema({
   metadata: { type: Object },
   created_at: {
     type: String,
-    default: () => new Date().toISOString(),
+    default: () => nowUTC().toISOString(),
     index: {
       name: "created_at-index",
       type: "global"

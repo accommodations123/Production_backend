@@ -96,7 +96,7 @@ const eventSchema = new dynamoose.Schema(
 
     status: {
       type: String,
-      enum: ["draft", "pending", "approved", "rejected"],
+      enum: ["draft", "pending", "approved", "rejected", "expired"],
       default: "draft",
       index: {
         name: "status-index",

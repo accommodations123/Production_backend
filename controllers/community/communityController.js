@@ -233,6 +233,40 @@ export const leaveCommunity = async (req, res) => {
   }
 };
 
+/* GET JOINED COMMUNITIES FOR LOGGED IN USER */
+export const getMyCommunities = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    // Query CommunityMember using GSI for user_id-index
+    const memberships = await CommunityMember.query("user_id").eq(userId).exec();
+
+    if (memberships.length === 0) {
+      return res.json({ success: true, communities: [] });
+    }
+
+    // Fetch community details for joined communities
+    const communities = await Promise.all(
+      memberships.map(async (m) => {
+        const community = await Community.get(m.community_id);
+        if (!community || community.status !== "active") return null;
+        const processed = processCommunityImages(community);
+        return {
+          ...processed,
+          isJoined: true,
+          is_member: true,
+          member_role: m.role,
+          is_host: m.is_host
+        };
+      })
+    );
+
+    return res.json({ success: true, communities: communities.filter(Boolean) });
+  } catch (err) {
+    console.error("GET MY COMMUNITIES ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch joined communities" });
+  }
+};
+
 /* LIST COMMUNITIES (LOCATION BASED) */
 export const listCommunities = async (req, res) => {
   const { country = "all", state = "all", city = "all" } = req.query;

@@ -6,6 +6,7 @@ import { trackEvent } from "../../services/Analytics.js";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../../services/cacheService.js";
 import { notifyAndEmail } from "../../services/notificationDispatcher.js";
 import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
+import { isUpcomingUTC, isExpiredUTC, nowUTC, toUTCDateTime } from "../../utils/dateTimeUtils.js";
 
 // Helper: Enrich trip with host+user data
 async function enrichTripWithHost(trip) {
@@ -67,7 +68,7 @@ export const searchTrips = async (req, res) => {
     // Query by to_country GSI then filter
     let trips = await TravelTrip.query("to_country").eq(to_country).exec();
     trips = trips.filter(t => t.from_country === from_country && t.travel_date === date && t.status === "approved");
-    trips.sort((a, b) => new Date(a.travel_date) - new Date(b.travel_date));
+    trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + Number(limit));
 
     const results = await Promise.all(paginated.map(t => enrichTripWithHost(t)));
@@ -86,16 +87,22 @@ export const myTrips = async (req, res) => {
     if (!host) return res.json({ success: true, trips: [] });
 
     let trips = await TravelTrip.query("host_id").eq(host.id).exec();
-    trips.sort((a, b) => new Date(b.travel_date) - new Date(a.travel_date));
+    trips.sort((a, b) => toUTCDateTime(b.travel_date).getTime() - toUTCDateTime(a.travel_date).getTime());
 
-    const response = trips.map(trip => ({
-      ...trip,
-      id: trip.id,
-      from_city: trip.from_city,
-      to_city: trip.to_city,
-      travel_date: trip.travel_date,
-      status: trip.status
-    }));
+    const response = trips.map(trip => {
+      let status = trip.status;
+      if (trip.status === "approved" && isExpiredUTC(trip.travel_date, trip.departure_time)) {
+        status = "expired";
+      }
+      return {
+        ...trip,
+        id: trip.id,
+        from_city: trip.from_city,
+        to_city: trip.to_city,
+        travel_date: trip.travel_date,
+        status
+      };
+    });
 
     return res.json({ success: true, trips: response });
   } catch (err) {
@@ -111,7 +118,8 @@ export const adminGetPendingTrips = async (req, res) => {
     const offset = (page - 1) * limit;
 
     let trips = await TravelTrip.query("status").eq("pending").exec();
-    trips.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    trips = trips.filter(t => isUpcomingUTC(t.travel_date, t.departure_time));
+    trips.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const paginated = trips.slice(offset, offset + limit);
 
     const results = await Promise.all(paginated.map(t => enrichTripWithHost(t)));
@@ -204,18 +212,16 @@ export const publicBrowseTrips = async (req, res) => {
     const from_country = req.query.from_country?.trim() || null;
     const to_country = req.query.to_country?.trim() || null;
 
-    const today = new Date().toISOString().slice(0, 10);
-
     const cacheKey = `travel:public:browse:${from_country || "all"}:${to_country || "all"}:${page}:${limit}`;
     const cached = await getCache(cacheKey);
     if (cached) return res.json({ success: true, source: "cache", page, results: cached });
 
     // Query by status GSI (only approved trips are public)
     let trips = await TravelTrip.query("status").eq("approved").exec();
-    trips = trips.filter(t => t.travel_date >= today);
+    trips = trips.filter(t => isUpcomingUTC(t.travel_date, t.departure_time));
     if (from_country) trips = trips.filter(t => t.from_country === from_country);
     if (to_country) trips = trips.filter(t => t.to_country === to_country);
-    trips.sort((a, b) => new Date(a.travel_date) - new Date(b.travel_date));
+    trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + limit);
 
     const results = await Promise.all(paginated.map(async trip => {
@@ -261,8 +267,8 @@ export const publicSearchTrips = async (req, res) => {
     if (cached) return res.json({ success: true, source: "cache", page: Number(page), results: cached });
 
     let trips = await TravelTrip.query("to_country").eq(to_country).exec();
-    trips = trips.filter(t => t.from_country === from_country && t.travel_date === date && t.status === "approved");
-    trips.sort((a, b) => new Date(a.travel_date) - new Date(b.travel_date));
+    trips = trips.filter(t => t.from_country === from_country && t.travel_date === date && t.status === "approved" && isUpcomingUTC(t.travel_date, t.departure_time));
+    trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + Number(limit));
 
     const results = await Promise.all(paginated.map(async trip => {
@@ -298,7 +304,10 @@ export const publicSearchTrips = async (req, res) => {
 export const publicTripPreview = async (req, res) => {
   try {
     const trip = await TravelTrip.get(req.params.trip_id);
-    if (!trip || trip.status !== "approved") return res.status(404).json({ message: "Trip not found" });
+    if (!trip || (trip.status !== "approved" && !req.admin)) return res.status(404).json({ message: "Trip not found" });
+    if (isExpiredUTC(trip.travel_date, trip.departure_time) && !req.admin) {
+      return res.status(404).json({ message: "Trip not found or expired" });
+    }
 
     const enriched = await enrichTripWithHost(trip);
     trackEvent({ event_type: "TRAVEL_TRIP_VIEWED", actor: req.user ? { user_id: req.user.id } : {}, entity: { type: "travel_trip", id: trip.id }, location: { country: trip.from_country, state: null } });
@@ -318,10 +327,16 @@ export const adminGetAllTrips = async (req, res) => {
     const { status } = req.query;
 
     let trips = status ? await TravelTrip.query("status").eq(status).exec() : await TravelTrip.scan().exec();
-    trips.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    trips.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const paginated = trips.slice(offset, offset + limit);
 
-    const results = await Promise.all(paginated.map(t => enrichTripWithHost(t)));
+    const results = await Promise.all(paginated.map(async t => {
+      const enriched = await enrichTripWithHost(t);
+      if (enriched.status === "approved" && isExpiredUTC(enriched.travel_date, enriched.departure_time)) {
+        enriched.status = "expired";
+      }
+      return enriched;
+    }));
     return res.json({ success: true, page, results });
   } catch (err) {
     console.error("ADMIN GET TRIPS ERROR:", err);

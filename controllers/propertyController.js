@@ -424,7 +424,7 @@ export const softDeleteProperty = async (req, res) => {
 // FRONTEND APPROVED LISTINGS
 export const getApprovedListings = async (req, res) => {
   try {
-    const now = new Date();
+    const now = Date.now();
 
     const country = req.query.country || req.headers["x-country"] || null;
     const state = req.query.state || req.headers["x-state"] || null;
@@ -446,7 +446,7 @@ export const getApprovedListings = async (req, res) => {
       !p.is_deleted &&
       !p.is_expired &&
       p.listing_expires_at &&
-      new Date(p.listing_expires_at) > now
+      new Date(p.listing_expires_at).getTime() > now
     );
 
     if (country) properties = properties.filter(p => p.country?.toLowerCase().trim() === country.toLowerCase().trim());
@@ -511,13 +511,13 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     // Scan all properties (DynamoDB doesn't support OR in queries easily)
     let allProperties = await Property.scan().exec();
 
-    const now = new Date();
+    const now = Date.now();
 
     // Apply filters
     allProperties = allProperties.filter(p => {
       if (p.is_deleted) return false;
       if (p.status === "pending") return true;
-      if (p.status === "approved" && !p.is_expired && p.listing_expires_at && new Date(p.listing_expires_at) > now) return true;
+      if (p.status === "approved" && !p.is_expired && p.listing_expires_at && new Date(p.listing_expires_at).getTime() > now) return true;
       return false;
     });
 
@@ -611,11 +611,11 @@ export const getPropertyById = async (req, res) => {
       });
     }
 
-    const now = new Date();
+    const now = Date.now();
     // Check visibility
     if (property.status !== "pending" &&
       !(property.status === "approved" && !property.is_expired &&
-        property.listing_expires_at && new Date(property.listing_expires_at) > now)) {
+        property.listing_expires_at && new Date(property.listing_expires_at).getTime() > now)) {
       return res.status(404).json({
         success: false,
         message: "Property not available"

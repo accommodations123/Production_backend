@@ -422,7 +422,7 @@ export const getMyJobs = async (req, res) => {
 
     let allJobs = await Job.query("created_by").eq(req.admin.id).exec();
     allJobs = allJobs.filter(j => j.status !== "deleted");
-    allJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    allJobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const count = allJobs.length;
     const jobs = allJobs.slice(offset, offset + limit);
@@ -526,7 +526,7 @@ export const getJobs = async (req, res) => {
     if (req.query.sort) {
       const s = String(req.query.sort).toLowerCase().trim();
       if (s === "newest") {
-        jobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        jobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       } else if (s === "highest_pay") {
         jobs.sort((a, b) => {
           const aMax = parseFloat(a.pay_max || a.pay_min || 0);
@@ -538,11 +538,11 @@ export const getJobs = async (req, res) => {
           const aRemote = (a.work_style || "").toLowerCase() === "remote" ? 0 : 1;
           const bRemote = (b.work_style || "").toLowerCase() === "remote" ? 0 : 1;
           if (aRemote !== bRemote) return aRemote - bRemote;
-          return new Date(b.created_at) - new Date(a.created_at);
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
       }
     } else {
-      jobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      jobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 
     const count = jobs.length;

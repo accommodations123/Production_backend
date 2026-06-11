@@ -10,6 +10,7 @@ import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { getIO } from "../services/socket.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 import Joi from "joi";
+import { isUpcomingUTC, isExpiredUTC, toUTCDateTime } from "../utils/dateTimeUtils.js";
 
 // ======================================================
 // STRICT JOI VALIDATION SCHEMAS (Scale Fix)
@@ -147,12 +148,8 @@ export const createEventDraft = async (req, res) => {
 
     const { title, type, start_date, start_time, end_date, end_time } = value;
 
-    if (end_date && new Date(end_date) < new Date(start_date)) {
-      return res.status(400).json({ message: "Invalid end date" });
-    }
-
-    if (end_date && start_date === end_date && end_time && start_time >= end_time) {
-      return res.status(400).json({ message: "Invalid end time" });
+    if (end_date && toUTCDateTime(end_date, end_time || "00:00").getTime() < toUTCDateTime(start_date, start_time || "00:00").getTime()) {
+      return res.status(400).json({ message: "Invalid end date or time" });
     }
 
     const hosts = await Host.query("user_id").eq(userId).exec();
@@ -294,12 +291,8 @@ export const updateSchedule = async (req, res) => {
     const endDate = value.end_date !== undefined ? value.end_date : event.end_date;
     const endTime = value.end_time !== undefined ? value.end_time : event.end_time;
 
-    if (endDate && endDate !== "" && new Date(endDate) < new Date(event.start_date)) {
-      return res.status(400).json({ message: "End date cannot be before start date" });
-    }
-
-    if (endDate && endDate !== "" && event.start_date === endDate && endTime && endTime !== "" && event.start_time >= endTime) {
-      return res.status(400).json({ message: "End time must be after start time" });
+    if (endDate && endDate !== "" && toUTCDateTime(endDate, endTime || "00:00").getTime() < toUTCDateTime(event.start_date, event.start_time || "00:00").getTime()) {
+      return res.status(400).json({ message: "End date/time cannot be before start date/time" });
     }
 
     const setFields = { schedule: value.schedule || event.schedule };
@@ -459,12 +452,8 @@ export const submitEvent = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-    if (event.end_date && new Date(event.end_date) < new Date(event.start_date)) {
-      return res.status(400).json({ message: "End date cannot be before start date" });
-    }
-
-    if (event.end_date && event.start_date === event.end_date && event.end_time && event.start_time >= event.end_time) {
-      return res.status(400).json({ message: "End time must be after start time" });
+    if (event.end_date && toUTCDateTime(event.end_date, event.end_time || "00:00").getTime() < toUTCDateTime(event.start_date, event.start_time || "00:00").getTime()) {
+      return res.status(400).json({ message: "End date/time cannot be before start date/time" });
     }
 
     await Event.update({ id: event.id }, { status: "pending" });
@@ -641,7 +630,14 @@ export const getApprovedEvents = async (req, res) => {
     if (startAt) query = query.startAt(startAt);
 
     const result = await query.exec();
-    const enriched = await enrichEventsWithHosts(result);
+    const now = Date.now();
+    const filteredEvents = result.filter(e => {
+      const targetDate = e.end_date || e.start_date;
+      const targetTime = e.end_time || e.start_time;
+      return isUpcomingUTC(targetDate, targetTime);
+    });
+
+    const enriched = await enrichEventsWithHosts(filteredEvents);
     const processedEvents = enriched.map(processEventImages);
 
     if (cacheKey) await setCache(cacheKey, processedEvents, 300);
