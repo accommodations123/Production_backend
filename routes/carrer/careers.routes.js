@@ -5,7 +5,7 @@ import adminAuth from "../../middleware/adminAuth.js";
 import requireRole from "../../middleware/requireRole.js";
 import uploadResume from "../../middleware/uploads/uploadResume.js";
 
-import { createJob, getMyJobs, getJobs, getJobById, } from "../../controllers/carrer/jobController.js";
+import { createJob, getMyJobs, getJobs, getJobById, updateJob } from "../../controllers/carrer/jobController.js";
 
 import { applyJob, updateApplicationStatus, getMyApplications, updateJobStatus, getAllApplications, getAdminApplicationById, notifyApplicationUser } from "../../controllers/carrer/applicationController.js";
 
@@ -32,6 +32,7 @@ router.get("/applications/me", userAuth, getMyApplications)
 
 router.post("/admin/jobs", adminAuth, requireRole("super_admin", "admin", "recruiter"), createJob);
 router.get("/admin/jobs", adminAuth, requireRole("super_admin", "admin", "recruiter"), getMyJobs);
+router.put("/admin/jobs/:id", adminAuth, requireRole("super_admin", "admin", "recruiter"), updateJob)
 router.patch("/admin/jobs/:id/status", adminAuth, requireRole("super_admin", "admin", "recruiter"), updateJobStatus);
 router.patch("/admin/applications/:id/status", adminAuth, requireRole("super_admin", "admin", "recruiter"), updateApplicationStatus);
 router.get("/admin/applications", adminAuth, requireRole("super_admin", "admin", "recruiter"), getAllApplications);

@@ -53,14 +53,14 @@ const containsWholeWord = (str, word) => {
 const matchJobLocation = (jobLocation, queryLocation) => {
   const loc = (jobLocation || "").toLowerCase().trim();
   const q = (queryLocation || "").toLowerCase().trim();
-  
+
   if (!q) return true;
-  
+
   // Direct inclusion check (avoid matching substring for country codes or short keywords)
   if (q !== "india" && q !== "in" && q !== "south africa" && q !== "sa" && q !== "za" && loc.includes(q)) {
     return true;
   }
-  
+
   // If query is USA/US/United States, match typical US job locations
   if (q === "united states of america" || q === "united states" || q === "usa" || q === "us") {
     if (loc.includes("usa") || loc.includes("us") || loc.includes("united states")) {
@@ -74,7 +74,7 @@ const matchJobLocation = (jobLocation, queryLocation) => {
       return true;
     }
   }
-  
+
   // UK / United Kingdom
   if (q === "united kingdom" || q === "uk") {
     if (loc.includes("uk") || loc.includes("united kingdom") || loc.includes("gb") || loc.includes("great britain") || loc.includes("london")) {
@@ -96,8 +96,8 @@ const matchJobLocation = (jobLocation, queryLocation) => {
       return true;
     }
     const SA_LOCATIONS = [
-      "johannesburg", "cape town", "durban", "pretoria", "port elizabeth", 
-      "gauteng", "western cape", "kwazulu-natal", "eastern cape", "free state", 
+      "johannesburg", "cape town", "durban", "pretoria", "port elizabeth",
+      "gauteng", "western cape", "kwazulu-natal", "eastern cape", "free state",
       "limpopo", "mpumalanga", "north west", "northern cape"
     ];
     if (SA_LOCATIONS.some(l => loc.includes(l))) {
@@ -188,7 +188,7 @@ export const createJob = async (req, res) => {
       "status",
       "metadata"
     ];
-    
+
     const payload = pick(req.body, ALLOWED_FIELDS);
 
     // Normalize inputs
@@ -232,6 +232,186 @@ export const createJob = async (req, res) => {
   }
 };
 
+
+export const updateJob = async (req, res) => {
+  try {
+    if (!req.admin) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+
+    // Check existing job
+    const existingJob = await Job.get(id);
+
+    if (!existingJob) {
+      return res.status(404).json({
+        message: "Job not found"
+      });
+    }
+
+    // Prevent editing other admin jobs
+    if (existingJob.created_by !== req.admin.id) {
+      return res.status(403).json({
+        message: "You are not allowed to edit this job"
+      });
+    }
+
+    const positionType =
+      req.body.employment_type ||
+      req.body.position_type ||
+      existingJob.position_type;
+
+    const workStyle =
+      req.body.work_style ||
+      req.body.workMode ||
+      existingJob.work_style;
+
+    const experienceLevel =
+      req.body.experience_level ||
+      req.body.experience ||
+      existingJob.experience_level;
+
+    const ALLOWED_FIELDS = [
+      "title",
+      "company",
+      "client_name",
+      "vendor_name",
+      "location",
+      "employment_type",
+      "position_type",
+      "contract_duration",
+      "work_style",
+      "experience_level",
+      "salary_range",
+      "pay_min",
+      "pay_max",
+      "pay_type",
+      "visa_status",
+      "start_date",
+      "description",
+      "requirements",
+      "responsibilities",
+      "preferred_skills",
+      "benefits",
+      "skills",
+      "recruiter_name",
+      "recruiter_email",
+      "recruiter_phone",
+      "recruiter_linkedin",
+      "company_linkedin",
+      "status",
+      "metadata"
+    ];
+
+    const payload = pick(req.body, ALLOWED_FIELDS);
+
+    // Normalize only if field exists
+    if (positionType) {
+      payload.employment_type = positionType;
+      payload.position_type = positionType;
+    }
+
+    if (workStyle) {
+      payload.work_style = String(workStyle).toLowerCase();
+    }
+
+    if (experienceLevel) {
+      payload.experience_level = experienceLevel;
+    }
+
+    if (payload.requirements !== undefined) {
+      payload.requirements = normalizeJsonArray(
+        payload.requirements
+      );
+    }
+
+    if (payload.responsibilities !== undefined) {
+      payload.responsibilities = normalizeJsonArray(
+        payload.responsibilities
+      );
+    }
+
+    if (payload.preferred_skills !== undefined) {
+      payload.preferred_skills = normalizeJsonArray(
+        payload.preferred_skills
+      );
+    }
+
+    if (payload.visa_status !== undefined) {
+      payload.visa_status = normalizeJsonArray(
+        payload.visa_status
+      );
+    }
+
+    if (payload.benefits !== undefined) {
+      payload.benefits = normalizeJsonArray(
+        payload.benefits
+      );
+    }
+
+    if (payload.skills !== undefined) {
+      payload.skills = normalizeSkills(
+        payload.skills
+      );
+    }
+
+    if (payload.metadata === undefined) {
+      payload.metadata = existingJob.metadata || {};
+    }
+
+    // Update job
+    await Job.update(
+      { id },
+      payload
+    );
+
+    // Fetch updated job
+    const updatedJob = await Job.get(id);
+
+    trackEvent({
+      event_type: "JOB_UPDATED",
+      actor: {
+        user_id: req.admin.id
+      },
+      entity: {
+        type: "job",
+        id: updatedJob.id
+      },
+      metadata: {
+        employment_type:
+          updatedJob.employment_type
+      }
+    }).catch(console.error);
+
+    logAudit({
+      action: "JOB_UPDATED",
+      actor: {
+        admin_id: req.admin.id
+      },
+      target: {
+        type: "job",
+        id: updatedJob.id
+      },
+      severity: "LOW",
+      req
+    }).catch(console.error);
+
+    return res.json({
+      success: true,
+      message: "Job updated successfully",
+      job: updatedJob
+    });
+  } catch (err) {
+    console.error("UPDATE JOB ERROR:", err);
+
+    return res.status(500).json({
+      message: "Failed to update job"
+    });
+  }
+};
+
+
 export const getMyJobs = async (req, res) => {
   try {
     if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
@@ -266,8 +446,8 @@ export const getJobs = async (req, res) => {
     if (req.query.positionType) {
       const types = req.query.positionType.split(",").map(t => t.toLowerCase().trim()).filter(Boolean);
       if (types.length > 0) {
-        jobs = jobs.filter(j => 
-          types.includes((j.position_type || "").toLowerCase().trim()) || 
+        jobs = jobs.filter(j =>
+          types.includes((j.position_type || "").toLowerCase().trim()) ||
           types.includes((j.employment_type || "").toLowerCase().trim())
         );
       }
@@ -332,8 +512,8 @@ export const getJobs = async (req, res) => {
         const matchClient = (j.client_name || "").toLowerCase().includes(q);
         const matchVendor = (j.vendor_name || "").toLowerCase().includes(q);
         const matchSkills = j.skills && typeof j.skills === "object"
-            ? Object.values(j.skills).flat().some(skill => String(skill).toLowerCase().includes(q))
-            : false;
+          ? Object.values(j.skills).flat().some(skill => String(skill).toLowerCase().includes(q))
+          : false;
         return matchTitle || matchDesc || matchClient || matchVendor || matchSkills;
       });
     }
@@ -392,9 +572,9 @@ export const getJobById = async (req, res) => {
         event_type: "JOB_VIEWED",
         actor: req.user ? { user_id: req.user.id } : {},
         entity: { type: "job", id: job.id }
-      }).catch(() => {});
+      }).catch(() => { });
 
-      Job.update({ id: job.id }, { views_count: (job.views_count || 0) + 1 }).catch(() => {});
+      Job.update({ id: job.id }, { views_count: (job.views_count || 0) + 1 }).catch(() => { });
     }
 
     return res.json({ success: true, job });
