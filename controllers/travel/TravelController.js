@@ -11,7 +11,7 @@ import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
 async function enrichTripWithHost(trip) {
   const t = { ...trip };
   if (t.host_id) {
-    const host = await Host.get(t.host_id);
+    const host = await Host.get(t.host_id)
     if (host) {
       const user = await User.get(host.user_id);
       t.host = {
