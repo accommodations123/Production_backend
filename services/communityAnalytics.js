@@ -21,7 +21,7 @@ export const trackCommunityEvent = async ({
       }
     });
   } catch (err) {
-    console.error("ANALYTICS ERROR:", err.message);
+    console.error("ANALYTICS ERROR:", err.message)
   }
 };
 
