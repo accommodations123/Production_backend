@@ -12,22 +12,7 @@ import requireRole from "../middleware/requireRole.js";
 
 const router = express.Router();
 
-/* =====================================================================
-   Stricter rate limiter for login — 5 attempts per 15 minutes per IP.
-   Falls back to general rateLimit for other routes.
-   ===================================================================== */
-import { RateLimiterMemory } from "rate-limiter-flexible";
-
-const loginLimiter = new RateLimiterMemory({
-    points: 5,                                     // 5 attempts
-    duration: 15 * 60,                             // per 15 minutes
-    blockDuration: 15 * 60                         // block for 15 min after exceeding
-});
-
-const loginRateLimit = async (req, res, next) => {
-    // Rate limiter bypassed for development
-    next();
-};
+const loginRateLimit = (req, res, next) => next();
 
 /* =====================================================================
    Routes

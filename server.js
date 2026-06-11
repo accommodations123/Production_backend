@@ -6,7 +6,6 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import rateLimit from "express-rate-limit";
 import dynamoose, { checkDynamoDBConnection } from "./config/db.js";
 import { initSocket } from "./services/socket.js";
 
@@ -96,15 +95,7 @@ app.set("trust proxy", 1);
 /* ===================== SECURITY ===================== */
 app.use(helmet());
 
-/* ===================== RATE LIMITING ===================== */
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 300,
-    standardHeaders: true,
-    legacyHeaders: false
-  })
-);
+
 
 /* ===================== BODY PARSERS ===================== */
 app.use(express.json({ limit: "1mb" }));

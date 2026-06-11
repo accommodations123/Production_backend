@@ -5,30 +5,11 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import User from "../model/User.js";
 
-const redis = null;
-import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { attachCloudFrontUrl } from "../utils/imageUtils.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
-
-// OTP RATE LIMITER
-let otpLimiter;
-
-if (redis) {
-  otpLimiter = new RateLimiterRedis({
-    storeClient: redis,
-    keyPrefix: "otp_limit",
-    points: 3,
-    duration: 600
-  });
-} else {
-  otpLimiter = new RateLimiterMemory({
-    points: 3,
-    duration: 600
-  });
-}
 
 // Email Transporter
 const transporter = nodemailer.createTransport({
@@ -77,15 +58,7 @@ export const sendOTP = async (req, res) => {
       return res.status(400).json({ message: "Invalid email format" });
     }
 
-    /* ================= RATE LIMIT ================= */
-    const rateKey = `otp:${email}:${req.ip}`;
-    try {
-      await otpLimiter.consume(rateKey);
-    } catch {
-      return res.status(429).json({
-        message: "Too many OTP requests. Try again later."
-      });
-    }
+
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
