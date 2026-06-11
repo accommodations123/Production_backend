@@ -39,11 +39,11 @@ router.get("/trips/:trip_id", publicTripPreview);
 
 
 //ADMIN ROUTES
-router.get("/travel/admin/trips", adminAuth, requireRole("super_admin", "admin"), adminGetAllTrips);
-router.get("/travel/admin/trips/pending", adminAuth, requireRole("super_admin", "admin"), adminGetPendingTrips);
-router.put("/travel/admin/trips/:trip_id/approve", adminAuth, requireRole("super_admin", "admin"), adminApproveTrip);
-router.put("/travel/admin/trips/:trip_id/reject", adminAuth, requireRole("super_admin", "admin"), adminRejectTrip);
-router.put("/travel/admin/trips/:trip_id/cancel", adminAuth, requireRole("super_admin", "admin"), adminCancelTrip);
+router.get("/admin/trips", adminAuth, requireRole("super_admin", "admin"), adminGetAllTrips);
+router.get("/admin/trips/pending", adminAuth, requireRole("super_admin", "admin"), adminGetPendingTrips);
+router.put("/admin/trips/:trip_id/approve", adminAuth, requireRole("super_admin", "admin"), adminApproveTrip);
+router.put("/admin/trips/:trip_id/reject", adminAuth, requireRole("super_admin", "admin"), adminRejectTrip);
+router.put("/admin/trips/:trip_id/cancel", adminAuth, requireRole("super_admin", "admin"), adminCancelTrip);
 
 //Hosts
 router.put("/admin/hosts/:host_id/block", adminAuth, requireRole("super_admin", "admin"), adminBlockHost);
