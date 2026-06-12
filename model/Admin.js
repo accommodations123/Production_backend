@@ -65,22 +65,21 @@ const Admin = dynamoose.model("Admin", adminSchema);
    ===================================================================== */
 
 export function isLocked(admin) {
-  // Lockout logic disabled for development
-  return false;
+  if (!admin.locked_until) return false;
+  const lockTime = new Date(admin.locked_until);
+  if (isNaN(lockTime.getTime())) return false;
+  return lockTime.getTime() > Date.now();
 }
 
 export async function incrementFailedAttempts(admin) {
   const attempts = (admin.failed_login_attempts || 0) + 1;
   const updates = { failed_login_attempts: attempts };
 
-  // Lockout logic disabled for development
-  /*
   if (attempts >= MAX_FAILED_ATTEMPTS) {
     const lockUntil = new Date();
     lockUntil.setMinutes(lockUntil.getMinutes() + LOCKOUT_DURATION_MINUTES);
     updates.locked_until = lockUntil.toISOString();
   }
-  */
 
   await Admin.update({ id: admin.id }, updates);
   return attempts;

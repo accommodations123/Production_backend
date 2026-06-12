@@ -211,8 +211,9 @@ export const publicBrowseTrips = async (req, res) => {
     const offset = (page - 1) * limit;
     const from_country = req.query.from_country?.trim() || null;
     const to_country = req.query.to_country?.trim() || null;
+    const country = req.query.country?.trim() || null;
 
-    const cacheKey = `travel:public:browse:${from_country || "all"}:${to_country || "all"}:${page}:${limit}`;
+    const cacheKey = `travel:public:browse:${from_country || "all"}:${to_country || "all"}:${country || "all"}:${page}:${limit}`;
     const cached = await getCache(cacheKey);
     if (cached) return res.json({ success: true, source: "cache", page, results: cached });
 
@@ -221,6 +222,7 @@ export const publicBrowseTrips = async (req, res) => {
     trips = trips.filter(t => isUpcomingUTC(t.travel_date, t.departure_time));
     if (from_country) trips = trips.filter(t => t.from_country === from_country);
     if (to_country) trips = trips.filter(t => t.to_country === to_country);
+    if (country) trips = trips.filter(t => t.from_country === country || t.to_country === country);
     trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + limit);
 

@@ -2,6 +2,7 @@ export const nowUTC = () => new Date();
 
 export const toUTCDateTime = (date, time = "00:00") => {
   if (!date) return null;
+  const dateStr = date.includes("T") ? date.split("T")[0] : date;
   let timeStr = time || "00:00";
   const colonCount = (timeStr.match(/:/g) || []).length;
   if (colonCount === 1) {
@@ -10,7 +11,7 @@ export const toUTCDateTime = (date, time = "00:00") => {
   if (!timeStr.endsWith("Z") && !timeStr.includes("+") && !timeStr.includes("-")) {
     timeStr = `${timeStr}Z`;
   }
-  return new Date(`${date}T${timeStr}`);
+  return new Date(`${dateStr}T${timeStr}`);
 };
 
 export const isExpiredUTC = (date, time = "23:59:59") => {
