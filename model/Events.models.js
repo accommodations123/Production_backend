@@ -89,6 +89,10 @@ const eventSchema = new dynamoose.Schema(
       default: 0
     },
 
+    max_attendees: {
+      type: Number
+    },
+
     rating: {
       type: Number,
       default: 0

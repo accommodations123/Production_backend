@@ -24,8 +24,11 @@ function adminCacheKey(id) {
 export default async function adminAuth(req, res, next) {
   try {
     // ── Extract token ───────────────────────────────────────────────
-    const authHeader = req.header("Authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    let token = req.cookies?.admin_access_token;
+    if (!token) {
+      const authHeader = req.header("Authorization");
+      token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    }
 
     if (!token) {
       return res.status(401).json({
@@ -108,15 +111,13 @@ export default async function adminAuth(req, res, next) {
       });
     }
 
-    // ── Check lockout (disabled for development) ───────────────────
-    /*
+    // ── Check lockout ───────────────────────────────────────────────
     if (admin.locked_until && new Date(admin.locked_until) > new Date()) {
       return res.status(423).json({
         success: false,
         message: "Account is temporarily locked due to too many failed login attempts."
       });
     }
-    */
 
     // ── Attach admin to request ─────────────────────────────────────
     req.admin = admin;

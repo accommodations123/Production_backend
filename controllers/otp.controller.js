@@ -4,12 +4,19 @@ dotenv.config();
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import User from "../model/User.js";
+import { RateLimiterMemory } from "rate-limiter-flexible";
 
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { attachCloudFrontUrl } from "../utils/imageUtils.js";
 import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
+
+const verifyOtpLimiter = new RateLimiterMemory({
+  points: 5,
+  duration: 5 * 60,
+  blockDuration: 5 * 60
+});
 
 // Email Transporter
 const transporter = nodemailer.createTransport({
@@ -68,9 +75,7 @@ export const sendOTP = async (req, res) => {
     let user = users.length > 0 ? users[0] : null;
 
     if (user) {
-      if (!user.verified) {
-        await User.update({ id: user.id }, { otp, otp_expires: expiresAt });
-      }
+      await User.update({ id: user.id }, { otp, otp_expires: expiresAt });
     } else {
       user = await User.create({
         email,
@@ -151,45 +156,22 @@ export const verifyOTP = async (req, res) => {
     }
 
     /* ===============================
-       CASE 1: ALREADY VERIFIED USER
+       OTP VERIFICATION WITH RATE LIMITING
     =============================== */
-    if (user.verified) {
-      const token = jwt.sign(
-        { id: user.id, role: "user" },
-        process.env.JWT_SECRET,
-        { expiresIn: "7d" }
-      );
-
-      const isProd = process.env.NODE_ENV === "production";
-
-      res.cookie("access_token", token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "none" : "lax",
-        domain: isProd ? ".nextkinlife.live" : undefined,
-        maxAge: 7 * 24 * 60 * 60 * 1000
-      });
-
-      // ✅ Log USER_LOGIN analytics event
-      AnalyticsEvent.create({
-        event_type: "USER_LOGIN",
-        user_id: user.id,
-        country: getCountry(req)
-      }).catch(console.error);
-
-      return res.json({
-        message: "User already verified",
-        user: {
-          id: user.id,
-          email: user.email,
-          verified: true
-        }
-      });
+    const rateKey = `verify_otp:${email}`;
+    try {
+      const attempts = await verifyOtpLimiter.get(rateKey);
+      if (attempts && attempts.remainingPoints <= 0) {
+        // Exceeded attempts limit, clear OTP in DB
+        await User.update({ id: user.id }, {
+          $REMOVE: ["otp", "otp_expires"]
+        });
+        return res.status(429).json({ message: "Too many failed attempts. OTP has been invalidated. Please request a new one." });
+      }
+    } catch (err) {
+      console.error("Limiter check error:", err);
     }
 
-    /* ===============================
-       CASE 2: OTP VERIFICATION
-    =============================== */
     if (!otp) {
       return res.status(400).json({ message: "OTP required" });
     }
@@ -221,6 +203,16 @@ export const verifyOTP = async (req, res) => {
 
     // Check if OTP is wrong
     if (String(user.otp).trim() !== String(otp).trim()) {
+      try {
+        await verifyOtpLimiter.consume(rateKey, 1);
+      } catch {
+        // Just reached/exceeded 5 failed attempts limit
+        await User.update({ id: user.id }, {
+          $REMOVE: ["otp", "otp_expires"]
+        });
+        return res.status(429).json({ message: "Too many failed attempts. OTP has been invalidated. Please request a new one." });
+      }
+
       logAudit({
         action: "OTP_VERIFICATION_FAILED",
         actor: { role: "system" },
@@ -238,6 +230,9 @@ export const verifyOTP = async (req, res) => {
 
       return res.status(400).json({ message: "Wrong OTP. Please check and try again." });
     }
+
+    // Reset failed attempts upon successful verification
+    await verifyOtpLimiter.delete(rateKey).catch(() => {});
 
     // Mark verified — use $REMOVE for String fields (Dynamoose rejects null for String type)
     await User.update({ id: user.id }, {

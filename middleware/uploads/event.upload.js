@@ -1,5 +1,6 @@
 import multer from "multer";
 import multerS3 from "multer-s3";
+import { v4 as uuidv4 } from "uuid";
 import { s3 } from "../../config/s3.js";
 
 /* EVENT IMAGES (5 MB) */
@@ -9,7 +10,8 @@ export const uploadEventImages = multer({
     bucket: process.env.AWS_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
-      cb(null, `events/images/${Date.now()}-${file.originalname}`);
+      const ext = file.originalname.split(".").pop();
+      cb(null, `events/images/${uuidv4()}.${ext}`);
     }
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
@@ -27,7 +29,8 @@ export const uploadEventVideos = multer({
     bucket: process.env.AWS_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
-      cb(null, `events/videos/${Date.now()}-${file.originalname}`);
+      const ext = file.originalname.split(".").pop();
+      cb(null, `events/videos/${uuidv4()}.${ext}`);
     }
   }),
   limits: { fileSize: 100 * 1024 * 1024 },

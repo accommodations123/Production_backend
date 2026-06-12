@@ -65,6 +65,16 @@ transporter.verify((err) => {
   }
 });
 
+const escapeHtml = (text) => {
+  if (typeof text !== "string") return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 /**
  * EMAIL TEMPLATES (Expanded & Professional)
  */
@@ -291,44 +301,53 @@ const templates = {
   `
   }),
 
-  [NOTIFICATION_TYPES.CONTACT_FORM]: (d) => ({
-    subject: `New Contact Form Submission — ${d.subject || "General Inquiry"}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #7c3aed, #06b6d4); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-          <h1 style="color: #fff; margin: 0; font-size: 24px;">✉️ New Contact Form Submission</h1>
-        </div>
-        <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 16px; margin-bottom: 20px;">A visitor has submitted the contact form on the NextKinLife website.</p>
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-            <tr>
-              <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb; font-weight: bold; width: 140px;">👤 Name</td>
-              <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb;">${d.firstName || ""} ${d.lastName || ""}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; font-weight: bold;">📧 Email</td>
-              <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb;">${d.email || "Not provided"}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb; font-weight: bold;">📞 Phone</td>
-              <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb;">${d.phone || "Not provided"}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; font-weight: bold;">📋 Subject</td>
-              <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb;">${d.subject || "General Inquiry"}</td>
-            </tr>
-          </table>
-          <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-            <p style="font-weight: bold; margin: 0 0 8px 0; color: #374151;">💬 Message:</p>
-            <p style="margin: 0; color: #4b5563; white-space: pre-wrap;">${d.message || "No message provided"}</p>
+  [NOTIFICATION_TYPES.CONTACT_FORM]: (d) => {
+    const safeFirstName = escapeHtml(d.firstName);
+    const safeLastName = escapeHtml(d.lastName);
+    const safeEmail = escapeHtml(d.email);
+    const safePhone = escapeHtml(d.phone);
+    const safeSubject = escapeHtml(d.subject);
+    const safeMessage = escapeHtml(d.message);
+
+    return {
+      subject: `New Contact Form Submission — ${safeSubject || "General Inquiry"}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #7c3aed, #06b6d4); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="color: #fff; margin: 0; font-size: 24px;">✉️ New Contact Form Submission</h1>
           </div>
-          <p style="color: #6b7280; font-size: 14px;">You can reply directly to this email to respond to the visitor at ${d.email || "their email"}.</p>
-          <br/>
-          <p style="color: #777;">— NextKinLife Team</p>
+          <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <p style="font-size: 16px; margin-bottom: 20px;">A visitor has submitted the contact form on the NextKinLife website.</p>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr>
+                <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb; font-weight: bold; width: 140px;">👤 Name</td>
+                <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb;">${safeFirstName} ${safeLastName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; font-weight: bold;">📧 Email</td>
+                <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb;">${safeEmail || "Not provided"}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb; font-weight: bold;">📞 Phone</td>
+                <td style="padding: 12px; background: #fff; border: 1px solid #e5e7eb;">${safePhone || "Not provided"}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; font-weight: bold;">📋 Subject</td>
+                <td style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb;">${safeSubject || "General Inquiry"}</td>
+              </tr>
+            </table>
+            <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+              <p style="font-weight: bold; margin: 0 0 8px 0; color: #374151;">💬 Message:</p>
+              <p style="margin: 0; color: #4b5563; white-space: pre-wrap;">${safeMessage || "No message provided"}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">You can reply directly to this email to respond to the visitor at ${safeEmail || "their email"}.</p>
+            <br/>
+            <p style="color: #777;">— NextKinLife Team</p>
+          </div>
         </div>
-      </div>
-    `
-  }),
+      `
+    };
+  },
 
 };
 

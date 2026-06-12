@@ -1,5 +1,6 @@
 import multer from "multer";
 import multerS3 from "multer-s3";
+import { v4 as uuidv4 } from "uuid";
 import { s3 } from "../../config/s3.js";
 
 /*
@@ -15,10 +16,10 @@ export const uploadCommunityMedia = multer({
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const type = file.mimetype.startsWith("video/") ? "videos" : "images";
-
+      const ext = file.originalname.split(".").pop();
       cb(
         null,
-        `communities/posts/${type}/${Date.now()}-${file.originalname}`
+        `communities/posts/${type}/${uuidv4()}.${ext}`
       );
     }
   }),
@@ -51,9 +52,10 @@ export const uploadCommunityResource = multer({
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const type = file.mimetype.startsWith("video/") ? "videos" : "images";
+      const ext = file.originalname.split(".").pop();
       cb(
         null,
-        `communities/resources/${type}/${Date.now()}-${file.originalname}`
+        `communities/resources/${type}/${uuidv4()}.${ext}`
       );
     }
   }),

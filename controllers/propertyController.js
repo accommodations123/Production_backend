@@ -1,6 +1,7 @@
 import Property from "../model/Property.js";
 import User from "../model/User.js";
 import Host from "../model/Host.js";
+import jwt from "jsonwebtoken";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
@@ -490,9 +491,29 @@ export const getApprovedListings = async (req, res) => {
 
 
 // PUBLIC — ALL PROPERTIES
+// ──────────────────────────────────────────────────────────────────────────────
+// Query Strategy:
+//   - Primary query: GSI on `status` = "approved" (avoids full table scan).
+//   - Post-query filters: country, state, city, zip_code, price range,
+//     is_deleted, is_expired, listing_expires_at.
+//
+// Short-page problem:
+//   DynamoDB's `limit` applies BEFORE post-query filters, so a single query
+//   batch might return fewer than `limit` matching items. To compensate, we
+//   LOOP the query — fetching up to `limit` raw items per batch from the GSI,
+//   filtering in memory, and accumulating results — until we either have
+//   `limit` filtered results or LastEvaluatedKey is null (index exhausted).
+//
+// Iteration cap: MAX_ITERATIONS prevents runaway loops if a very selective
+//   filter (e.g., zip_code) matches almost nothing in a large table.
+//
+// TODO (future): For high-selectivity filters (country, state), consider
+//   adding a composite GSI (e.g., status-country-index) so DynamoDB can
+//   filter at the index level instead of in memory. This would eliminate
+//   the looping and guarantee full pages in a single query.
+// ──────────────────────────────────────────────────────────────────────────────
 export const getAllPropertiesWithHosts = async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
     const country = req.query.country || req.headers["x-country"] || null;
@@ -501,43 +522,81 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     const zip_code = req.query.zip_code || req.headers["x-zip-code"] || null;
     const { minPrice, maxPrice } = req.query;
 
-    const cacheKey = `all_properties:${page}:${limit}:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${minPrice || 0}:${maxPrice || 0}`;
+    const cacheKey = `all_properties:${req.query.startAt || "first"}:${limit}:${country || "all"}:${state || "all"}:${city || "all"}:${zip_code || "all"}:${minPrice || 0}:${maxPrice || 0}`;
 
     const cached = await getCache(cacheKey);
     if (cached) {
       return res.json(cached);
     }
 
-    // Scan all properties (DynamoDB doesn't support OR in queries easily)
-    let allProperties = await Property.scan().exec();
+    let cursor = null;
+    if (req.query.startAt) {
+      try {
+        cursor = JSON.parse(Buffer.from(req.query.startAt, "base64").toString("utf8"));
+      } catch (e) {
+        console.warn("Invalid startAt parameter ignored:", e.message);
+      }
+    }
 
     const now = Date.now();
+    const MAX_ITERATIONS = 10; // Safety cap to bound worst-case latency
+    const collected = [];      // Accumulated filtered results
+    let iterations = 0;
+    let exhausted = false;     // true when LastEvaluatedKey is null (no more items in index)
 
-    // Apply filters
-    allProperties = allProperties.filter(p => {
-      if (p.is_deleted) return false;
-      if (p.status === "pending") return true;
-      if (p.status === "approved" && !p.is_expired && p.listing_expires_at && new Date(p.listing_expires_at).getTime() > now) return true;
-      return false;
-    });
+    // ── Loop: fetch batches from GSI until we have `limit` filtered results ──
+    while (collected.length < limit && !exhausted && iterations < MAX_ITERATIONS) {
+      iterations++;
 
-    if (country) allProperties = allProperties.filter(p => p.country?.toLowerCase().trim() === country.toLowerCase().trim());
-    if (state) allProperties = allProperties.filter(p => p.state?.toLowerCase().trim() === state.toLowerCase().trim());
-    if (city) allProperties = allProperties.filter(p => p.city?.toLowerCase().trim() === city.toLowerCase().trim());
-    if (zip_code) allProperties = allProperties.filter(p => p.zip_code?.toLowerCase().trim() === zip_code.toLowerCase().trim());
+      let query = Property.query("status").eq("approved").sort("descending");
+      if (cursor) {
+        query = query.startAt(cursor);
+      }
+      // Fetch `limit` raw items per batch (DynamoDB applies this before filters)
+      query = query.limit(limit);
 
-    if (minPrice) allProperties = allProperties.filter(p => (p.price_per_month || 0) >= Number(minPrice));
-    if (maxPrice) allProperties = allProperties.filter(p => (p.price_per_month || 0) <= Number(maxPrice));
+      const batch = await query.exec();
 
-    // Sort
-    allProperties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      // Update cursor for next iteration (or mark exhausted)
+      if (batch.lastKey) {
+        cursor = batch.lastKey;
+      } else {
+        exhausted = true;
+      }
 
-    const count = allProperties.length;
-    const offset = (page - 1) * limit;
-    const paged = allProperties.slice(offset, offset + limit);
+      // ── Apply in-memory filters ──
+      for (const p of batch) {
+        if (collected.length >= limit) break;
 
-    // Fetch host and user data
-    const processedProps = await Promise.all(paged.map(async (p) => {
+        // Exclude deleted, expired, or listings past their expiry date
+        if (p.is_deleted) continue;
+        if (p.is_expired) continue;
+        if (p.listing_expires_at && new Date(p.listing_expires_at).getTime() <= now) continue;
+
+        // Geographic filters
+        if (country && p.country?.toLowerCase().trim() !== country.toLowerCase().trim()) continue;
+        if (state && p.state?.toLowerCase().trim() !== state.toLowerCase().trim()) continue;
+        if (city && p.city?.toLowerCase().trim() !== city.toLowerCase().trim()) continue;
+        if (zip_code && p.zip_code?.toLowerCase().trim() !== zip_code.toLowerCase().trim()) continue;
+
+        // Price filters
+        if (minPrice && (p.price_per_month || 0) < Number(minPrice)) continue;
+        if (maxPrice && (p.price_per_month || 0) > Number(maxPrice)) continue;
+
+        collected.push(p);
+      }
+    }
+
+    // ── Build the next-page cursor ──
+    // If we exhausted the index, there are no more pages.
+    // If we hit MAX_ITERATIONS without exhausting, pass the current cursor so
+    // the client can continue paginating.
+    const nextStartAt = exhausted
+      ? null
+      : (cursor ? Buffer.from(JSON.stringify(cursor)).toString("base64") : null);
+
+    // ── Enrich with host + user data (parallel batched) ──
+    const processedProps = await Promise.all(collected.map(async (p) => {
       const pObj = { ...p };
       const host = await Host.get(p.host_id);
       if (host) {
@@ -560,10 +619,10 @@ export const getAllPropertiesWithHosts = async (req, res) => {
     const response = {
       success: true,
       meta: {
-        total: count,
-        page,
         limit,
-        totalPages: Math.ceil(count / limit)
+        nextStartAt,
+        // Expose iteration count for observability/debugging (safe — not sensitive)
+        _queryIterations: iterations
       },
       filters: {
         country,
@@ -611,11 +670,43 @@ export const getPropertyById = async (req, res) => {
       });
     }
 
+    // Extract authorization details from cookies to verify access to non-approved properties
+    let userId = null;
+    let isAdmin = false;
+
+    const userToken = req.cookies?.access_token;
+    if (userToken) {
+      try {
+        const decoded = jwt.verify(userToken, process.env.JWT_SECRET);
+        if (decoded && decoded.id) {
+          userId = String(decoded.id);
+        }
+      } catch (e) {
+        // Token verification failed or expired
+      }
+    }
+
+    const adminToken = req.cookies?.admin_access_token;
+    if (adminToken) {
+      try {
+        const decoded = jwt.verify(adminToken, process.env.JWT_SECRET);
+        if (decoded && decoded.id && ["super_admin", "admin", "recruiter"].includes(decoded.role)) {
+          isAdmin = true;
+        }
+      } catch (e) {
+        // Token verification failed or expired
+      }
+    }
+
     const now = Date.now();
-    // Check visibility
-    if (property.status !== "pending" &&
-      !(property.status === "approved" && !property.is_expired &&
-        property.listing_expires_at && new Date(property.listing_expires_at).getTime() > now)) {
+    const isApproved = property.status === "approved" &&
+      !property.is_expired &&
+      property.listing_expires_at &&
+      new Date(property.listing_expires_at).getTime() > now;
+
+    const isOwner = userId && String(property.user_id) === userId;
+
+    if (!isApproved && !isOwner && !isAdmin) {
       return res.status(404).json({
         success: false,
         message: "Property not available"
@@ -636,9 +727,7 @@ export const getPropertyById = async (req, res) => {
         whatsapp: host.whatsapp,
         instagram: host.instagram,
         facebook: host.facebook,
-        User: user ? { id: user.id, email: user.email, profile_image: user.profile_image } : {
-          id: null, email: "", profile_image: null
-        }
+        User: user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null
       };
     } else {
       plain.Host = {
@@ -656,7 +745,7 @@ export const getPropertyById = async (req, res) => {
     // ===== ANALYTICS =====
     AnalyticsEvent.create({
       event_type: "PROPERTY_VIEWED",
-      user_id: req.user?.id || undefined,
+      user_id: userId || undefined,
       property_id: id,
       country: req.headers["x-country"] || plain.country || undefined,
       state: req.headers["x-state"] || plain.state || undefined,
@@ -667,7 +756,10 @@ export const getPropertyById = async (req, res) => {
     if (plain.video) plain.video = attachCloudFrontUrl(plain.video);
     const processedPlain = processHostImages(plain);
 
-    await setCache(cacheKey, processedPlain, 30);
+    // Only cache approved properties publicly
+    if (isApproved) {
+      await setCache(cacheKey, processedPlain, 30);
+    }
 
     return res.json({ success: true, property: processedPlain });
 

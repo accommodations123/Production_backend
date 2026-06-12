@@ -1,5 +1,6 @@
 import multer from "multer";
 import multerS3 from "multer-s3";
+import { v4 as uuidv4 } from "uuid";
 import { s3 } from "../config/s3.js";
 
 // Helper generic uploader factory
@@ -9,7 +10,8 @@ const createUploader = (folderName) => multer({
     bucket: process.env.AWS_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: function (req, file, cb) {
-      const fileName = `${folderName}/${Date.now()}-${file.originalname}`;
+      const ext = file.originalname.split(".").pop();
+      const fileName = `${folderName}/${uuidv4()}.${ext}`;
       cb(null, fileName);
     }
   }),
@@ -40,7 +42,8 @@ export const uploadHostDocs = multer({
     bucket: process.env.AWS_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
-      cb(null, `hosts/documents/${Date.now()}-${file.originalname}`);
+      const ext = file.originalname.split(".").pop();
+      cb(null, `hosts/documents/${uuidv4()}.${ext}`);
     }
   }),
   fileFilter: (req, file, cb) => {
@@ -61,7 +64,8 @@ export const uploadDocs = multer({
     bucket: process.env.AWS_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
-      cb(null, `properties/documents/${Date.now()}-${file.originalname}`);
+      const ext = file.originalname.split(".").pop();
+      cb(null, `properties/documents/${uuidv4()}.${ext}`);
     }
   }),
   fileFilter: (req, file, cb) => {
@@ -83,7 +87,8 @@ export const uploadVideo = multer({
     bucket: process.env.AWS_BUCKET,
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
-      cb(null, `properties/videos/${Date.now()}-${file.originalname}`);
+      const ext = file.originalname.split(".").pop();
+      cb(null, `properties/videos/${uuidv4()}.${ext}`);
     }
   }),
   fileFilter: (req, file, cb) => {
@@ -98,4 +103,3 @@ export const uploadVideo = multer({
     else cb(new Error("Only video files are allowed (mp4, mov, mkv, avi)"));
   }
 });
-

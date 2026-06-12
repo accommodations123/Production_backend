@@ -6,20 +6,14 @@ import {
     listAdmins,
     adminLogout
 } from "../controllers/admin.js";
-import { rateLimit } from "../middleware/rateLimiter.js";
+import { rateLimit, adminLoginRateLimit } from "../middleware/rateLimiter.js";
 import adminAuth from "../middleware/adminAuth.js";
 import requireRole from "../middleware/requireRole.js";
 
 const router = express.Router();
 
-const loginRateLimit = (req, res, next) => next();
-
-/* =====================================================================
-   Routes
-   ===================================================================== */
-
 // 🔐 Login — strict rate limit, no auth required
-router.post("/login", loginRateLimit, adminLogin);
+router.post("/login", adminLoginRateLimit, adminLogin);
 
 // 🔐 Register — only super_admin can create new admin accounts
 router.post(

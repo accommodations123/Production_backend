@@ -32,8 +32,8 @@ router.put('/:id/update', userAuth, uploadCommunityMedia.fields([{ name: "avatar
 router.get("/", listCommunities);
 router.get("/me", userAuth, getMyCommunities);
 router.get("/:id", optionalAuth, getCommunityById);
-router.post("/:id/join", userAuth, optionalAuth, joinCommunity);
-router.post("/:id/leave", userAuth, optionalAuth, leaveCommunity);
+router.post("/:id/join", userAuth, joinCommunity);
+router.post("/:id/leave", userAuth, leaveCommunity);
 router.get("/:id/hosts", optionalAuth, getCommunityHostMembers);
 router.get("/:id/nearby-events", getNearbyEvents);
 

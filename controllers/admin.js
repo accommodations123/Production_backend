@@ -250,7 +250,7 @@ export const adminLogin = async (req, res) => {
 
     // Set HTTP-only cookie
     const isProd = process.env.NODE_ENV === "production";
-    res.cookie("access_token", token, {
+    res.cookie("admin_access_token", token, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
@@ -277,7 +277,6 @@ export const adminLogin = async (req, res) => {
     return res.json({
       success: true,
       message: "Login successful",
-      token,
       data: payload
     });
 
@@ -406,7 +405,7 @@ export const listAdmins = async (req, res) => {
 export const adminLogout = async (req, res) => {
   try {
     const isProd = process.env.NODE_ENV === "production";
-    res.clearCookie("access_token", {
+    res.clearCookie("admin_access_token", {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax"

@@ -59,6 +59,13 @@ export const getFeed = async (req, res) => {
     if (!communityId) return res.status(404).json({ message: "Community not found" });
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = 10;
+    
+    const cacheKey = `community:${communityId}:feed:${page}`;
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const offset = (page - 1) * limit;
     let posts = await CommunityPost.query("community_id").eq(communityId).exec();
     posts = posts.filter(p => p.status === "active");
@@ -70,7 +77,11 @@ export const getFeed = async (req, res) => {
       const host = hostResults[0];
       return { ...post, author: { id: post.user_id, profile_image: user?.profile_image ? attachCloudFrontUrl(user.profile_image) : null, Host: host ? { full_name: host.full_name, country: host.country, state: host.state, city: host.city, status: host.status } : null } };
     }));
-    return res.json({ success: true, page, posts: enrichedPosts });
+
+    const response = { success: true, page, posts: enrichedPosts };
+    await setCache(cacheKey, response, 300);
+
+    return res.json(response);
   } catch (err) {
     console.error("GET FEED ERROR:", err);
     return res.status(500).json({ message: "Failed to load feed" });

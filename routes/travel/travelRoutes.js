@@ -27,8 +27,8 @@ const router = express.Router();
 // Create a trip (approved host only)
 router.post("/trips", userAuth, createTrip);
 
-// Search trips (public, but authenticated is better)
-router.get("/trips/search", userAuth, searchTrips);
+// Search trips (authenticated)
+router.get("/trips/auth-search", userAuth, searchTrips);
 
 // Get my trips (dashboard)
 router.get("/trips/me", userAuth, myTrips);

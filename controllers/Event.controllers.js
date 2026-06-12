@@ -26,14 +26,18 @@ const createEventDraftSchema = Joi.object({
   start_date: Joi.string().isoDate().required(),
   start_time: Joi.string().pattern(timePattern).required(),
   end_date: Joi.string().isoDate().allow("").optional(),
-  end_time: Joi.string().pattern(timePattern).allow("").optional()
+  end_time: Joi.string().pattern(timePattern).allow("").optional(),
+  max_attendees: Joi.number().integer().min(0).allow(null).optional(),
+  maxAttendees: Joi.number().integer().min(0).allow(null).optional()
 });
 
 const eventBasicInfoSchema = Joi.object({
   title: Joi.string().trim().required(),
   description: Joi.string().trim().allow("").optional(),
   type: Joi.string().trim().valid(...VALID_EVENT_TYPES).optional(),
-  event_type: Joi.string().trim().valid(...VALID_EVENT_TYPES).optional()
+  event_type: Joi.string().trim().valid(...VALID_EVENT_TYPES).optional(),
+  max_attendees: Joi.number().integer().min(0).allow(null).optional(),
+  maxAttendees: Joi.number().integer().min(0).allow(null).optional()
 });
 
 const eventLocationSchema = Joi.object({
@@ -146,7 +150,7 @@ export const createEventDraft = async (req, res) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    const { title, type, start_date, start_time, end_date, end_time } = value;
+    const { title, type, start_date, start_time, end_date, end_time, max_attendees, maxAttendees } = value;
 
     if (end_date && toUTCDateTime(end_date, end_time || "00:00").getTime() < toUTCDateTime(start_date, start_time || "00:00").getTime()) {
       return res.status(400).json({ message: "Invalid end date or time" });
@@ -159,6 +163,8 @@ export const createEventDraft = async (req, res) => {
       return res.status(400).json({ success: false, message: "Complete host verification first" });
     }
 
+    const finalMaxAttendees = max_attendees !== undefined ? max_attendees : maxAttendees;
+
     const event = await Event.create({
       host_id: host.id,
       host_user_id: userId,
@@ -169,7 +175,8 @@ export const createEventDraft = async (req, res) => {
       end_date: end_date || null,
       end_time: end_time || null,
       status: "draft",
-      attendees_count: 0
+      attendees_count: 0,
+      max_attendees: finalMaxAttendees !== undefined ? finalMaxAttendees : null
     });
 
     AnalyticsEvent.create({ event_type: "EVENT_DRAFT_CREATED", user_id: userId, host_id: host.id, event_id: event.id }).catch(console.error);
@@ -199,10 +206,11 @@ export const updateBasicInfo = async (req, res) => {
     if (error) return res.status(400).json({ success: false, message: error.details[0].message });
 
     const type = value.type || value.event_type;
+    const finalMaxAttendees = value.max_attendees !== undefined ? value.max_attendees : value.maxAttendees;
     const setFields = {};
     const removeFields = [];
 
-    const fields = { title: value.title, description: value.description, type };
+    const fields = { title: value.title, description: value.description, type, max_attendees: finalMaxAttendees };
 
     Object.keys(fields).forEach(key => {
       const val = fields[key];
@@ -735,6 +743,18 @@ export const joinEvent = async (req, res) => {
     const eventId = req.params.id;
     const userId = req.user.id;
 
+    const event = await Event.get(eventId);
+    if (!event || event.is_deleted) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Fast check in memory before creating the participant record
+    if (event.max_attendees !== undefined && event.max_attendees !== null && event.max_attendees > 0) {
+      if ((event.attendees_count || 0) >= event.max_attendees) {
+        return res.status(400).json({ message: "Event full" });
+      }
+    }
+
     // Strict condition write
     try {
       await EventParticipant.create(
@@ -748,7 +768,29 @@ export const joinEvent = async (req, res) => {
       throw err;
     }
 
-    const updated = await Event.update({ id: eventId }, { $ADD: { attendees_count: 1 } }, { return: "document" });
+    let updated;
+    try {
+      let condition;
+      if (event.max_attendees !== undefined && event.max_attendees !== null && event.max_attendees > 0) {
+        // Enforce max capacity safety check during update (concurrency safe)
+        condition = new dynamoose.Condition().where("attendees_count").lt(event.max_attendees);
+      }
+      
+      updated = await Event.update(
+        { id: eventId },
+        { $ADD: { attendees_count: 1 } },
+        { ...(condition && { condition }), return: "document" }
+      );
+    } catch (err) {
+      // Rollback participant write if update fails due to capacity constraint
+      await EventParticipant.delete({ event_id: eventId, user_id: userId }).catch(() => {});
+      
+      if (err.name === "ConditionalCheckFailedException" || err.code === "ConditionalCheckFailedException") {
+        return res.status(400).json({ message: "Event full" });
+      }
+      throw err;
+    }
+
     const newCount = updated.attendees_count;
 
     AnalyticsEvent.create({ event_type: "EVENT_JOINED", user_id: userId, event_id: eventId }).catch(console.error);
@@ -757,12 +799,12 @@ export const joinEvent = async (req, res) => {
     await invalidateEventCaches({ id: eventId }, { clearLists: false });
 
     if ([1, 10, 25, 50, 100].includes(newCount)) {
-      const event = await Event.get(eventId);
       notifyAndEmail({ userId: event.host_user_id, type: "EVENT_MILESTONE", title: "Event update", message: `${newCount} people joined your event`, metadata: { eventId } }).catch(console.error);
     }
 
     return res.json({ success: true, attendees_count: newCount });
   } catch (err) {
+    console.error("Join Event Error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };

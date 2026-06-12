@@ -19,18 +19,17 @@ const uploadResume = multer({
     fileSize: 10 * 1024 * 1024 // 10MB — matches frontend allowance
   },
   fileFilter: (req, file, cb) => {
-    const allowed = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/octet-stream",
-      "application/x-zip-compressed"
-    ];
-    const ext = file.originalname.split(".").pop().toLowerCase();
-    const isAllowedExt = ["pdf", "doc", "docx"].includes(ext);
+    const allowedMimeToExt = {
+      "application/pdf": "pdf",
+      "application/msword": "doc",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx"
+    };
 
-    if (!allowed.includes(file.mimetype) && !isAllowedExt) {
-      return cb(new Error("Only PDF and Word documents are allowed"));
+    const ext = file.originalname.split(".").pop().toLowerCase();
+    const expectedExt = allowedMimeToExt[file.mimetype];
+
+    if (!expectedExt || expectedExt !== ext) {
+      return cb(new Error("Only PDF and Word documents (.pdf, .doc, .docx) are allowed."));
     }
     cb(null, true);
   }
