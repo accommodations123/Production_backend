@@ -172,11 +172,11 @@ export const createEventDraft = async (req, res) => {
       type,
       start_date,
       start_time,
-      end_date: end_date || null,
-      end_time: end_time || null,
+      end_date: end_date || undefined,
+      end_time: end_time || undefined,
       status: "draft",
       attendees_count: 0,
-      max_attendees: finalMaxAttendees !== undefined ? finalMaxAttendees : null
+      max_attendees: (finalMaxAttendees !== undefined && finalMaxAttendees !== null) ? finalMaxAttendees : undefined
     });
 
     AnalyticsEvent.create({ event_type: "EVENT_DRAFT_CREATED", user_id: userId, host_id: host.id, event_id: event.id }).catch(console.error);
