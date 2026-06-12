@@ -25,7 +25,9 @@ export default async function userAuth(req, res, next) {
     // 🚀 Redis first
     const cachedUser = await getCache(`user:${userId}`);
     if (cachedUser) {
-      if (cachedUser.token_version !== undefined && decoded.token_version !== cachedUser.token_version) {
+      const decodedVersion = decoded.token_version || 0;
+      const cachedVersion = cachedUser.token_version || 0;
+      if (decodedVersion !== cachedVersion) {
         return res.status(401).json({ message: "Session expired" });
       }
       req.user = cachedUser;
@@ -43,7 +45,9 @@ export default async function userAuth(req, res, next) {
       return res.status(401).json({ message: "Verify OTP first" });
     }
 
-    if (dbUser.token_version !== undefined && decoded.token_version !== dbUser.token_version) {
+    const decodedVersion = decoded.token_version || 0;
+    const dbVersion = dbUser.token_version || 0;
+    if (decodedVersion !== dbVersion) {
       return res.status(401).json({ message: "Session expired" });
     }
 

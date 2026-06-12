@@ -25,6 +25,56 @@ async function enrichPropertyWithHost(property) {
   return p;
 }
 
+// Helper: Batch enrich properties with Host + User data (optimized to resolve N+1 queries)
+async function batchEnrichPropertiesWithHosts(properties) {
+  if (!properties || properties.length === 0) return [];
+
+  const hostIds = Array.from(new Set(properties.map(p => p.host_id).filter(Boolean)));
+  const hostMap = new Map();
+  const userMap = new Map();
+
+  if (hostIds.length > 0) {
+    try {
+      const hosts = await Host.batchGet(hostIds);
+      hosts.forEach(host => {
+        if (host) hostMap.set(host.id, host);
+      });
+
+      const userIds = Array.from(new Set(hosts.map(h => h?.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const users = await User.batchGet(userIds);
+        users.forEach(user => {
+          if (user) userMap.set(user.id, user);
+        });
+      }
+    } catch (batchErr) {
+      console.warn("⚠️ Batch fetching failed, falling back to sequential enrich:", batchErr.message);
+      // Fallback in case of batchGet limits or errors
+      return Promise.all(properties.map(p => enrichPropertyWithHost(p)));
+    }
+  }
+
+  return properties.map(property => {
+    const p = { ...property };
+    if (p.host_id) {
+      const host = hostMap.get(p.host_id);
+      if (host) {
+        const user = userMap.get(host.user_id);
+        p.Host = {
+          id: host.id,
+          user_id: host.user_id,
+          full_name: host.full_name,
+          whatsapp: host.whatsapp,
+          facebook: host.facebook,
+          instagram: host.instagram,
+          User: user ? { id: user.id, email: user.email } : null
+        };
+      }
+    }
+    return p;
+  });
+}
+
 function processPropertyImages(p) {
   if (p.photos) p.photos = p.photos.map(attachCloudFrontUrl);
   if (p.video) p.video = attachCloudFrontUrl(p.video);
@@ -43,18 +93,18 @@ export const getPendingProperties = async (req, res) => {
     if (state) properties = properties.filter(p => p.state === state);
     properties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    const data = await Promise.all(properties.map(async property => {
-      let p = await enrichPropertyWithHost(property);
-      p = processPropertyImages(p);
+    const enrichedProperties = await batchEnrichPropertiesWithHosts(properties);
+    const data = enrichedProperties.map(p => {
+      const processed = processPropertyImages(p);
       return {
-        property: p,
+        property: processed,
         owner: {
-          userId: p.Host?.User?.id || null,
-          email: p.Host?.User?.email || null,
-          verification: p.Host || null
+          userId: processed.Host?.User?.id || null,
+          email: processed.Host?.User?.email || null,
+          verification: processed.Host || null
         }
       };
-    }));
+    });
 
     await setCache(cacheKey, data, 300);
     return res.json({ success: true, data });
@@ -273,10 +323,8 @@ export const getApprovedPropertiesAdmin = async (req, res) => {
     if (state) properties = properties.filter(p => p.state === state);
     properties.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-    const processedProps = await Promise.all(properties.map(async p => {
-      let enriched = await enrichPropertyWithHost(p);
-      return processPropertyImages(enriched);
-    }));
+    const enrichedProperties = await batchEnrichPropertiesWithHosts(properties);
+    const processedProps = enrichedProperties.map(p => processPropertyImages(p));
 
     await setCache(cacheKey, processedProps, 300);
     return res.json({ success: true, properties: processedProps });
@@ -293,15 +341,13 @@ export const getRejectedPropertiesAdmin = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json({ success: true, properties: cached });
 
-    let properties = await Property.scan().filter("status").eq("rejected").exec();
+    let properties = await Property.query("status").eq("rejected").exec();
     if (country) properties = properties.filter(p => p.country === country);
     if (state) properties = properties.filter(p => p.state === state);
     properties.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-    const processedProps = await Promise.all(properties.map(async p => {
-      let enriched = await enrichPropertyWithHost(p);
-      return processPropertyImages(enriched);
-    }));
+    const enrichedProperties = await batchEnrichPropertiesWithHosts(properties);
+    const processedProps = enrichedProperties.map(p => processPropertyImages(p));
 
     await setCache(cacheKey, processedProps, 300);
     return res.json({ success: true, properties: processedProps });

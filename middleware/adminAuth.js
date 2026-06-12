@@ -105,7 +105,9 @@ export default async function adminAuth(req, res, next) {
     }
 
     // ── Check token version ─────────────────────────────────────────
-    if (admin.token_version !== undefined && decoded.token_version !== admin.token_version) {
+    const decodedVersion = decoded.token_version || 0;
+    const adminVersion = admin.token_version || 0;
+    if (decodedVersion !== adminVersion) {
       return res.status(401).json({
         success: false,
         message: "Session expired. Please login again."
