@@ -13,12 +13,6 @@ import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
 
-const verifyOtpLimiter = new RateLimiterMemory({
-  points: 5,
-  duration: 5 * 60,
-  blockDuration: 5 * 60
-});
-
 // Email Transporter
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
