@@ -8,6 +8,69 @@ import { notifyAndEmail } from "../services/notificationDispatcher.js";
 import { NOTIFICATION_TYPES } from "../services/emailService.js";
 import { attachCloudFrontUrl } from "../utils/imageUtils.js";
 
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function extractS3Key(urlOrKey) {
+    if (!urlOrKey || typeof urlOrKey !== 'string') return urlOrKey;
+    
+    const cloudFrontBase = process.env.CLOUDFRONT_URL || 'https://d3dqp3l6ug81j3.cloudfront.net';
+    const cleanCFBase = cloudFrontBase.endsWith('/') ? cloudFrontBase.slice(0, -1) : cloudFrontBase;
+    
+    if (urlOrKey.startsWith(cleanCFBase)) {
+        return urlOrKey.substring(cleanCFBase.length + 1);
+    }
+    
+    if (urlOrKey.includes('.amazonaws.com/')) {
+        return urlOrKey.replace(/^https?:\/\/[^/]+\//, '');
+    }
+    
+    return urlOrKey;
+}
+
+async function enrichListingsWithSellerInfo(listings) {
+    if (!listings || listings.length === 0) return [];
+
+    const userIds = [...new Set(listings.map(l => l.user_id).filter(Boolean))];
+    
+    const hostQueries = userIds.map(async uid => {
+        try {
+            const hosts = await Host.query("user_id").eq(uid).exec();
+            return { uid, host: hosts?.[0] || null };
+        } catch (err) {
+            console.error(`Failed to fetch host for user ${uid}:`, err);
+            return { uid, host: null };
+        }
+    });
+
+    const queryResults = await Promise.all(hostQueries);
+    const hostMap = {};
+    for (const res of queryResults) {
+        if (res.host) {
+            hostMap[res.uid] = res.host;
+        }
+    }
+
+    return listings.map(listing => {
+        const l = JSON.parse(JSON.stringify(listing));
+        if (l.images) l.images = l.images.map(attachCloudFrontUrl);
+        
+        const host = hostMap[l.user_id];
+        if (host) {
+            l.sellerInstagram = host.instagram || "";
+            l.sellerFacebook = host.facebook || "";
+            l.sellerEmail = host.email || l.email || "";
+            l.sellerPhone = host.phone || l.phone || "";
+        } else {
+            l.sellerInstagram = "";
+            l.sellerFacebook = "";
+            l.sellerEmail = l.email || "";
+            l.sellerPhone = l.phone || "";
+        }
+        return l;
+    });
+}
+
 /* =========================
    CREATE LISTING (User)
 ========================= */
@@ -34,13 +97,14 @@ export const createBuySellListing = async (req, res) => {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
-        const galleryImages = req.files?.map(file => file.location) || [];
+        const galleryImages = req.files?.map(file => file.key || file.location) || [];
+        const cleanImages = galleryImages.map(extractS3Key);
 
         const listingData = {
             user_id: userId, title, category, subcategory, condition,
             price: Number(price), // FormData sends strings; DynamoDB model expects Number
             description, country, state, city, street_address,
-            name, email: user.email, phone, images: galleryImages, status: "pending"
+            name, email: user.email, phone, images: cleanImages, status: "pending"
         };
         if (zip_code) listingData.zip_code = zip_code;
 
@@ -156,23 +220,7 @@ export const getActiveBuySellListings = async (req, res) => {
         const count = listings.length;
         const paginatedListings = listings.slice(offset, offset + limit);
 
-        const processedListings = await Promise.all(paginatedListings.map(async listing => {
-            const l = JSON.parse(JSON.stringify(listing));
-            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
-            try {
-                const hosts = await Host.query("user_id").eq(l.user_id).exec();
-                const host = hosts?.[0];
-                if (host) {
-                    l.sellerInstagram = host.instagram || "";
-                    l.sellerFacebook = host.facebook || "";
-                    l.sellerEmail = host.email || l.email || "";
-                    l.sellerPhone = host.phone || l.phone || "";
-                }
-            } catch (hostErr) {
-                console.error("Failed to enrich listing with host profile:", hostErr);
-            }
-            return l;
-        }));
+        const processedListings = await enrichListingsWithSellerInfo(paginatedListings);
 
         const responseData = {
             success: true,
@@ -235,23 +283,7 @@ export const getMyBuySellListings = async (req, res) => {
         let listings = await BuySellListing.query("user_id").eq(req.user.id).exec();
         listings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-        const processedListings = await Promise.all(listings.map(async listing => {
-            const l = JSON.parse(JSON.stringify(listing));
-            if (l.images) l.images = l.images.map(attachCloudFrontUrl);
-            try {
-                const hosts = await Host.query("user_id").eq(l.user_id).exec();
-                const host = hosts?.[0];
-                if (host) {
-                    l.sellerInstagram = host.instagram || "";
-                    l.sellerFacebook = host.facebook || "";
-                    l.sellerEmail = host.email || l.email || "";
-                    l.sellerPhone = host.phone || l.phone || "";
-                }
-            } catch (hostErr) {
-                console.error("Failed to enrich listing with host profile:", hostErr);
-            }
-            return l;
-        }));
+        const processedListings = await enrichListingsWithSellerInfo(listings);
 
         return res.json({ success: true, listings: processedListings });
     } catch (err) {
@@ -307,23 +339,17 @@ export const updateBuySellListing = async (req, res) => {
                     ? JSON.parse(req.body.existingImages) 
                     : req.body.existingImages;
                 if (Array.isArray(parsed)) {
-                    existingImages = parsed.map(img => {
-                        if (typeof img === 'string' && img.startsWith(cleanCFBase)) {
-                            const key = img.substring(cleanCFBase.length + 1);
-                            return s3Base ? `${s3Base}/${key}` : key;
-                        }
-                        return img;
-                    });
+                    existingImages = parsed.map(extractS3Key);
                 }
             } catch (e) {
                 console.error("Failed to parse existingImages:", e);
             }
         } else if (listing.images) {
-            existingImages = listing.images;
+            existingImages = listing.images.map(extractS3Key);
         }
 
-        const newUploadedImages = req.files?.map(file => file.location) || [];
-        updates.images = [...existingImages, ...newUploadedImages];
+        const newUploadedImages = req.files?.map(file => file.key || file.location) || [];
+        updates.images = [...existingImages, ...newUploadedImages.map(extractS3Key)];
 
         await BuySellListing.update({ id: listing.id }, updates);
         
@@ -556,7 +582,7 @@ export const getAdminBlockedBuySellListings = async (req, res) => {
         const cached = await getCache(cacheKey);
         if (cached) return res.json({ success: true, listings: cached });
 
-        let listings = await BuySellListing.scan().filter("status").eq("blocked").exec();
+        let listings = await BuySellListing.query("status").eq("blocked").exec();
         if (country) listings = listings.filter(l => l.country === country);
         if (state) listings = listings.filter(l => l.state === state);
         listings.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));

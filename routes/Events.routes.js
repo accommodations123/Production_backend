@@ -29,7 +29,7 @@ import { multerErrorHandler } from '../middleware/uploads/multerErrorHandler.js'
 import { uploadEventImages } from "../middleware/uploads/event.upload.js";
 import optionalAuth from "../middleware/joinleaveAuth.js";
 import { eventWriteGuard, eventParticipationGuard } from "../middleware/eventWriteGuard.js";
-import { eventJoinLimiter } from "../middleware/rateLimiter.js";
+import { eventJoinLimiter, creationRateLimit } from "../middleware/rateLimiter.js";
 const router = express.Router();
 
 /* -----------------------------------------
@@ -37,7 +37,7 @@ const router = express.Router();
 ----------------------------------------- */
 
 // Create draft
-router.post("/create-draft", userauth, createEventDraft);
+router.post("/create-draft", userauth, creationRateLimit, createEventDraft);
 
 // Update basic info
 router.put("/basic-info/:id", userauth, eventWriteGuard, updateBasicInfo);

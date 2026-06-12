@@ -33,12 +33,17 @@ export const getBuySellOverview = async (req, res) => {
     const days = range === "30d" ? 30 : range === "90d" ? 90 : 7;
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"])
-      .exec();
+    const targetEvents = ["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
     const stats = countByField(filtered, "event_type");
 
     return res.json({ success: true, range, stats });
@@ -57,12 +62,17 @@ export const getBuySellDailyTrend = async (req, res) => {
     const days = range === "30d" ? 30 : 7;
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"])
-      .exec();
+    const targetEvents = ["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
     const trend = dailyTrend(filtered, ["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"]);
 
     return res.json({ success: true, trend });
@@ -77,9 +87,7 @@ export const getBuySellDailyTrend = async (req, res) => {
    ===================================================== */
 export const getBuySellByCountry = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq("BUYSELL_LISTING_APPROVED")
-      .exec();
+    const events = await AnalyticsEvent.query("event_type").eq("BUYSELL_LISTING_APPROVED").exec();
 
     const data = countByField(events, "country");
     return res.json({ success: true, data });
@@ -94,10 +102,13 @@ export const getBuySellByCountry = async (req, res) => {
    ===================================================== */
 export const getBuySellApprovalRatio = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"])
-      .exec();
+    const targetEvents = ["BUYSELL_LISTING_APPROVED", "BUYSELL_LISTING_BLOCKED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type).exec()
+    );
 
+    const results = await Promise.all(queryPromises);
+    const events = results.flat();
     const stats = countByField(events, "event_type");
     return res.json({ success: true, stats });
   } catch (err) {

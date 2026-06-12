@@ -12,18 +12,23 @@ export const getEventAnalyticsSummary = async (req, res) => {
 
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 30);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in([
-        "EVENT_DRAFT_CREATED",
-        "EVENT_SUBMITTED",
-        "EVENT_APPROVED",
-        "EVENT_REJECTED",
-        "EVENT_DELETED"
-      ])
-      .exec();
+    const targetEvents = [
+      "EVENT_DRAFT_CREATED",
+      "EVENT_SUBMITTED",
+      "EVENT_APPROVED",
+      "EVENT_REJECTED",
+      "EVENT_DELETED"
+    ];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
 
     // Client-side aggregation
     const counts = {};
@@ -51,19 +56,18 @@ export const getEventAnalyticsSummary = async (req, res) => {
 
 /* =========================================================
    EVENT ENGAGEMENT TIMESERIES (GAPLESS)
-========================================================= */
+ ========================================================= */
 export const getEventEngagementTimeseries = async (req, res) => {
   try {
     const { type = "EVENT_JOINED", days = 30 } = req.query;
     const numDays = Number(days);
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - numDays);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq(type)
+    const filtered = await AnalyticsEvent.query("event_type").eq(type)
+      .where("created_at").ge(fromDateStr)
       .exec();
-
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
 
     // Build date → count map
     const map = {};
@@ -95,12 +99,16 @@ export const getEventEngagementTimeseries = async (req, res) => {
 
 /* =========================================================
    EVENT GEO ANALYTICS
-========================================================= */
+ ========================================================= */
 export const getEventAnalyticsByLocation = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["EVENT_JOINED", "EVENT_VIEWED"])
-      .exec();
+    const targetEvents = ["EVENT_JOINED", "EVENT_VIEWED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type).exec()
+    );
+
+    const results = await Promise.all(queryPromises);
+    const events = results.flat();
 
     // Client-side GROUP BY country, state + COUNT
     const geoMap = {};

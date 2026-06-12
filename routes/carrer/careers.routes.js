@@ -4,6 +4,7 @@ import userAuth from "../../middleware/userAuth.js";
 import adminAuth from "../../middleware/adminAuth.js";
 import requireRole from "../../middleware/requireRole.js";
 import uploadResume from "../../middleware/uploads/uploadResume.js";
+import { creationRateLimit } from "../../middleware/rateLimiter.js";
 
 import { createJob, getMyJobs, getJobs, getJobById, updateJob } from "../../controllers/carrer/jobController.js";
 
@@ -22,7 +23,7 @@ router.get("/jobs/:id", getJobById);
    USER ROUTES (COOKIE AUTH)
 ===================================================== */
 
-router.post("/applications", userAuth, uploadResume.single("resume"), applyJob);
+router.post("/applications", userAuth, creationRateLimit, uploadResume.single("resume"), applyJob);
 
 router.get("/applications/me", userAuth, getMyApplications)
 

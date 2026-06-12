@@ -92,7 +92,8 @@ export default async function adminAuth(req, res, next) {
         status: dbAdmin.status,
         failed_login_attempts: dbAdmin.failed_login_attempts,
         locked_until: dbAdmin.locked_until,
-        last_login_at: dbAdmin.last_login_at
+        last_login_at: dbAdmin.last_login_at,
+        token_version: dbAdmin.token_version || 0
       };
 
       // Try to cache for next request (non-blocking)
@@ -101,6 +102,14 @@ export default async function adminAuth(req, res, next) {
       } catch (cacheErr) {
         console.warn("⚠️  Redis cache write failed:", cacheErr.message);
       }
+    }
+
+    // ── Check token version ─────────────────────────────────────────
+    if (admin.token_version !== undefined && decoded.token_version !== admin.token_version) {
+      return res.status(401).json({
+        success: false,
+        message: "Session expired. Please login again."
+      });
     }
 
     // ── Check account status ────────────────────────────────────────

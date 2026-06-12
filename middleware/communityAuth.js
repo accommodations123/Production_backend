@@ -28,8 +28,8 @@ export const requireCommunityMember = async (req, res, next) => {
     /* =========================
        2️⃣ MEMBERSHIP CHECK
        ========================= */
-    const members = await CommunityMember.query("community_id").eq(communityId).exec();
-    const member = members.find(m => m.user_id === userId);
+    const members = await CommunityMember.query("community_id").eq(communityId).where("user_id").eq(userId).exec();
+    const member = members?.[0];
 
     if (!member) {
       return res.status(403).json({
@@ -55,7 +55,7 @@ export const requireCommunityMember = async (req, res, next) => {
 
 /* =====================================================
    REQUIRE ADMIN OR OWNER
-===================================================== */
+ ===================================================== */
 export const requireAdminOrOwner = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -78,10 +78,10 @@ export const requireAdminOrOwner = async (req, res, next) => {
       req.community = community;
     }
 
-    const members = await CommunityMember.query("community_id").eq(communityId).exec();
-    const member = members.find(m => m.user_id === userId && (m.role === "admin" || m.role === "owner"));
+    const members = await CommunityMember.query("community_id").eq(communityId).where("user_id").eq(userId).exec();
+    const member = members?.[0];
 
-    if (!member) {
+    if (!member || (member.role !== "admin" && member.role !== "owner")) {
       return res.status(403).json({
         message: "Admin or owner access required"
       });

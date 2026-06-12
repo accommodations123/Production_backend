@@ -33,12 +33,17 @@ export const getCommunityOverview = async (req, res) => {
     const days = range === "30d" ? 30 : range === "90d" ? 90 : 7;
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["COMMUNITY_CREATED", "COMMUNITY_APPROVED", "COMMUNITY_REJECTED", "COMMUNITY_SUSPENDED"])
-      .exec();
+    const targetEvents = ["COMMUNITY_CREATED", "COMMUNITY_APPROVED", "COMMUNITY_REJECTED", "COMMUNITY_SUSPENDED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
     const stats = countByField(filtered, "event_type");
 
     return res.json({ success: true, range, stats });
@@ -57,12 +62,17 @@ export const getCommunityDailyTrend = async (req, res) => {
     const days = range === "30d" ? 30 : 7;
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["COMMUNITY_CREATED", "COMMUNITY_APPROVED", "COMMUNITY_REJECTED"])
-      .exec();
+    const targetEvents = ["COMMUNITY_CREATED", "COMMUNITY_APPROVED", "COMMUNITY_REJECTED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
     const trend = dailyTrend(filtered, ["COMMUNITY_CREATED", "COMMUNITY_APPROVED", "COMMUNITY_REJECTED"]);
 
     return res.json({ success: true, trend });
@@ -77,9 +87,7 @@ export const getCommunityDailyTrend = async (req, res) => {
    ===================================================== */
 export const getCommunityByCountry = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq("COMMUNITY_CREATED")
-      .exec();
+    const events = await AnalyticsEvent.query("event_type").eq("COMMUNITY_CREATED").exec();
 
     const filtered = events.filter(e => e.country != null);
     const data = countByField(filtered, "country");
@@ -96,10 +104,13 @@ export const getCommunityByCountry = async (req, res) => {
    ===================================================== */
 export const getCommunityApprovalRatio = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["COMMUNITY_APPROVED", "COMMUNITY_REJECTED"])
-      .exec();
+    const targetEvents = ["COMMUNITY_APPROVED", "COMMUNITY_REJECTED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type).exec()
+    );
 
+    const results = await Promise.all(queryPromises);
+    const events = results.flat();
     const stats = countByField(events, "event_type");
     return res.json({ success: true, stats });
   } catch (err) {
@@ -113,10 +124,13 @@ export const getCommunityApprovalRatio = async (req, res) => {
    ===================================================== */
 export const getCommunityMembershipActivity = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["COMMUNITY_JOINED", "COMMUNITY_LEFT"])
-      .exec();
+    const targetEvents = ["COMMUNITY_JOINED", "COMMUNITY_LEFT"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type).exec()
+    );
 
+    const results = await Promise.all(queryPromises);
+    const events = results.flat();
     const stats = countByField(events, "event_type");
     return res.json({ success: true, stats });
   } catch (err) {

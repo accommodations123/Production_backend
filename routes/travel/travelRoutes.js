@@ -17,6 +17,8 @@ import {
 import userAuth from "../../middleware/userAuth.js";
 import adminAuth from "../../middleware/adminAuth.js";
 import requireRole from "../../middleware/requireRole.js";
+import optionalAuth from "../../middleware/joinleaveAuth.js";
+import { creationRateLimit } from "../../middleware/rateLimiter.js";
 
 const router = express.Router();
 
@@ -25,7 +27,7 @@ const router = express.Router();
    =============================== */
 
 // Create a trip (approved host only)
-router.post("/trips", userAuth, createTrip);
+router.post("/trips", userAuth, creationRateLimit, createTrip);
 
 // Search trips (authenticated)
 router.get("/trips/auth-search", userAuth, searchTrips);
@@ -33,9 +35,9 @@ router.get("/trips/auth-search", userAuth, searchTrips);
 // Get my trips (dashboard)
 router.get("/trips/me", userAuth, myTrips);
 
-router.get("/trips", publicBrowseTrips);
-router.get("/trips/search", publicSearchTrips);
-router.get("/trips/:trip_id", publicTripPreview);
+router.get("/trips", optionalAuth, publicBrowseTrips);
+router.get("/trips/search", optionalAuth, publicSearchTrips);
+router.get("/trips/:trip_id", optionalAuth, publicTripPreview);
 
 
 //ADMIN ROUTES

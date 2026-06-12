@@ -111,3 +111,35 @@ export const otpSendRateLimit = async (req, res, next) => {
     return res.status(429).json({ message: "Please wait 60 seconds before requesting another OTP." });
   }
 };
+
+// 7. Creation Rate Limiter (Max 10 mutation requests per hour per user/IP)
+const creationLimiter = new RateLimiterMemory({
+  points: 10,
+  duration: 3600
+});
+
+export const creationRateLimit = async (req, res, next) => {
+  try {
+    const key = req.user ? `creation:${req.user.id}` : `creation:${req.ip}`;
+    await creationLimiter.consume(key, 1);
+    next();
+  } catch {
+    return res.status(429).json({ message: "You have exceeded the creation limit of 10 requests per hour." });
+  }
+};
+
+// 8. Contact Rate Limiter (Max 3 contact submissions per hour per IP)
+const contactLimiter = new RateLimiterMemory({
+  points: 3,
+  duration: 3600
+});
+
+export const contactRateLimit = async (req, res, next) => {
+  try {
+    const key = `contact:${req.ip}`;
+    await contactLimiter.consume(key, 1);
+    next();
+  } catch {
+    return res.status(429).json({ message: "Too many contact submissions. Max 3 submissions per hour." });
+  }
+};

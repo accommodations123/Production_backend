@@ -7,6 +7,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import dynamoose, { checkDynamoDBConnection } from "./config/db.js";
+import { allowedOrigins } from "./config/origins.js";
 import { initSocket } from "./services/socket.js";
 
 /* ===================== MODELS ===================== */
@@ -54,13 +55,6 @@ const app = express();
 const server = http.createServer(app);
 
 /* ===================== CORS (MUST BE FIRST) ===================== */
-const allowedOrigins = [
-  "https://nextkinlife.live",
-  "https://admin.nextkinlife.live",
-  "https://api.nextkinlife.live",
-  "http://localhost:5173",
-  "http://localhost:5000"
-];
 
 app.use(
   cors({

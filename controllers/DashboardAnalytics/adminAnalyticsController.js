@@ -12,16 +12,22 @@ export const getAnalyticsSummary = async (req, res) => {
 
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 30);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in([
-        "HOST_CREATED", "HOST_APPROVED", "HOST_REJECTED",
-        "PROPERTY_DRAFT_CREATED", "PROPERTY_SUBMITTED",
-        "PROPERTY_APPROVED", "PROPERTY_REJECTED"
-      ])
-      .exec();
+    const targetEvents = [
+      "HOST_CREATED", "HOST_APPROVED", "HOST_REJECTED",
+      "PROPERTY_DRAFT_CREATED", "PROPERTY_SUBMITTED",
+      "PROPERTY_APPROVED", "PROPERTY_REJECTED"
+    ];
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
+
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
 
     // Client-side aggregation
     const counts = {};
@@ -83,12 +89,11 @@ export const getAnalyticsTimeseries = async (req, res) => {
 
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq(event)
+    const filtered = await AnalyticsEvent.query("event_type").eq(event)
+      .where("created_at").ge(fromDateStr)
       .exec();
-
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
 
     // Build date → count map
     const map = {};
@@ -144,9 +149,7 @@ export const getAnalyticsByLocation = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq(event)
-      .exec();
+    const events = await AnalyticsEvent.query("event_type").eq(event).exec();
 
     // Client-side GROUP BY country, state + COUNT
     const geoMap = {};

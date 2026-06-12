@@ -48,7 +48,11 @@ const adminSchema = new dynamoose.Schema(
     locked_until: { type: String },
     last_login_at: { type: String },
     password_changed_at: { type: String },
-    deleted_at: { type: String }   // soft delete
+    deleted_at: { type: String },   // soft delete
+    token_version: {
+      type: Number,
+      default: 0
+    }
   },
   {
     timestamps: {

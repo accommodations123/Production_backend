@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
+import { allowedOrigins } from "../config/origins.js";
 
 let io;
 
@@ -8,15 +9,6 @@ let io;
    INITIALIZE SOCKET.IO
 ========================================================= */
 export const initSocket = async (httpServer) => {
-  const allowedOrigins = [
-    "https://accomodation.api.test.nextkinlife.live",
-    "https://accomodation.test.nextkinlife.live",
-    "https://accomodation.admin.test.nextkinlife.live",
-    "https://admin.test.nextkinlife.live",
-    "http://localhost:5173",
-    "http://localhost:5000"
-  ];
-
   io = new Server(httpServer, {
     cors: {
       origin: allowedOrigins,

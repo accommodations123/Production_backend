@@ -5,9 +5,13 @@ import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
    ===================================================== */
 export const getUsersOverview = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["USER_REGISTERED", "OTP_VERIFIED", "USER_LOGIN"])
-      .exec();
+    const targetEvents = ["USER_REGISTERED", "OTP_VERIFIED", "USER_LOGIN"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type).exec()
+    );
+
+    const results = await Promise.all(queryPromises);
+    const events = results.flat();
 
     // Client-side GROUP BY event_type + COUNT
     const statsMap = {};
@@ -35,18 +39,9 @@ export const getUserSignupTrend = async (req, res) => {
     fromDate.setDate(fromDate.getDate() - days);
 
     // Query by event_type GSI with date filter
-    let events;
-    try {
-      events = await AnalyticsEvent.query("event_type").eq("USER_REGISTERED")
-        .where("created_at").ge(fromDate.toISOString())
-        .exec();
-    } catch {
-      // Fallback to scan if GSI range key query fails
-      events = await AnalyticsEvent.scan()
-        .filter("event_type").eq("USER_REGISTERED")
-        .exec();
-      events = events.filter(e => new Date(e.created_at) >= fromDate);
-    }
+    const events = await AnalyticsEvent.query("event_type").eq("USER_REGISTERED")
+      .where("created_at").ge(fromDate.toISOString())
+      .exec();
 
     // Client-side GROUP BY date + COUNT
     const trendMap = {};
@@ -70,9 +65,13 @@ export const getUserSignupTrend = async (req, res) => {
 
 export const getOtpFunnel = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["OTP_SENT", "OTP_VERIFIED", "OTP_VERIFICATION_FAILED"])
-      .exec();
+    const targetEvents = ["OTP_SENT", "OTP_VERIFIED", "OTP_VERIFICATION_FAILED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type).exec()
+    );
+
+    const results = await Promise.all(queryPromises);
+    const events = results.flat();
 
     const funnelMap = {};
     for (const e of events) {
@@ -100,17 +99,9 @@ export const getDailyActiveUsers = async (req, res) => {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
 
-    let events;
-    try {
-      events = await AnalyticsEvent.query("event_type").eq("USER_LOGIN")
-        .where("created_at").ge(fromDate.toISOString())
-        .exec();
-    } catch {
-      events = await AnalyticsEvent.scan()
-        .filter("event_type").eq("USER_LOGIN")
-        .exec();
-      events = events.filter(e => new Date(e.created_at) >= fromDate);
-    }
+    const events = await AnalyticsEvent.query("event_type").eq("USER_LOGIN")
+      .where("created_at").ge(fromDate.toISOString())
+      .exec();
 
     // Client-side GROUP BY date + COUNT DISTINCT user_id
     const dauMap = {};
@@ -135,9 +126,7 @@ export const getDailyActiveUsers = async (req, res) => {
 
 export const getUsersByCountry = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq("USER_REGISTERED")
-      .exec();
+    const events = await AnalyticsEvent.query("event_type").eq("USER_REGISTERED").exec();
 
     // Client-side GROUP BY country + COUNT (excluding null)
     const countryMap = {};

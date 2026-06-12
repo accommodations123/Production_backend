@@ -243,7 +243,7 @@ export const adminLogin = async (req, res) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { id: admin.id, role: admin.role },
+      { id: admin.id, role: admin.role, token_version: admin.token_version || 0 },
       process.env.JWT_SECRET,
       { expiresIn: JWT_EXPIRY }
     );
@@ -258,7 +258,7 @@ export const adminLogin = async (req, res) => {
     });
 
     // Cache admin data (no password)
-    const payload = safeAdminPayload(admin);
+    const payload = { ...safeAdminPayload(admin), token_version: admin.token_version || 0 };
     await setCache(adminCacheKey(admin.id), payload, ADMIN_CACHE_TTL);
 
     logAudit({
@@ -412,6 +412,7 @@ export const adminLogout = async (req, res) => {
     });
 
     if (req.admin?.id) {
+      await Admin.update({ id: req.admin.id }, { $ADD: { token_version: 1 } }).catch(() => {});
       await deleteCache(adminCacheKey(req.admin.id));
 
       logAudit({
@@ -434,3 +435,20 @@ export const adminLogout = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
+/* =====================================================================
+   GET ADMIN PROFILE
+   GET /admin/me
+   ===================================================================== */
+export const getMe = async (req, res) => {
+  try {
+    return res.json({
+      success: true,
+      data: req.admin
+    });
+  } catch (err) {
+    console.error("getMe error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+

@@ -29,6 +29,14 @@ const userSchema = new dynamoose.Schema(
       type: Boolean,
       default: false
     },
+    otp_attempts: {
+      type: Number,
+      default: 0
+    },
+    token_version: {
+      type: Number,
+      default: 0
+    },
     name: {
       type: String
     },

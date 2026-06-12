@@ -4,7 +4,8 @@ import {
     adminLogin,
     changePassword,
     listAdmins,
-    adminLogout
+    adminLogout,
+    getMe
 } from "../controllers/admin.js";
 import { rateLimit, adminLoginRateLimit } from "../middleware/rateLimiter.js";
 import adminAuth from "../middleware/adminAuth.js";
@@ -43,5 +44,8 @@ router.get(
 
 // 🔐 Logout — authenticated admin (optional auth, still works if token expired)
 router.post("/logout", adminAuth, adminLogout);
+
+// 🔐 Get own profile — any authenticated admin
+router.get("/me", adminAuth, getMe);
 
 export default router;

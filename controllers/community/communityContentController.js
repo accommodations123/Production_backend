@@ -32,8 +32,8 @@ export const createPost = async (req, res) => {
     if (!community || community.status !== "active") return res.status(404).json({ message: "Community not found or inactive" });
     const hostResults = await Host.query("user_id").eq(userId).exec();
     if (!hostResults[0]) return res.status(403).json({ message: "Only hosts can create posts" });
-    const members = await CommunityMember.query("community_id").eq(communityId).exec();
-    if (!members.find(m => m.user_id === userId)) return res.status(403).json({ message: "Join community first" });
+    const members = await CommunityMember.query("community_id").eq(communityId).where("user_id").eq(userId).exec();
+    if (!members || members.length === 0) return res.status(403).json({ message: "Join community first" });
     let mediaType = "text";
     if (uploadedMedia.length && content) mediaType = "mixed";
     else if (uploadedMedia.length) mediaType = "image";
@@ -71,12 +71,57 @@ export const getFeed = async (req, res) => {
     posts = posts.filter(p => p.status === "active");
     posts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const paginatedPosts = posts.slice(offset, offset + limit);
-    const enrichedPosts = await Promise.all(paginatedPosts.map(async post => {
-      const user = await User.get(post.user_id);
-      const hostResults = await Host.query("user_id").eq(post.user_id).exec();
-      const host = hostResults[0];
-      return { ...post, author: { id: post.user_id, profile_image: user?.profile_image ? attachCloudFrontUrl(user.profile_image) : null, Host: host ? { full_name: host.full_name, country: host.country, state: host.state, city: host.city, status: host.status } : null } };
-    }));
+    const userIds = [...new Set(paginatedPosts.map(p => p.user_id).filter(Boolean))];
+    let usersList = [];
+    if (userIds.length > 0) {
+      try {
+        usersList = await User.batchGet(userIds);
+      } catch (err) {
+        console.error("User batchGet failed in getFeed", err);
+      }
+    }
+    const usersMap = {};
+    for (const u of usersList) {
+      if (u && u.id) {
+        usersMap[u.id] = u;
+      }
+    }
+
+    const hostQueries = userIds.map(async uid => {
+      try {
+        const hosts = await Host.query("user_id").eq(uid).exec();
+        return { uid, host: hosts?.[0] || null };
+      } catch (err) {
+        console.error("Host GSI query failed in getFeed", err);
+        return { uid, host: null };
+      }
+    });
+    const hostQueryResults = await Promise.all(hostQueries);
+    const hostMap = {};
+    for (const res of hostQueryResults) {
+      if (res.host) {
+        hostMap[res.uid] = res.host;
+      }
+    }
+
+    const enrichedPosts = paginatedPosts.map(post => {
+      const user = usersMap[post.user_id];
+      const host = hostMap[post.user_id];
+      return {
+        ...post,
+        author: {
+          id: post.user_id,
+          profile_image: user?.profile_image ? attachCloudFrontUrl(user.profile_image) : null,
+          Host: host ? {
+            full_name: host.full_name,
+            country: host.country,
+            state: host.state,
+            city: host.city,
+            status: host.status
+          } : null
+        }
+      };
+    });
 
     const response = { success: true, page, posts: enrichedPosts };
     await setCache(cacheKey, response, 300);

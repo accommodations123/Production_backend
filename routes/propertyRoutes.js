@@ -20,6 +20,7 @@ import userauth from "../middleware/userAuth.js";
 import {uploadPropertyImages,uploadPropertyVideos} from "../middleware/uploads/property.upload.js";
 import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
 import { verifyPropertyOwnership } from "../middleware/verifyPropertyOwnership.js"
+import { creationRateLimit } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ const router = express.Router();
 
 
 // Host Flow
-router.post("/create-draft", userauth, createDraft);
+router.post("/create-draft", userauth, creationRateLimit, createDraft);
 router.put("/basic-info/:id", userauth,verifyPropertyOwnership, saveBasicInfo);
 router.put("/address/:id", userauth,verifyPropertyOwnership, saveAddress);
 router.put("/media/:id", userauth,verifyPropertyOwnership, uploadPropertyImages.array("photo" , 10),multerErrorHandler, saveMedia);

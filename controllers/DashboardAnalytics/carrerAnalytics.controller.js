@@ -31,12 +31,17 @@ export const getJobsOverview = async (req, res) => {
   try {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 90);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in(["JOB_CREATED", "JOB_VIEWED", "JOB_STATUS_CHANGED"])
-      .exec();
+    const targetEvents = ["JOB_CREATED", "JOB_VIEWED", "JOB_STATUS_CHANGED"];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
     const stats = countByField(filtered, "event_type");
 
     res.json({ success: true, stats });
@@ -53,12 +58,11 @@ export const getApplicationsFunnel = async (req, res) => {
   try {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 90);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq("APPLICATION_STATUS_CHANGED")
+    const filtered = await AnalyticsEvent.query("event_type").eq("APPLICATION_STATUS_CHANGED")
+      .where("created_at").ge(fromDateStr)
       .exec();
-
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
 
     // Group by metadata.to status
     const funnelMap = {};
@@ -86,12 +90,12 @@ export const getApplicationsDailyTrend = async (req, res) => {
     const days = Number(req.query.days || 30);
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq("JOB_APPLICATION_SUBMITTED")
+    const filtered = await AnalyticsEvent.query("event_type").eq("JOB_APPLICATION_SUBMITTED")
+      .where("created_at").ge(fromDateStr)
       .exec();
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
     const trend = dailyTrend(filtered);
 
     res.json({ success: true, trend });
@@ -106,9 +110,7 @@ export const getApplicationsDailyTrend = async (req, res) => {
    ===================================================== */
 export const getMostViewedJobs = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").eq("JOB_VIEWED")
-      .exec();
+    const events = await AnalyticsEvent.query("event_type").eq("JOB_VIEWED").exec();
 
     // Group by event_id (job_id) + count
     const viewsMap = {};
@@ -137,17 +139,22 @@ export const getAdminActionsSummary = async (req, res) => {
   try {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 90);
+    const fromDateStr = fromDate.toISOString();
 
-    const events = await AnalyticsEvent.scan()
-      .filter("event_type").in([
-        "JOB_CREATED",
-        "JOB_STATUS_CHANGED",
-        "APPLICATION_STATUS_CHANGED",
-        "APPLICATION_USER_NOTIFIED"
-      ])
-      .exec();
+    const targetEvents = [
+      "JOB_CREATED",
+      "JOB_STATUS_CHANGED",
+      "APPLICATION_STATUS_CHANGED",
+      "APPLICATION_USER_NOTIFIED"
+    ];
+    const queryPromises = targetEvents.map(type =>
+      AnalyticsEvent.query("event_type").eq(type)
+        .where("created_at").ge(fromDateStr)
+        .exec()
+    );
 
-    const filtered = events.filter(e => new Date(e.created_at) >= fromDate);
+    const results = await Promise.all(queryPromises);
+    const filtered = results.flat();
     const stats = countByField(filtered, "event_type");
 
     res.json({ success: true, stats });

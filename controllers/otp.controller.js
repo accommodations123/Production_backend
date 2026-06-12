@@ -4,6 +4,7 @@ dotenv.config();
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import User from "../model/User.js";
+import bcrypt from "bcryptjs";
 import { RateLimiterMemory } from "rate-limiter-flexible";
 
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
@@ -29,8 +30,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Generate 4-digit OTP
-const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
+// Generate 6-digit OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 const getCountry = (req) => {
   try {
@@ -46,7 +47,7 @@ const getCountry = (req) => {
 
 /* ============================================================
    SEND OTP
-============================================================ */
+ ============================================================ */
 export const sendOTP = async (req, res) => {
   try {
     if (!req.body || Object.keys(req.body).length === 0) {
@@ -65,9 +66,8 @@ export const sendOTP = async (req, res) => {
       return res.status(400).json({ message: "Invalid email format" });
     }
 
-
-
     const otp = generateOTP();
+    const hashedOtp = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     // Query by email GSI
@@ -75,13 +75,14 @@ export const sendOTP = async (req, res) => {
     let user = users.length > 0 ? users[0] : null;
 
     if (user) {
-      await User.update({ id: user.id }, { otp, otp_expires: expiresAt });
+      await User.update({ id: user.id }, { otp: hashedOtp, otp_expires: expiresAt, otp_attempts: 0 });
     } else {
       user = await User.create({
         email,
         verified: false,
-        otp,
-        otp_expires: expiresAt
+        otp: hashedOtp,
+        otp_expires: expiresAt,
+        otp_attempts: 0
       });
 
       // ✅ Only log USER_REGISTERED for brand new users
@@ -155,21 +156,9 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "User not found" });
     }
 
-    /* ===============================
-       OTP VERIFICATION WITH RATE LIMITING
-    =============================== */
-    const rateKey = `verify_otp:${email}`;
-    try {
-      const attempts = await verifyOtpLimiter.get(rateKey);
-      if (attempts && attempts.remainingPoints <= 0) {
-        // Exceeded attempts limit, clear OTP in DB
-        await User.update({ id: user.id }, {
-          $REMOVE: ["otp", "otp_expires"]
-        });
-        return res.status(429).json({ message: "Too many failed attempts. OTP has been invalidated. Please request a new one." });
-      }
-    } catch (err) {
-      console.error("Limiter check error:", err);
+    // Check DB-level lockout
+    if (user.otp_attempts >= 5) {
+      return res.status(429).json({ message: "Too many failed attempts. Account locked/OTP invalidated. Please request a new OTP." });
     }
 
     if (!otp) {
@@ -201,47 +190,55 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "OTP has expired. Please request a new one." });
     }
 
-    // Check if OTP is wrong
-    if (String(user.otp).trim() !== String(otp).trim()) {
-      try {
-        await verifyOtpLimiter.consume(rateKey, 1);
-      } catch {
-        // Just reached/exceeded 5 failed attempts limit
+    // Verify bcrypt hash of OTP
+    const isMatch = await bcrypt.compare(String(otp).trim(), user.otp);
+
+    if (!isMatch) {
+      const newAttempts = (user.otp_attempts || 0) + 1;
+      
+      if (newAttempts >= 5) {
+        // Destroy OTP in DB and set lockout
         await User.update({ id: user.id }, {
+          $SET: { otp_attempts: newAttempts },
           $REMOVE: ["otp", "otp_expires"]
         });
+
+        logAudit({
+          action: "OTP_VERIFICATION_FAILED",
+          actor: { role: "system" },
+          target: { type: "user", id: user?.id },
+          severity: "HIGH",
+          req,
+          metadata: { email, reason: "too_many_failures_locked" }
+        }).catch(console.error);
+
         return res.status(429).json({ message: "Too many failed attempts. OTP has been invalidated. Please request a new one." });
+      } else {
+        await User.update({ id: user.id }, {
+          $SET: { otp_attempts: newAttempts }
+        });
+
+        logAudit({
+          action: "OTP_VERIFICATION_FAILED",
+          actor: { role: "system" },
+          target: { type: "user", id: user?.id },
+          severity: "HIGH",
+          req,
+          metadata: { email, reason: "wrong_otp", attempt: newAttempts }
+        }).catch(console.error);
+
+        return res.status(400).json({ message: `Wrong OTP. Please check and try again. ${5 - newAttempts} attempts remaining.` });
       }
-
-      logAudit({
-        action: "OTP_VERIFICATION_FAILED",
-        actor: { role: "system" },
-        target: { type: "user", id: user?.id },
-        severity: "HIGH",
-        req,
-        metadata: { email, reason: "wrong_otp" }
-      }).catch(console.error);
-
-      AnalyticsEvent.create({
-        event_type: "OTP_VERIFICATION_FAILED",
-        user_id: user?.id || null,
-        country: getCountry(req)
-      }).catch(console.error);
-
-      return res.status(400).json({ message: "Wrong OTP. Please check and try again." });
     }
 
-    // Reset failed attempts upon successful verification
-    await verifyOtpLimiter.delete(rateKey).catch(() => {});
-
-    // Mark verified — use $REMOVE for String fields (Dynamoose rejects null for String type)
+    // Reset failed attempts and clear OTP upon successful verification
     await User.update({ id: user.id }, {
-      $SET: { verified: true },
+      $SET: { verified: true, otp_attempts: 0 },
       $REMOVE: ["otp", "otp_expires"]
     });
 
     const token = jwt.sign(
-      { id: user.id, role: "user" },
+      { id: user.id, role: "user", token_version: user.token_version || 0 },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -302,7 +299,10 @@ export const logout = async (req, res) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      await deleteCache(`user:${decoded.id}`);
+      if (decoded && decoded.id) {
+        await User.update({ id: decoded.id }, { $ADD: { token_version: 1 } }).catch(() => {});
+        await deleteCache(`user:${decoded.id}`).catch(() => {});
+      }
     } catch { }
   }
 

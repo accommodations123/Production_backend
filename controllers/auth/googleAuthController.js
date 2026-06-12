@@ -80,7 +80,7 @@ export const googleCallback = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, role: "user" },
+      { id: user.id, role: "user", token_version: user.token_version || 0 },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );

@@ -9,6 +9,7 @@ import adminAuth from "../middleware/adminAuth.js";
 import requireRole from "../middleware/requireRole.js";
 import { uploadListingImages } from "../middleware/uploads/sell.upload.js";
 import { multerErrorHandler } from '../middleware/uploads/multerErrorHandler.js'
+import { creationRateLimit } from "../middleware/rateLimiter.js";
 /* =========================
    Controllers
 ========================= */
@@ -32,7 +33,7 @@ import {
 ========================= */
 
 // Create listing (goes to pending)
-router.post("/create", userAuth, uploadListingImages.array("galleryImages", 10), multerErrorHandler, createBuySellListing);
+router.post("/create", userAuth, creationRateLimit, uploadListingImages.array("galleryImages", 10), multerErrorHandler, createBuySellListing);
 
 
 // Public listings (only active)

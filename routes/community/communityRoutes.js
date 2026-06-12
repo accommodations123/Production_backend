@@ -25,9 +25,10 @@ import requireRole from "../../middleware/requireRole.js";
 import { uploadCommunityMedia } from "../../middleware/uploads/community.upload.js";
 import { multerErrorHandler } from '../../middleware/uploads/multerErrorHandler.js'
 import optionalAuth from "../../middleware/joinleaveAuth.js";
+import { creationRateLimit } from "../../middleware/rateLimiter.js";
 const router = express.Router();
 
-router.post("/", userAuth, createCommunity);
+router.post("/", userAuth, creationRateLimit, createCommunity);
 router.put('/:id/update', userAuth, uploadCommunityMedia.fields([{ name: "avatar_image", maxcount: 1 }, { name: "cover_image", maxcount: 1 }]), multerErrorHandler, updateCommunityProfile)
 router.get("/", listCommunities);
 router.get("/me", userAuth, getMyCommunities);

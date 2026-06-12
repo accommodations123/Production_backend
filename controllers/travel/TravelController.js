@@ -9,10 +9,10 @@ import AnalyticsEvent from "../../model/DashboardAnalytics/AnalyticsEvent.js";
 import { isUpcomingUTC, isExpiredUTC, nowUTC, toUTCDateTime } from "../../utils/dateTimeUtils.js";
 
 // Helper: Enrich trip with host+user data
-async function enrichTripWithHost(trip) {
+async function enrichTripWithHost(trip, isAuthenticated = false) {
   const t = { ...trip };
   if (t.host_id) {
-    const host = await Host.get(t.host_id)
+    const host = await Host.get(t.host_id);
     if (host) {
       const user = await User.get(host.user_id);
       t.host = {
@@ -20,16 +20,87 @@ async function enrichTripWithHost(trip) {
         full_name: host.full_name,
         country: host.country,
         city: host.city,
-        whatsapp: host.whatsapp,
-        phone: host.phone,
-        facebook: host.facebook,
-        instagram: host.instagram,
         user_id: host.user_id,
-        User: user ? { profile_image: user.profile_image, email: user.email, verified: user.verified } : null
+        User: user ? { profile_image: user.profile_image, verified: user.verified } : null
       };
+
+      if (isAuthenticated) {
+        t.host.whatsapp = host.whatsapp;
+        t.host.phone = host.phone;
+        t.host.facebook = host.facebook;
+        t.host.instagram = host.instagram;
+        if (t.host.User && user) {
+          t.host.User.email = user.email;
+        }
+      }
     }
   }
   return t;
+}
+
+// Helper: Batch enrich trips with host+user data (solves N+1 query patterns)
+async function batchEnrichTripsWithHosts(trips, isAuthenticated = false) {
+  if (!trips || trips.length === 0) return [];
+  
+  const hostIds = [...new Set(trips.map(t => t.host_id).filter(Boolean))];
+  if (hostIds.length === 0) return trips;
+
+  let hostsList = [];
+  try {
+    hostsList = await Host.batchGet(hostIds);
+  } catch (err) {
+    console.error("Host batchGet failed, falling back to individual fetches", err);
+    return Promise.all(trips.map(t => enrichTripWithHost(t, isAuthenticated)));
+  }
+
+  const hostsMap = {};
+  for (const h of hostsList) {
+    if (h && h.id) {
+      hostsMap[h.id] = h;
+    }
+  }
+
+  const userIds = [...new Set(hostsList.map(h => h.user_id).filter(Boolean))];
+  const usersMap = {};
+  if (userIds.length > 0) {
+    try {
+      const usersList = await User.batchGet(userIds);
+      for (const u of usersList) {
+        if (u && u.id) {
+          usersMap[u.id] = u;
+        }
+      }
+    } catch (err) {
+      console.error("User batchGet failed", err);
+    }
+  }
+
+  return trips.map(trip => {
+    const t = { ...trip };
+    const host = hostsMap[t.host_id];
+    if (host) {
+      const user = usersMap[host.user_id];
+      t.host = {
+        id: host.id,
+        full_name: host.full_name,
+        country: host.country,
+        city: host.city,
+        user_id: host.user_id,
+        User: user ? { profile_image: user.profile_image, verified: user.verified } : null
+      };
+
+      if (isAuthenticated) {
+        t.host.whatsapp = host.whatsapp;
+        t.host.phone = host.phone;
+        t.host.facebook = host.facebook;
+        t.host.instagram = host.instagram;
+        if (t.host.User && user) {
+          t.host.User.email = user.email;
+        }
+      }
+    }
+    return t;
+  });
 }
 
 export const createTrip = async (req, res) => {
@@ -71,7 +142,7 @@ export const searchTrips = async (req, res) => {
     trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + Number(limit));
 
-    const results = await Promise.all(paginated.map(t => enrichTripWithHost(t)));
+    const results = await batchEnrichTripsWithHosts(paginated, true);
     return res.json({ success: true, page: Number(page), results });
   } catch (err) {
     console.error(err);
@@ -122,7 +193,7 @@ export const adminGetPendingTrips = async (req, res) => {
     trips.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const paginated = trips.slice(offset, offset + limit);
 
-    const results = await Promise.all(paginated.map(t => enrichTripWithHost(t)));
+    const results = await batchEnrichTripsWithHosts(paginated, true);
     return res.json({ success: true, page, results });
   } catch (err) {
     console.error("ADMIN GET PENDING TRIPS ERROR:", err);
@@ -226,8 +297,9 @@ export const publicBrowseTrips = async (req, res) => {
     trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + limit);
 
-    const results = await Promise.all(paginated.map(async trip => {
-      const enriched = await enrichTripWithHost(trip);
+    const isAuthenticated = !!req.user;
+    const enrichedTrips = await batchEnrichTripsWithHosts(paginated, isAuthenticated);
+    const results = enrichedTrips.map(enriched => {
       return {
         id: enriched.id, host_id: enriched.host_id,
         host: enriched.host ? {
@@ -235,10 +307,10 @@ export const publicBrowseTrips = async (req, res) => {
           full_name: enriched.host.full_name,
           country: enriched.host.country,
           city: enriched.host.city,
-          whatsapp: enriched.host.whatsapp,
-          phone: enriched.host.phone,
-          facebook: enriched.host.facebook,
-          instagram: enriched.host.instagram,
+          whatsapp: enriched.host.whatsapp || null,
+          phone: enriched.host.phone || null,
+          facebook: enriched.host.facebook || null,
+          instagram: enriched.host.instagram || null,
           profile_image: enriched.host.User?.profile_image || null,
           verified: enriched.host.User?.verified || false
         } : null,
@@ -248,7 +320,7 @@ export const publicBrowseTrips = async (req, res) => {
         date: enriched.travel_date, time: enriched.departure_time,
         flight: { airline: enriched.airline || null, flightNumber: enriched.flight_number || null, from: enriched.from_city, to: enriched.to_city, departureDate: enriched.travel_date, departureTime: enriched.departure_time, arrivalDate: enriched.arrival_date || null, arrivalTime: enriched.arrival_time || null }
       };
-    }));
+    });
 
     await setCache(cacheKey, results, 60);
     return res.json({ success: true, source: "db", page, results });
@@ -273,8 +345,9 @@ export const publicSearchTrips = async (req, res) => {
     trips.sort((a, b) => toUTCDateTime(a.travel_date).getTime() - toUTCDateTime(b.travel_date).getTime());
     const paginated = trips.slice(offset, offset + Number(limit));
 
-    const results = await Promise.all(paginated.map(async trip => {
-      const enriched = await enrichTripWithHost(trip);
+    const isAuthenticated = !!req.user;
+    const enrichedTrips = await batchEnrichTripsWithHosts(paginated, isAuthenticated);
+    const results = enrichedTrips.map(enriched => {
       return {
         id: enriched.id,
         host: enriched.host ? {
@@ -282,17 +355,17 @@ export const publicSearchTrips = async (req, res) => {
           full_name: enriched.host.full_name,
           country: enriched.host.country,
           city: enriched.host.city,
-          whatsapp: enriched.host.whatsapp,
-          phone: enriched.host.phone,
-          facebook: enriched.host.facebook,
-          instagram: enriched.host.instagram,
+          whatsapp: enriched.host.whatsapp || null,
+          phone: enriched.host.phone || null,
+          facebook: enriched.host.facebook || null,
+          instagram: enriched.host.instagram || null,
           profile_image: enriched.host.User?.profile_image || null,
           verified: enriched.host.User?.verified || false
         } : null,
         trip_meta: { age: enriched.age || null, languages: Array.isArray(enriched.languages) ? enriched.languages : [] },
         destination: `${enriched.to_city}, ${enriched.to_country}`, date: enriched.travel_date, time: enriched.departure_time
       };
-    }));
+    });
 
     trackEvent({ event_type: "TRAVEL_TRIP_SEARCHED", actor: req.user ? { user_id: req.user.id } : {}, metadata: { from_country, to_country, date, results_count: results.length } });
     await setCache(cacheKey, results, 60);
@@ -311,7 +384,8 @@ export const publicTripPreview = async (req, res) => {
       return res.status(404).json({ message: "Trip not found or expired" });
     }
 
-    const enriched = await enrichTripWithHost(trip);
+    const isAuthenticated = !!req.user;
+    const enriched = await enrichTripWithHost(trip, isAuthenticated || !!req.admin);
     trackEvent({ event_type: "TRAVEL_TRIP_VIEWED", actor: req.user ? { user_id: req.user.id } : {}, entity: { type: "travel_trip", id: trip.id }, location: { country: trip.from_country, state: null } });
     return res.json({ success: true, trip: enriched });
   } catch (err) {
@@ -332,13 +406,13 @@ export const adminGetAllTrips = async (req, res) => {
     trips.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const paginated = trips.slice(offset, offset + limit);
 
-    const results = await Promise.all(paginated.map(async t => {
-      const enriched = await enrichTripWithHost(t);
+    const enrichedTrips = await batchEnrichTripsWithHosts(paginated, true);
+    const results = enrichedTrips.map(enriched => {
       if (enriched.status === "approved" && isExpiredUTC(enriched.travel_date, enriched.departure_time)) {
         enriched.status = "expired";
       }
       return enriched;
-    }));
+    });
     return res.json({ success: true, page, results });
   } catch (err) {
     console.error("ADMIN GET TRIPS ERROR:", err);
