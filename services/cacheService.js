@@ -1,12 +1,74 @@
-/**
- * WARNING: This in-memory TTL cache is a single-instance stopgap.
- * If the backend is ever horizontally scaled (e.g., across multiple instances/containers),
- * this local cache must be replaced with a centralized solution like Redis.
- * Specifically, `deleteCacheByPrefix` must trigger invalidation cluster-wide to prevent
- * stale data across instances.
- */
+import Redis from "ioredis";
 
-const cache = new Map();
+class LRUMap extends Map {
+  constructor(maxSize = 2000) {
+    super();
+    this.maxSize = maxSize;
+  }
+
+  set(key, value) {
+    if (this.has(key)) {
+      this.delete(key);
+    } else if (this.size >= this.maxSize) {
+      const oldestKey = this.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.delete(oldestKey);
+      }
+    }
+    return super.set(key, value);
+  }
+
+  get(key) {
+    if (!this.has(key)) return undefined;
+    const val = super.get(key);
+    this.delete(key);
+    super.set(key, val);
+    return val;
+  }
+}
+
+const cache = new LRUMap(2000);
+export let redisClient = null;
+export let isRedisConnected = false;
+
+if (process.env.USE_REDIS === "true") {
+  const host = process.env.REDIS_HOST || "127.0.0.1";
+  const port = parseInt(process.env.REDIS_PORT, 10) || 6379;
+  
+  console.log(`🔌 Initializing Redis client on ${host}:${port}...`);
+  
+  try {
+    redisClient = new Redis({
+      host,
+      port,
+      maxRetriesPerRequest: 1,
+      retryStrategy(times) {
+        if (times > 3) {
+          if (isRedisConnected) {
+            console.warn("⚠️ Redis connection lost. Falling back to in-memory cache.");
+            isRedisConnected = false;
+          }
+          return null; // Stop reconnecting
+        }
+        return Math.min(times * 100, 2000);
+      }
+    });
+
+    redisClient.on("connect", () => {
+      isRedisConnected = true;
+      console.log("✅ Redis connected successfully. Centralized caching active.");
+    });
+
+    redisClient.on("error", (err) => {
+      if (isRedisConnected) {
+        console.warn("⚠️ Redis client error. Falling back to in-memory cache:", err.message);
+        isRedisConnected = false;
+      }
+    });
+  } catch (err) {
+    console.error("❌ Failed to initialize Redis client:", err.message);
+  }
+}
 
 function clone(val) {
   if (val === undefined || val === null) return val;
@@ -18,6 +80,15 @@ function clone(val) {
 }
 
 export const setCache = async (key, value, ttl = 60) => {
+  if (isRedisConnected && redisClient) {
+    try {
+      await redisClient.set(key, JSON.stringify(value), "EX", ttl);
+      return;
+    } catch (err) {
+      console.warn("Redis setCache error, falling back to local memory:", err.message);
+    }
+  }
+
   const expiresAt = Date.now() + (ttl * 1000);
   cache.set(key, {
     value: clone(value),
@@ -26,6 +97,15 @@ export const setCache = async (key, value, ttl = 60) => {
 };
 
 export const getCache = async (key) => {
+  if (isRedisConnected && redisClient) {
+    try {
+      const data = await redisClient.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (err) {
+      console.warn("Redis getCache error, falling back to local memory:", err.message);
+    }
+  }
+
   const entry = cache.get(key);
   if (!entry) return null;
   
@@ -37,10 +117,35 @@ export const getCache = async (key) => {
 };
 
 export const deleteCache = async (key) => {
+  if (isRedisConnected && redisClient) {
+    try {
+      await redisClient.del(key);
+      return;
+    } catch (err) {
+      console.warn("Redis deleteCache error, falling back to local memory:", err.message);
+    }
+  }
   cache.delete(key);
 };
 
 export const deleteCacheByPrefix = async (prefix) => {
+  if (isRedisConnected && redisClient) {
+    try {
+      let cursor = "0";
+      do {
+        const res = await redisClient.scan(cursor, "MATCH", `${prefix}*`, "COUNT", 100);
+        cursor = res[0];
+        const keys = res[1];
+        if (keys && keys.length > 0) {
+          await redisClient.del(keys);
+        }
+      } while (cursor !== "0");
+      return;
+    } catch (err) {
+      console.warn("Redis deleteCacheByPrefix error, falling back to local memory:", err.message);
+    }
+  }
+
   for (const key of cache.keys()) {
     if (key.startsWith(prefix)) {
       cache.delete(key);

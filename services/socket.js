@@ -2,6 +2,8 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
 import { allowedOrigins } from "../config/origins.js";
+import { createAdapter } from "@socket.io/redis-adapter";
+import Redis from "ioredis";
 
 let io;
 
@@ -23,7 +25,25 @@ export const initSocket = async (httpServer) => {
     pingInterval: 25000,
     pingTimeout: 20000
   });
-  console.log("🔌 Socket.IO running directly (Redis horizontal scaling adapter removed)");
+
+  if (process.env.USE_REDIS === "true") {
+    try {
+      const host = process.env.REDIS_HOST || "127.0.0.1";
+      const port = parseInt(process.env.REDIS_PORT, 10) || 6379;
+
+      console.log(`🔌 Initializing Socket.IO Redis Adapter on ${host}:${port}...`);
+
+      const pubClient = new Redis({ host, port });
+      const subClient = pubClient.duplicate();
+
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log("✅ Socket.IO Redis horizontal scaling adapter activated.");
+    } catch (adapterErr) {
+      console.error("❌ Failed to activate Socket.IO Redis adapter:", adapterErr.message);
+    }
+  } else {
+    console.log("🔌 Socket.IO running directly (No Redis horizontal scaling adapter configured)");
+  }
 
   /* =========================================================
      SOCKET AUTH MIDDLEWARE

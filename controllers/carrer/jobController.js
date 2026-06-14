@@ -250,8 +250,8 @@ export const updateJob = async (req, res) => {
       });
     }
 
-    // Prevent editing other admin jobs
-    if (existingJob.created_by !== req.admin.id) {
+    // Prevent editing other admin jobs unless super_admin or admin
+    if (req.admin.role !== "super_admin" && req.admin.role !== "admin" && existingJob.created_by !== req.admin.id) {
       return res.status(403).json({
         message: "You are not allowed to edit this job"
       });
@@ -420,7 +420,12 @@ export const getMyJobs = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
     const offset = (page - 1) * limit;
 
-    let allJobs = await Job.query("created_by").eq(req.admin.id).exec();
+    let allJobs;
+    if (req.admin.role === "super_admin" || req.admin.role === "admin") {
+      allJobs = await Job.scan().exec();
+    } else {
+      allJobs = await Job.query("created_by").eq(req.admin.id).exec();
+    }
     allJobs = allJobs.filter(j => j.status !== "deleted");
     allJobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -440,7 +445,7 @@ export const getMyJobs = async (req, res) => {
 export const getJobs = async (req, res) => {
   try {
     const statusQuery = req.query.status || "active";
-    let jobs = await Job.scan("status").eq(statusQuery).exec();
+    let jobs = await Job.query("status").eq(statusQuery).exec();
 
     // 2. Position Type
     if (req.query.positionType) {

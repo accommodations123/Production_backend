@@ -6,6 +6,11 @@ import nodemailer from "nodemailer";
 import User from "../model/User.js";
 import bcrypt from "bcryptjs";
 import { RateLimiterMemory } from "rate-limiter-flexible";
+import crypto from "crypto";
+
+const hashOTP = (otp) => {
+  return crypto.createHash("sha256").update(String(otp).trim()).digest("hex");
+};
 
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import { attachCloudFrontUrl } from "../utils/imageUtils.js";
@@ -13,8 +18,11 @@ import { logAudit } from "../services/auditLogger.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import geoip from "geoip-lite";
 
-// Email Transporter
+// Email Transporter (with connection pooling enabled for high scale throughput)
 const transporter = nodemailer.createTransport({
+  pool: true,
+  maxConnections: 5,
+  maxMessages: 100,
   host: "smtp.gmail.com",
   port: 465,
   secure: true,
@@ -61,7 +69,7 @@ export const sendOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const hashedOtp = await bcrypt.hash(otp, 10);
+    const hashedOtp = hashOTP(otp);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     // Query by email GSI
@@ -184,8 +192,14 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "OTP has expired. Please request a new one." });
     }
 
-    // Verify bcrypt hash of OTP
-    const isMatch = await bcrypt.compare(String(otp).trim(), user.otp);
+    // Verify hash of OTP (supports bcrypt fallback for backward compatibility)
+    const cleanOtp = String(otp).trim();
+    let isMatch = false;
+    if (user.otp.startsWith("$2a$") || user.otp.startsWith("$2b$")) {
+      isMatch = await bcrypt.compare(cleanOtp, user.otp);
+    } else {
+      isMatch = hashOTP(cleanOtp) === user.otp;
+    }
 
     if (!isMatch) {
       const newAttempts = (user.otp_attempts || 0) + 1;

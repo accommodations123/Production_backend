@@ -26,9 +26,9 @@ if (!isProd && process.env.DYNAMODB_LOCAL === "true") {
 
 // ── Table Defaults ───────────────────────────────────────────────────
 dynamoose.Table.defaults.set({
-  create: true,        // Auto-create tables if they don't exist
+  create: !isProd,        // Auto-create tables if they don't exist (disabled in prod)
   waitForActive: true, // Wait for table to be ACTIVE before using
-  update: true,        // Auto-update table schema (indexes, etc.)
+  update: !isProd,        // Auto-update table schema (disabled in prod)
   throughput: "ON_DEMAND",  // Pay-per-request (no capacity planning)
   prefix: process.env.DYNAMODB_TABLE_PREFIX || "nkl_",  // Table name prefix
 });

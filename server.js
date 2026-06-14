@@ -45,10 +45,14 @@ import eventAnalytics from "./routes/DashboardAnalytics/eventanalyticsroutes.js"
 /* ===================== WORKERS ===================== */
 import cron from "node-cron";
 import { runExpiryChecks } from "./services/expiryService.js";
-cron.schedule("*/5 * * * *", async () => {
-  console.log("[Cron Worker] Running 5-minute expiry scan...");
-  await runExpiryChecks();
-});
+if (process.env.RUN_CRON_WORKER !== "false") {
+  cron.schedule("*/5 * * * *", async () => {
+    console.log("[Cron Worker] Running 5-minute expiry scan...");
+    await runExpiryChecks();
+  });
+} else {
+  console.log("[Cron Worker] Bypassed (RUN_CRON_WORKER=false)");
+}
 
 /* ===================== APP ===================== */
 const app = express();

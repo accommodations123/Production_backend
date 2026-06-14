@@ -36,25 +36,25 @@ export const notifyAndEmail = async ({
     console.error("SOCKET EMIT FAILED:", err.message);
   }
 
-  // 3️⃣ Email — try queue first, fall back to direct send
+  // 3️⃣ Email — run asynchronously to prevent blocking the request cycle
   if (email) {
-    console.log(`📡 Sending email to: ${email} (Type: ${type})`);
-    try {
-      await createJob(type, {
-        type,
-        to: email,
-        data: metadata
-      });
-      console.log(`✅ Email job queued for: ${email}`);
-    } catch (queueErr) {
-      console.warn("⚠️ Queue unavailable, sending email directly:", queueErr.message);
-      try {
-        await sendNotificationEmail({ to: email, type, data: metadata });
-        console.log(`✅ Email sent directly to: ${email}`);
-      } catch (emailErr) {
-        console.error("❌ DIRECT_EMAIL_FAILED:", emailErr.message);
-      }
-    }
+    console.log(`📡 Queuing email to: ${email} (Type: ${type})`);
+    createJob(type, {
+      type,
+      to: email,
+      data: metadata
+    }).then(() => {
+      console.log(`✅ Email process completed for: ${email}`);
+    }).catch((queueErr) => {
+      console.warn("⚠️ Queue unavailable, attempting direct send:", queueErr.message);
+      sendNotificationEmail({ to: email, type, data: metadata })
+        .then(() => {
+          console.log(`✅ Email sent directly to: ${email}`);
+        })
+        .catch((emailErr) => {
+          console.error("❌ DIRECT_EMAIL_FAILED:", emailErr.message);
+        });
+    });
   } else {
     console.warn("⚠️ No email provided, skipping email.");
   }
