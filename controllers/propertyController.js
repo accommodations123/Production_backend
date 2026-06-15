@@ -365,8 +365,12 @@ export const getMyListings = async (req, res) => {
       .filter(p => !p.is_deleted)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
+    const now = Date.now();
     const processedProps = properties.map(p => {
       const pObj = { ...p };
+      if (pObj.listing_expires_at && new Date(pObj.listing_expires_at).getTime() < now) {
+        pObj.is_expired = true;
+      }
       if (pObj.photos) {
         pObj.photos = pObj.photos.map(attachCloudFrontUrl);
       }
@@ -720,10 +724,8 @@ export const getPropertyById = async (req, res) => {
     }
 
     const now = Date.now();
-    const isApproved = property.status === "approved" &&
-      !property.is_expired &&
-      property.listing_expires_at &&
-      new Date(property.listing_expires_at).getTime() > now;
+    const isExpired = property.is_expired || (property.listing_expires_at && new Date(property.listing_expires_at).getTime() < now);
+    const isApproved = property.status === "approved" && !isExpired;
 
     const isOwner = userId && String(property.user_id) === userId;
 

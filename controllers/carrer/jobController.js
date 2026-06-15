@@ -1,6 +1,7 @@
 import Job from "../../model/carrer/Job.js";
 import { trackEvent } from "../../services/Analytics.js";
 import { logAudit } from "../../services/auditLogger.js";
+import { isExpiredUTC } from "../../utils/dateTimeUtils.js";
 
 const pick = (obj, keys) =>
   keys.reduce((acc, key) => {
@@ -436,8 +437,18 @@ export const getMyJobs = async (req, res) => {
     allJobs = allJobs.filter(j => j.status !== "deleted");
     allJobs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    const count = allJobs.length;
-    const jobs = allJobs.slice(offset, offset + limit);
+    // Lazy evaluate deadline and update status to closed dynamically
+    const processedMyJobs = allJobs.map(job => {
+      const j = { ...job };
+      const deadline = j.metadata?.deadline || j.metadata?.application_deadline || j.deadline;
+      if (j.status === "active" && deadline && isExpiredUTC(deadline)) {
+        j.status = "closed";
+      }
+      return j;
+    });
+
+    const count = processedMyJobs.length;
+    const jobs = processedMyJobs.slice(offset, offset + limit);
 
     return res.json({
       success: true, page, limit, total: count,
@@ -453,6 +464,14 @@ export const getJobs = async (req, res) => {
   try {
     const statusQuery = req.query.status || "active";
     let jobs = await Job.query("status").eq(statusQuery).exec();
+
+    // Lazy evaluate deadline and filter out expired active jobs
+    if (statusQuery === "active") {
+      jobs = jobs.filter(j => {
+        const deadline = j.metadata?.deadline || j.metadata?.application_deadline || j.deadline;
+        return !deadline || !isExpiredUTC(deadline);
+      });
+    }
 
     // 2. Position Type
     if (req.query.positionType) {

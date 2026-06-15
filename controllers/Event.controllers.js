@@ -685,6 +685,11 @@ export const getMyEvents = async (req, res) => {
 
     const processedEvents = events.map(event => {
       const e = { ...event };
+      const targetDate = e.end_date || e.start_date;
+      const targetTime = e.end_time || e.start_time;
+      if (e.status === "approved" && isExpiredUTC(targetDate, targetTime)) {
+        e.status = "expired";
+      }
       if (e.banner_image) e.banner_image = attachCloudFrontUrl(e.banner_image);
       if (e.gallery_images) e.gallery_images = e.gallery_images.map(attachCloudFrontUrl);
       return e;
