@@ -241,9 +241,12 @@ export const adminLogin = async (req, res) => {
     await resetFailedAttempts(admin);
     await recordLogin(admin);
 
+    // Retrieve fresh and complete admin document from DynamoDB by primary key to ensure token_version is accurately loaded
+    const freshAdmin = await Admin.get(admin.id);
+
     // Generate JWT
     const token = jwt.sign(
-      { id: admin.id, role: admin.role, token_version: admin.token_version || 0 },
+      { id: freshAdmin.id, role: freshAdmin.role, token_version: freshAdmin.token_version || 0 },
       process.env.JWT_SECRET,
       { expiresIn: JWT_EXPIRY }
     );

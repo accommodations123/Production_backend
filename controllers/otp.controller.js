@@ -248,8 +248,11 @@ export const verifyOTP = async (req, res) => {
       $REMOVE: ["otp", "otp_expires"]
     });
 
+    // Retrieve fresh and complete user document from DynamoDB by primary key to ensure token_version is accurately loaded
+    const freshUser = await User.get(user.id);
+
     const token = jwt.sign(
-      { id: user.id, role: "user", token_version: user.token_version || 0 },
+      { id: freshUser.id, role: "user", token_version: freshUser.token_version || 0 },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
