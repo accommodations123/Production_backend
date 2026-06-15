@@ -248,6 +248,9 @@ export const verifyOTP = async (req, res) => {
       $REMOVE: ["otp", "otp_expires"]
     });
 
+    // Invalidate cached user to prevent token version mismatch on subsequent requests
+    await deleteCache(`user:${user.id}`).catch(() => {});
+
     // Retrieve fresh and complete user document from DynamoDB by primary key to ensure token_version is accurately loaded
     const freshUser = await User.get(user.id);
 

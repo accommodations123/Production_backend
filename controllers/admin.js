@@ -261,8 +261,8 @@ export const adminLogin = async (req, res) => {
     });
 
     // Cache admin data (no password)
-    const payload = { ...safeAdminPayload(admin), token_version: admin.token_version || 0 };
-    await setCache(adminCacheKey(admin.id), payload, ADMIN_CACHE_TTL);
+    const payload = { ...safeAdminPayload(freshAdmin), token_version: freshAdmin.token_version || 0 };
+    await setCache(adminCacheKey(freshAdmin.id), payload, ADMIN_CACHE_TTL);
 
     logAudit({
       action: "ADMIN_LOGIN_SUCCESS",

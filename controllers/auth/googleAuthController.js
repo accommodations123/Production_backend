@@ -4,6 +4,7 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import User from "../../model/User.js";
 import { attachCloudFrontUrl } from "../../utils/imageUtils.js";
+import { deleteCache } from "../../services/cacheService.js";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
@@ -78,6 +79,9 @@ export const googleCallback = async (req, res) => {
         verified: true
       });
     }
+
+    // Invalidate cached user to prevent token version mismatch on subsequent requests
+    await deleteCache(`user:${user.id}`).catch(() => {});
 
     // Retrieve fresh and complete user document from DynamoDB by primary key to ensure token_version is accurately loaded
     const freshUser = await User.get(user.id);
