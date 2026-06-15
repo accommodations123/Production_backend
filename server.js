@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import dynamoose, { checkDynamoDBConnection } from "./config/db.js";
 import { allowedOrigins } from "./config/origins.js";
 import { initSocket } from "./services/socket.js";
@@ -122,6 +123,33 @@ app.use(
 );
 
 
+
+/* ===================== COMPRESSION ===================== */
+// Gzip/Brotli all JSON responses. Reduces payload size 60-80%.
+// Must come BEFORE routes and AFTER security middleware.
+app.use(compression());
+
+/* ===================== REQUEST TIMEOUT ===================== */
+// Auto-respond 503 if any request hangs for more than 30 seconds.
+// Prevents slow DynamoDB scans or SMTP stalls from exhausting connections.
+const REQUEST_TIMEOUT_MS = 30_000;
+app.use((req, res, next) => {
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error(`⏱ Request timeout: ${req.method} ${req.path}`);
+      res.status(503).json({
+        success: false,
+        message: "Request timed out. Please try again."
+      });
+    }
+  }, REQUEST_TIMEOUT_MS);
+
+  // Clear the timer as soon as the response is finished (success or error)
+  res.on("finish", () => clearTimeout(timer));
+  res.on("close",  () => clearTimeout(timer));
+
+  next();
+});
 
 /* ===================== BODY PARSERS ===================== */
 app.use(express.json({ limit: "1mb" }));

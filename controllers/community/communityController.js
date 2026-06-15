@@ -449,13 +449,13 @@ export const getApprovedCommunities = async (req, res) => {
 };
 
 export const getRejectedCommunities = async (req, res) => {
-  let communities = await Community.scan().filter("status").eq("deleted").exec();
+  let communities = await Community.query("status").eq("deleted").exec();
   communities.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
   res.json({ success: true, communities: communities.map(c => processCommunityImages(c)) });
 };
 
 export const getSuspendedCommunities = async (req, res) => {
-  let communities = await Community.scan().filter("status").eq("suspended").exec();
+  let communities = await Community.query("status").eq("suspended").exec();
   communities.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
   res.json({ success: true, communities: communities.map(c => processCommunityImages(c)) });
 };

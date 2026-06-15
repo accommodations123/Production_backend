@@ -249,11 +249,28 @@ export const getAllApplications = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
     const offset = (page - 1) * limit;
 
-    const allApps = await Application.scan().exec();
-    allApps.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // Paginated scan — fetch items in batches of `limit` to avoid loading the
+    // entire table into memory. This is still a scan (Application has no single
+    // partition key that covers all apps) but capped per page to prevent OOM.
+    const SCAN_BATCH = Math.max(limit, 50);
+    let cursor = null;
+    const collected = [];
+    const MAX_SCAN_ITERATIONS = 20;
+    let iterations = 0;
 
-    const count = allApps.length;
-    const rows = allApps.slice(offset, offset + limit);
+    do {
+      iterations++;
+      let query = Application.scan().limit(SCAN_BATCH);
+      if (cursor) query = query.startAt(cursor);
+      const batch = await query.exec();
+      collected.push(...batch);
+      cursor = batch.lastKey || null;
+    } while (cursor && iterations < MAX_SCAN_ITERATIONS);
+
+    collected.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const count = collected.length;
+    const rows = collected.slice(offset, offset + limit);
 
     const applications = await Promise.all(rows.map(async app => {
       const [job, user] = await Promise.all([

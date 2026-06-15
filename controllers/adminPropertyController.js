@@ -242,20 +242,47 @@ export const getPropertyStatusStats = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json({ success: true, stats: cached });
 
-    let allProperties = await Property.scan().exec();
-    if (country) allProperties = allProperties.filter(p => p.country === country);
-    if (state) allProperties = allProperties.filter(p => p.state === state);
+    // Use the status-index GSI instead of a full table scan.
+    const STATUSES = ["draft", "pending", "approved", "rejected"];
 
-    const statusMap = {};
-    allProperties.forEach(p => {
-      statusMap[p.status] = (statusMap[p.status] || 0) + 1;
-    });
+    let stats;
 
-    const stats = Object.entries(statusMap).map(([status, total]) => ({ status, total }));
+    if (!country && !state) {
+      // Fast path: pure GSI count — zero items pulled into Node memory
+      const counts = await Promise.all(
+        STATUSES.map(async (s) => {
+          const result = await Property.query("status").eq(s).count().exec();
+          return { status: s, total: result.count ?? 0 };
+        })
+      );
+      stats = counts.filter(r => r.total > 0);
+    } else {
+      // Filtered path: fetch only required fields via GSI, then count in JS
+      const batches = await Promise.all(
+        STATUSES.map((s) =>
+          Property.query("status").eq(s)
+            .attributes(["id", "status", "country", "state"])
+            .exec()
+        )
+      );
+      const allProperties = batches.flat();
+
+      const filtered = allProperties.filter(p =>
+        (!country || p.country === country) &&
+        (!state   || p.state   === state)
+      );
+
+      const statusMap = {};
+      filtered.forEach(p => {
+        statusMap[p.status] = (statusMap[p.status] || 0) + 1;
+      });
+      stats = Object.entries(statusMap).map(([status, total]) => ({ status, total }));
+    }
+
     await setCache(cacheKey, stats, 300);
     return res.json({ success: true, stats });
   } catch (err) {
-    console.log("STATUS STATS ERROR:", err);
+    console.error("STATUS STATS ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -292,20 +319,47 @@ export const getHostStats = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json({ success: true, stats: cached });
 
-    let allHosts = await Host.scan().exec();
-    if (country) allHosts = allHosts.filter(h => h.country === country);
-    if (state) allHosts = allHosts.filter(h => h.state === state);
+    // Use the status-index GSI instead of a full table scan.
+    const HOST_STATUSES = ["pending", "approved", "rejected", "suspended"];
 
-    const statusMap = {};
-    allHosts.forEach(h => {
-      statusMap[h.status] = (statusMap[h.status] || 0) + 1;
-    });
+    let stats;
 
-    const stats = Object.entries(statusMap).map(([status, total]) => ({ status, total }));
+    if (!country && !state) {
+      // Fast path: pure GSI count — zero items pulled into Node memory
+      const counts = await Promise.all(
+        HOST_STATUSES.map(async (s) => {
+          const result = await Host.query("status").eq(s).count().exec();
+          return { status: s, total: result.count ?? 0 };
+        })
+      );
+      stats = counts.filter(r => r.total > 0);
+    } else {
+      // Filtered path: pull only the fields needed, then count in JS
+      const batches = await Promise.all(
+        HOST_STATUSES.map((s) =>
+          Host.query("status").eq(s)
+            .attributes(["id", "status", "country", "state"])
+            .exec()
+        )
+      );
+      const allHosts = batches.flat();
+
+      const filtered = allHosts.filter(h =>
+        (!country || h.country === country) &&
+        (!state   || h.state   === state)
+      );
+
+      const statusMap = {};
+      filtered.forEach(h => {
+        statusMap[h.status] = (statusMap[h.status] || 0) + 1;
+      });
+      stats = Object.entries(statusMap).map(([status, total]) => ({ status, total }));
+    }
+
     await setCache(cacheKey, stats, 300);
     return res.json({ success: true, stats });
   } catch (err) {
-    console.log("HOST STATS ERROR:", err);
+    console.error("HOST STATS ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };

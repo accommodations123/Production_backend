@@ -4,6 +4,7 @@ import Host from "../model/Host.js";
 import User from "../model/User.js";
 import { getCache, setCache } from "../services/cacheService.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
+import { batchGetHosts, batchGetUsers } from "../utils/batchUtils.js";
 
 /* ───────────────── UTILITIES ───────────────── */
 
@@ -108,27 +109,37 @@ export const getApprovedWithHosts = async (req, res) => {
     // Sort newest first
     properties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Fetch host + user data manually (replaces Sequelize includes)
-    const plain = await Promise.all(properties.map(async (p) => {
+    // Fetch host + user data manually in batch (optimized to resolve N+1 queries)
+    const hostIds = Array.from(new Set(properties.map(p => p.host_id).filter(Boolean)));
+    const hosts = await batchGetHosts(hostIds);
+    const hostMap = new Map(hosts.map(h => [h.id, h]));
+
+    const userIds = Array.from(new Set(hosts.map(h => h.user_id).filter(Boolean)));
+    const users = await batchGetUsers(userIds);
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const plain = properties.map((p) => {
       const pObj = { ...p };
-      const host = await Host.get(p.host_id);
-      if (host) {
-        const user = await User.get(host.user_id);
-        pObj.Host = {
-          id: host.id,
-          full_name: host.full_name,
-          status: host.status,
-          phone: host.phone,
-          country: host.country,
-          state: host.state,
-          city: host.city,
-          User: user ? { id: user.id, email: user.email } : null
-        };
+      if (pObj.host_id) {
+        const host = hostMap.get(pObj.host_id);
+        if (host) {
+          const user = userMap.get(host.user_id);
+          pObj.Host = {
+            id: host.id,
+            full_name: host.full_name,
+            status: host.status,
+            phone: host.phone,
+            country: host.country,
+            state: host.state,
+            city: host.city,
+            User: user ? { id: user.id, email: user.email } : null
+          };
+        }
       }
       if (pObj.photos) pObj.photos = pObj.photos.map(attachCloudFrontUrl);
       if (pObj.video) pObj.video = attachCloudFrontUrl(pObj.video);
       return processHostImages(pObj);
-    }));
+    });
 
     await setCache(cacheKey, plain, 300);
 

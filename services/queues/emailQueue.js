@@ -1,16 +1,32 @@
-import dotenv from "dotenv";
 import { sendNotificationEmail } from "../emailService.js";
-
-dotenv.config();
 
 export const emailQueue = null;
 
 /**
- * Add email job - directly sends the email now, avoiding Redis queues.
+ * Fire-and-forget email dispatch.
+ *
+ * Uses setImmediate() to push the send outside the current request cycle.
+ * The caller gets an instant Promise resolution; the email sends in the
+ * background on the next event-loop tick without blocking the HTTP response.
+ *
+ * Errors are logged but never bubble up to the caller — a failed email must
+ * never crash or slow down a user-facing request.
  */
-export const createJob = async (jobType, data, options = {}) => {
-  console.log(`🔌 [Direct Email] Bypassed Queue: sending email directly to ${data.to}`);
-  return sendNotificationEmail(data);
+export const createJob = (jobType, data, options = {}) => {
+  return new Promise((resolve) => {
+    setImmediate(() => {
+      sendNotificationEmail(data)
+        .then(() => {
+          console.log(`✅ [Email] Sent (type=${jobType}, to=${data.to})`);
+        })
+        .catch((err) => {
+          console.error(`❌ [Email] Failed (type=${jobType}, to=${data.to}):`, err.message);
+        });
+    });
+
+    // Resolve immediately so the HTTP response is never delayed by SMTP
+    resolve({ queued: true, type: jobType, to: data.to });
+  });
 };
 
-console.log("🔌 Email Queue Redis Connection removed — emails will be sent directly.");
+console.log("📬 Email queue: fire-and-forget mode (setImmediate, non-blocking).");

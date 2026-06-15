@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
+import { batchGetHosts, batchGetUsers } from "../utils/batchUtils.js";
 
 // CREATE DRAFT LISTING
 export const createDraft = async (req, res) => {
@@ -458,26 +459,36 @@ export const getApprovedListings = async (req, res) => {
     // Sort by created_at DESC
     properties.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Fetch host and user data
-    const processedProps = await Promise.all(properties.map(async (p) => {
+    // Fetch host and user data manually in batch (optimized to resolve N+1 queries)
+    const hostIds = Array.from(new Set(properties.map(p => p.host_id).filter(Boolean)));
+    const hosts = await batchGetHosts(hostIds);
+    const hostMap = new Map(hosts.map(h => [h.id, h]));
+
+    const userIds = Array.from(new Set(hosts.map(h => h.user_id).filter(Boolean)));
+    const users = await batchGetUsers(userIds);
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const processedProps = properties.map((p) => {
       const pObj = { ...p };
-      const host = await Host.get(p.host_id);
-      if (host) {
-        const user = await User.get(host.user_id);
-        pObj.Host = {
-          id: host.id,
-          full_name: host.full_name,
-          phone: host.phone,
-          whatsapp: host.whatsapp,
-          instagram: host.instagram,
-          facebook: host.facebook,
-          User: user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null
-        };
+      if (pObj.host_id) {
+        const host = hostMap.get(pObj.host_id);
+        if (host) {
+          const user = userMap.get(host.user_id);
+          pObj.Host = {
+            id: host.id,
+            full_name: host.full_name,
+            phone: host.phone,
+            whatsapp: host.whatsapp,
+            instagram: host.instagram,
+            facebook: host.facebook,
+            User: user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null
+          };
+        }
       }
       if (pObj.photos) pObj.photos = pObj.photos.map(attachCloudFrontUrl);
       if (pObj.video) pObj.video = attachCloudFrontUrl(pObj.video);
       return processHostImages(pObj);
-    }));
+    });
 
     await setCache(cacheKey, processedProps, 300);
 
@@ -595,26 +606,36 @@ export const getAllPropertiesWithHosts = async (req, res) => {
       ? null
       : (cursor ? Buffer.from(JSON.stringify(cursor)).toString("base64") : null);
 
-    // ── Enrich with host + user data (parallel batched) ──
-    const processedProps = await Promise.all(collected.map(async (p) => {
+    // ── Enrich with host + user data manually in batch (optimized to resolve N+1 queries) ──
+    const hostIds = Array.from(new Set(collected.map(p => p.host_id).filter(Boolean)));
+    const hosts = await batchGetHosts(hostIds);
+    const hostMap = new Map(hosts.map(h => [h.id, h]));
+
+    const userIds = Array.from(new Set(hosts.map(h => h.user_id).filter(Boolean)));
+    const users = await batchGetUsers(userIds);
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const processedProps = collected.map((p) => {
       const pObj = { ...p };
-      const host = await Host.get(p.host_id);
-      if (host) {
-        const user = await User.get(host.user_id);
-        pObj.Host = {
-          id: host.id,
-          full_name: host.full_name,
-          phone: host.phone,
-          whatsapp: host.whatsapp,
-          instagram: host.instagram,
-          facebook: host.facebook,
-          User: user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null
-        };
+      if (pObj.host_id) {
+        const host = hostMap.get(pObj.host_id);
+        if (host) {
+          const user = userMap.get(host.user_id);
+          pObj.Host = {
+            id: host.id,
+            full_name: host.full_name,
+            phone: host.phone,
+            whatsapp: host.whatsapp,
+            instagram: host.instagram,
+            facebook: host.facebook,
+            User: user ? { id: user.id, email: user.email, profile_image: user.profile_image } : null
+          };
+        }
       }
       if (pObj.photos) pObj.photos = pObj.photos.map(attachCloudFrontUrl);
       if (pObj.video) pObj.video = attachCloudFrontUrl(pObj.video);
       return processHostImages(pObj);
-    }));
+    });
 
     const response = {
       success: true,

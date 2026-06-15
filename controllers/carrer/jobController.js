@@ -422,7 +422,14 @@ export const getMyJobs = async (req, res) => {
 
     let allJobs;
     if (req.admin.role === "super_admin" || req.admin.role === "admin") {
-      allJobs = await Job.scan().exec();
+      // Query every valid status via the status-index GSI in parallel — avoids
+      // a full table scan. "deleted" is not included so it is never returned;
+      // the filter below is kept as a defensive guard only.
+      const JOB_STATUSES = ["active", "closed", "draft"];
+      const batches = await Promise.all(
+        JOB_STATUSES.map((s) => Job.query("status").eq(s).exec())
+      );
+      allJobs = batches.flat();
     } else {
       allJobs = await Job.query("created_by").eq(req.admin.id).exec();
     }
