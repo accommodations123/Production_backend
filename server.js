@@ -216,7 +216,16 @@ server.listen(PORT, "0.0.0.0", () => {
 });
 
 /* ===================== GRACEFUL SHUTDOWN ===================== */
-process.on("SIGTERM", async () => {
-  console.log("🛑 SIGTERM received. Shutting down...");
-  process.exit(0);
+process.on("SIGTERM", () => {
+  console.log("🛑 SIGTERM received. Graceful shutdown initiated...");
+  server.close(() => {
+    console.log("👋 HTTP server closed. Exiting process.");
+    process.exit(0);
+  });
+
+  // Force exit after 10 seconds if connections fail to close
+  setTimeout(() => {
+    console.error("⚠️ Graceful shutdown timed out. Forcing exit.");
+    process.exit(1);
+  }, 10000);
 });

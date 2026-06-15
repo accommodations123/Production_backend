@@ -1,5 +1,5 @@
 import { RateLimiterMemory, RateLimiterRedis } from "rate-limiter-flexible";
-import { redisClient, isRedisConnected } from "../services/cacheService.js";
+import { getRedisClient, getRedisConnected } from "../services/cacheService.js";
 
 const isDev = process.env.NODE_ENV !== "production";
 const disableLimiter = process.env.DISABLE_RATE_LIMITER === "true";
@@ -10,6 +10,9 @@ const createLimiterInstance = (points = 15, duration = 60) => {
     points,
     duration,
   };
+
+  const isRedisConnected = getRedisConnected();
+  const redisClient = getRedisClient();
 
   if (isRedisConnected && redisClient) {
     return new RateLimiterRedis({

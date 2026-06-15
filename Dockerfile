@@ -30,8 +30,11 @@ RUN npm ci --silent --only=production
 # Copy build output or JS source
 COPY --from=build /Production_backend ./
 
+# Install PM2 globally for process clustering
+RUN npm install -g pm2 --silent
+
 # Expose backend port
 EXPOSE 5000
  
-# Start the backend
-CMD ["node", "server.js"]
+# Start the backend with PM2 in cluster mode (max scaling)
+CMD ["pm2-runtime", "start", "server.js", "-i", "max"]

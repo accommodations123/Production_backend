@@ -28,8 +28,10 @@ class LRUMap extends Map {
 }
 
 const cache = new LRUMap(2000);
-export let redisClient = null;
-export let isRedisConnected = false;
+let redisClient = null;
+let isRedisConnected = false;
+export const getRedisClient = () => redisClient;
+export const getRedisConnected = () => isRedisConnected;
 
 if (process.env.USE_REDIS === "true") {
   const host = process.env.REDIS_HOST || "127.0.0.1";
