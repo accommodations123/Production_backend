@@ -1,4 +1,5 @@
-import { sendNotificationEmail, NOTIFICATION_TYPES } from "../services/emailService.js";
+import { NOTIFICATION_TYPES } from "../services/emailService.js";
+import { createJob } from "../services/queues/emailQueue.js";
 
 /**
  * POST /contact/submit
@@ -14,7 +15,7 @@ export const submitContactForm = async (req, res) => {
             });
         }
 
-        await sendNotificationEmail({
+        await createJob(NOTIFICATION_TYPES.CONTACT_FORM, {
             to: "accommodations.nextkinlife@gmail.com",
             type: NOTIFICATION_TYPES.CONTACT_FORM,
             data: { firstName, lastName, email, phone, subject, message },

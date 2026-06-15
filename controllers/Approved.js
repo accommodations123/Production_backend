@@ -33,8 +33,23 @@ export const getApprovedList = async (req, res) => {
       return res.json({ success: true, data: cached });
     }
 
-    /* ───────── SCAN + CLIENT-SIDE FILTER ───────── */
-    let list = await ApprovedHost.scan().exec();
+    /* ───────── BOUNDED SCAN + CLIENT-SIDE FILTER ───────── */
+    const SCAN_BATCH = 100;
+    let cursor = null;
+    const collected = [];
+    const MAX_SCAN_ITERATIONS = 10; // Capped at 1000 items
+    let iterations = 0;
+
+    do {
+      iterations++;
+      let scanQuery = ApprovedHost.scan().limit(SCAN_BATCH);
+      if (cursor) scanQuery = scanQuery.startAt(cursor);
+      const batch = await scanQuery.exec();
+      collected.push(...batch);
+      cursor = batch.lastKey || null;
+    } while (cursor && iterations < MAX_SCAN_ITERATIONS);
+
+    let list = collected;
 
     // Filter by property_snapshot JSON fields
     if (country) list = list.filter(item => normalize(item.property_snapshot?.country) === country);

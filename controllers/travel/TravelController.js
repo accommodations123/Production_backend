@@ -402,7 +402,29 @@ export const adminGetAllTrips = async (req, res) => {
     const offset = (page - 1) * limit;
     const { status } = req.query;
 
-    let trips = status ? await TravelTrip.query("status").eq(status).exec() : await TravelTrip.scan().exec();
+    let trips;
+    if (status) {
+      trips = await TravelTrip.query("status").eq(status).exec();
+    } else {
+      // Paginated scan to avoid loading the entire table into memory
+      const SCAN_BATCH = Math.max(limit, 50);
+      let cursor = null;
+      const collected = [];
+      const MAX_SCAN_ITERATIONS = 20;
+      let iterations = 0;
+
+      do {
+        iterations++;
+        let scanQuery = TravelTrip.scan().limit(SCAN_BATCH);
+        if (cursor) scanQuery = scanQuery.startAt(cursor);
+        const batch = await scanQuery.exec();
+        collected.push(...batch);
+        cursor = batch.lastKey || null;
+      } while (cursor && iterations < MAX_SCAN_ITERATIONS);
+
+      trips = collected;
+    }
+
     trips.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const paginated = trips.slice(offset, offset + limit);
 

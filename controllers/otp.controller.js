@@ -95,8 +95,9 @@ export const sendOTP = async (req, res) => {
       }).catch(console.error);
     }
 
-    try {
-      await transporter.sendMail({
+    // Direct SMTP send in background (non-blocking) to prevent thread stall
+    setImmediate(() => {
+      transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
         subject: "Your OTP Verification Code",
@@ -108,10 +109,12 @@ export const sendOTP = async (req, res) => {
             <p>This code is valid for 5 minutes.</p>
           </div>
         `
+      }).then(() => {
+        console.log(`✅ [OTP] Email sent to: ${email}`);
+      }).catch((mailError) => {
+        console.error("⚠️ Mailer Error (OTP still saved, check console):", otp, mailError.message);
       });
-    } catch (mailError) {
-      console.error("⚠️ Mailer Error (OTP still saved, check console):", otp, mailError.message);
-    }
+    });
 
     // ✅ Log OTP_SENT for every OTP request
     AnalyticsEvent.create({

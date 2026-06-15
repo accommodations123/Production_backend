@@ -46,6 +46,9 @@ export const uploadHostDocs = multer({
       cb(null, `hosts/documents/${uuidv4()}.${ext}`);
     }
   }),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  },
   fileFilter: (req, file, cb) => {
     const allowed =
       file.mimetype.startsWith("image/") ||
@@ -68,6 +71,9 @@ export const uploadDocs = multer({
       cb(null, `properties/documents/${uuidv4()}.${ext}`);
     }
   }),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  },
   fileFilter: (req, file, cb) => {
     // Allow PDFs, images, docs
     const allowed =
@@ -91,6 +97,9 @@ export const uploadVideo = multer({
       cb(null, `properties/videos/${uuidv4()}.${ext}`);
     }
   }),
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB
+  },
   fileFilter: (req, file, cb) => {
     const allowed =
       file.mimetype.startsWith("video/") ||

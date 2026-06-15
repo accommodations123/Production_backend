@@ -36,6 +36,13 @@ export const initSocket = async (httpServer) => {
       const pubClient = new Redis({ host, port });
       const subClient = pubClient.duplicate();
 
+      pubClient.on("error", (err) => {
+        console.error("❌ Socket.IO Pub Redis client error:", err.message);
+      });
+      subClient.on("error", (err) => {
+        console.error("❌ Socket.IO Sub Redis client error:", err.message);
+      });
+
       io.adapter(createAdapter(pubClient, subClient));
       console.log("✅ Socket.IO Redis horizontal scaling adapter activated.");
     } catch (adapterErr) {

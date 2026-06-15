@@ -22,8 +22,13 @@ export default async function userAuth(req, res, next) {
 
     const userId = decoded.id;  // UUID string now
 
-    // 🚀 Redis first
-    const cachedUser = await getCache(`user:${userId}`);
+    let cachedUser = null;
+    try {
+      cachedUser = await getCache(`user:${userId}`);
+    } catch (cacheErr) {
+      console.warn("⚠️ User auth cache read failed, falling back to DB:", cacheErr.message);
+    }
+
     if (cachedUser) {
       const decodedVersion = decoded.token_version || 0;
       const cachedVersion = cachedUser.token_version || 0;

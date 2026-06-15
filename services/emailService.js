@@ -48,6 +48,9 @@ export const NOTIFICATION_TYPES = {
  * SMTP TRANSPORTER
  */
 const transporter = nodemailer.createTransport({
+  pool: true,
+  maxConnections: 5,
+  maxMessages: 100,
   host: "smtp.gmail.com",
   port: 587,
   secure: false,

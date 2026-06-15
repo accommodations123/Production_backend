@@ -7,7 +7,7 @@ export const getUsersOverview = async (req, res) => {
   try {
     const targetEvents = ["USER_REGISTERED", "OTP_VERIFIED", "USER_LOGIN"];
     const queryPromises = targetEvents.map(type =>
-      AnalyticsEvent.query("event_type").eq(type).exec()
+      AnalyticsEvent.query("event_type").eq(type).limit(1000).exec()
     );
 
     const results = await Promise.all(queryPromises);
@@ -38,9 +38,10 @@ export const getUserSignupTrend = async (req, res) => {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - days);
 
-    // Query by event_type GSI with date filter
+    // Query by event_type GSI with date filter (capped at 1000 to prevent OOM)
     const events = await AnalyticsEvent.query("event_type").eq("USER_REGISTERED")
       .where("created_at").ge(fromDate.toISOString())
+      .limit(1000)
       .exec();
 
     // Client-side GROUP BY date + COUNT
@@ -67,7 +68,7 @@ export const getOtpFunnel = async (req, res) => {
   try {
     const targetEvents = ["OTP_SENT", "OTP_VERIFIED", "OTP_VERIFICATION_FAILED"];
     const queryPromises = targetEvents.map(type =>
-      AnalyticsEvent.query("event_type").eq(type).exec()
+      AnalyticsEvent.query("event_type").eq(type).limit(1000).exec()
     );
 
     const results = await Promise.all(queryPromises);
@@ -101,6 +102,7 @@ export const getDailyActiveUsers = async (req, res) => {
 
     const events = await AnalyticsEvent.query("event_type").eq("USER_LOGIN")
       .where("created_at").ge(fromDate.toISOString())
+      .limit(1000)
       .exec();
 
     // Client-side GROUP BY date + COUNT DISTINCT user_id
@@ -126,7 +128,7 @@ export const getDailyActiveUsers = async (req, res) => {
 
 export const getUsersByCountry = async (req, res) => {
   try {
-    const events = await AnalyticsEvent.query("event_type").eq("USER_REGISTERED").exec();
+    const events = await AnalyticsEvent.query("event_type").eq("USER_REGISTERED").limit(1000).exec();
 
     // Client-side GROUP BY country + COUNT (excluding null)
     const countryMap = {};

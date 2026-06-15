@@ -24,6 +24,7 @@ export const getEventAnalyticsSummary = async (req, res) => {
     const queryPromises = targetEvents.map(type =>
       AnalyticsEvent.query("event_type").eq(type)
         .where("created_at").ge(fromDateStr)
+        .limit(1000)
         .exec()
     );
 
@@ -67,6 +68,7 @@ export const getEventEngagementTimeseries = async (req, res) => {
 
     const filtered = await AnalyticsEvent.query("event_type").eq(type)
       .where("created_at").ge(fromDateStr)
+      .limit(1000)
       .exec();
 
     // Build date → count map
@@ -104,7 +106,7 @@ export const getEventAnalyticsByLocation = async (req, res) => {
   try {
     const targetEvents = ["EVENT_JOINED", "EVENT_VIEWED"];
     const queryPromises = targetEvents.map(type =>
-      AnalyticsEvent.query("event_type").eq(type).exec()
+      AnalyticsEvent.query("event_type").eq(type).limit(1000).exec()
     );
 
     const results = await Promise.all(queryPromises);

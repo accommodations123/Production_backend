@@ -45,14 +45,12 @@ if (process.env.USE_REDIS === "true") {
       port,
       maxRetriesPerRequest: 1,
       retryStrategy(times) {
-        if (times > 3) {
-          if (isRedisConnected) {
-            console.warn("⚠️ Redis connection lost. Falling back to in-memory cache.");
-            isRedisConnected = false;
-          }
-          return null; // Stop reconnecting
+        if (isRedisConnected && times > 3) {
+          console.warn("⚠️ Redis connection lost. Falling back to in-memory cache.");
+          isRedisConnected = false;
         }
-        return Math.min(times * 100, 2000);
+        // Keep reconnecting forever with exponential backoff capped at 3 seconds
+        return Math.min(times * 150, 3000);
       }
     });
 

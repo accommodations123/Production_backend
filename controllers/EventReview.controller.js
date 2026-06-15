@@ -218,28 +218,43 @@ export const hideMyReview = async (req, res) => {
 ===================================================== */
 export const getAllEventReviews = async (req, res) => {
   try {
-    // Scan all reviews (admin view)
-    const allReviews = await EventReview.scan().exec();
+    // Paginated scan — cap at 500 records to prevent OOM
+    const SCAN_BATCH = 100;
+    let cursor = null;
+    const collected = [];
+    const MAX_SCAN_ITERATIONS = 5;
+    let iterations = 0;
+
+    do {
+      iterations++;
+      let scanQuery = EventReview.scan().limit(SCAN_BATCH);
+      if (cursor) scanQuery = scanQuery.startAt(cursor);
+      const batch = await scanQuery.exec();
+      collected.push(...batch);
+      cursor = batch.lastKey || null;
+    } while (cursor && iterations < MAX_SCAN_ITERATIONS);
 
     // Sort by created_at DESC
-    allReviews.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    collected.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Fetch event details for each review
-    const reviews = await Promise.all(
-      allReviews.map(async (r) => {
-        const event = await Event.get(r.event_id);
-        return {
-          id: r.id,
-          event_id: r.event_id,
-          reviewer_name: r.reviewer_name,
-          rating: r.rating,
-          comment: r.comment,
-          status: r.status,
-          created_at: r.created_at,
-          Event: event ? { id: event.id, title: event.title } : null
-        };
-      })
-    );
+    // Batch fetch event details to solve N+1 query problem (decouple loop fetches)
+    const eventIds = Array.from(new Set(collected.map(r => r.event_id).filter(Boolean)));
+    const events = eventIds.length > 0 ? await Event.batchGet(eventIds) : [];
+    const eventMap = new Map(events.map(e => [e.id, e]));
+
+    const reviews = collected.map((r) => {
+      const event = r.event_id ? eventMap.get(r.event_id) : null;
+      return {
+        id: r.id,
+        event_id: r.event_id,
+        reviewer_name: r.reviewer_name,
+        rating: r.rating,
+        comment: r.comment,
+        status: r.status,
+        created_at: r.created_at,
+        Event: event ? { id: event.id, title: event.title } : null
+      };
+    });
 
     return res.json({
       success: true,
