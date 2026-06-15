@@ -33,7 +33,8 @@ export const createPost = async (req, res) => {
     const hostResults = await Host.query("user_id").eq(userId).exec();
     if (!hostResults[0]) return res.status(403).json({ message: "Only hosts can create posts" });
     const members = await CommunityMember.query("community_id").eq(communityId).where("user_id").eq(userId).exec();
-    if (!members || members.length === 0) return res.status(403).json({ message: "Join community first" });
+    const isOwner = String(community.created_by) === String(userId);
+    if (!isOwner && (!members || members.length === 0)) return res.status(403).json({ message: "Join community first" });
     let mediaType = "text";
     if (uploadedMedia.length && content) mediaType = "mixed";
     else if (uploadedMedia.length) mediaType = "image";

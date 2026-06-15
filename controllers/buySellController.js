@@ -61,11 +61,13 @@ async function enrichListingsWithSellerInfo(listings) {
             l.sellerFacebook = host.facebook || "";
             l.sellerEmail = host.email || l.email || "";
             l.sellerPhone = host.phone || l.phone || "";
+            l.sellerWhatsapp = host.whatsapp || "";
         } else {
             l.sellerInstagram = "";
             l.sellerFacebook = "";
             l.sellerEmail = l.email || "";
             l.sellerPhone = l.phone || "";
+            l.sellerWhatsapp = "";
         }
         return l;
     });
@@ -425,13 +427,39 @@ export const getPendingBuySellListings = async (req, res) => {
         // Sort ascending (oldest first for review)
         listings.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-        // Enrich with user data
+        // Enrich with user data and host details
         const processedListings = await Promise.all(listings.map(async listing => {
-            const l = { ...listing };
+            const l = JSON.parse(JSON.stringify(listing));
             if (l.images) l.images = l.images.map(attachCloudFrontUrl);
             // Fetch user info
-            const user = await User.get(l.user_id);
+            const user = await User.get(l.user_id).catch(() => null);
             l.User = user ? { id: user.id, email: user.email } : null;
+
+            // Fetch host info for seller details
+            try {
+                const hosts = await Host.query("user_id").eq(l.user_id).exec();
+                const host = hosts?.[0];
+                if (host) {
+                    l.sellerInstagram = host.instagram || "";
+                    l.sellerFacebook = host.facebook || "";
+                    l.sellerEmail = host.email || l.email || user?.email || "";
+                    l.sellerPhone = host.phone || l.phone || "";
+                    l.sellerWhatsapp = host.whatsapp || "";
+                } else {
+                    l.sellerInstagram = "";
+                    l.sellerFacebook = "";
+                    l.sellerEmail = l.email || user?.email || "";
+                    l.sellerPhone = l.phone || "";
+                    l.sellerWhatsapp = "";
+                }
+            } catch (err) {
+                console.error(`Failed to fetch host for user ${l.user_id}:`, err);
+                l.sellerInstagram = "";
+                l.sellerFacebook = "";
+                l.sellerEmail = l.email || user?.email || "";
+                l.sellerPhone = l.phone || "";
+                l.sellerWhatsapp = "";
+            }
             return l;
         }));
 
@@ -558,10 +586,36 @@ export const getAdminApprovedBuySellListings = async (req, res) => {
         listings.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
         const processedListings = await Promise.all(listings.map(async listing => {
-            const l = { ...listing };
+            const l = JSON.parse(JSON.stringify(listing));
             if (l.images) l.images = l.images.map(attachCloudFrontUrl);
-            const user = await User.get(l.user_id);
+            const user = await User.get(l.user_id).catch(() => null);
             l.User = user ? { id: user.id, email: user.email } : null;
+
+            // Fetch host info for seller details
+            try {
+                const hosts = await Host.query("user_id").eq(l.user_id).exec();
+                const host = hosts?.[0];
+                if (host) {
+                    l.sellerInstagram = host.instagram || "";
+                    l.sellerFacebook = host.facebook || "";
+                    l.sellerEmail = host.email || l.email || user?.email || "";
+                    l.sellerPhone = host.phone || l.phone || "";
+                    l.sellerWhatsapp = host.whatsapp || "";
+                } else {
+                    l.sellerInstagram = "";
+                    l.sellerFacebook = "";
+                    l.sellerEmail = l.email || user?.email || "";
+                    l.sellerPhone = l.phone || "";
+                    l.sellerWhatsapp = "";
+                }
+            } catch (err) {
+                console.error(`Failed to fetch host for user ${l.user_id}:`, err);
+                l.sellerInstagram = "";
+                l.sellerFacebook = "";
+                l.sellerEmail = l.email || user?.email || "";
+                l.sellerPhone = l.phone || "";
+                l.sellerWhatsapp = "";
+            }
             return l;
         }));
 
@@ -588,10 +642,36 @@ export const getAdminBlockedBuySellListings = async (req, res) => {
         listings.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
         const processedListings = await Promise.all(listings.map(async listing => {
-            const l = { ...listing };
+            const l = JSON.parse(JSON.stringify(listing));
             if (l.images) l.images = l.images.map(attachCloudFrontUrl);
-            const user = await User.get(l.user_id);
+            const user = await User.get(l.user_id).catch(() => null);
             l.User = user ? { id: user.id, email: user.email } : null;
+
+            // Fetch host info for seller details
+            try {
+                const hosts = await Host.query("user_id").eq(l.user_id).exec();
+                const host = hosts?.[0];
+                if (host) {
+                    l.sellerInstagram = host.instagram || "";
+                    l.sellerFacebook = host.facebook || "";
+                    l.sellerEmail = host.email || l.email || user?.email || "";
+                    l.sellerPhone = host.phone || l.phone || "";
+                    l.sellerWhatsapp = host.whatsapp || "";
+                } else {
+                    l.sellerInstagram = "";
+                    l.sellerFacebook = "";
+                    l.sellerEmail = l.email || user?.email || "";
+                    l.sellerPhone = l.phone || "";
+                    l.sellerWhatsapp = "";
+                }
+            } catch (err) {
+                console.error(`Failed to fetch host for user ${l.user_id}:`, err);
+                l.sellerInstagram = "";
+                l.sellerFacebook = "";
+                l.sellerEmail = l.email || user?.email || "";
+                l.sellerPhone = l.phone || "";
+                l.sellerWhatsapp = "";
+            }
             return l;
         }));
 

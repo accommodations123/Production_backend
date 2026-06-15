@@ -114,12 +114,17 @@ export const getCommunityById = async (req, res) => {
     let isMember = false, memberRole = null, isHost = false;
 
     if (req.user?.id) {
+      const isOwner = String(community.created_by) === String(req.user.id);
       const members = await CommunityMember.query("community_id").eq(community.id).exec();
       const membership = members.find(m => m.user_id === req.user.id);
       if (membership) {
         isMember = true;
         memberRole = membership.role;
         isHost = membership.is_host;
+      } else if (isOwner) {
+        isMember = true;
+        memberRole = "owner";
+        isHost = true;
       }
     }
 
