@@ -4,6 +4,8 @@ import Event from "../model/Events.models.js";
 import BuySellListing from "../model/BuySellListing.js";
 import Community from "../model/community/Community.js";
 import TravelTrip from "../model/travel/TravelTrip.js";
+import Host from "../model/Host.js";
+import User from "../model/User.js";
 import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
 
 // Helper for parsing integers safely
@@ -12,14 +14,22 @@ const parseInteger = (value) => {
     return isNaN(parsed) ? null : parsed;
 };
 
+// Helper to normalize frontend type
+const normalizeType = (type) => {
+    if (type === "buy-sell") return "buysell";
+    return type;
+};
+
 // Validation helper
 const isValidType = (type) => {
-    return ["property", "event", "buysell", "community", "trip"].includes(type);
+    const normalized = normalizeType(type);
+    return ["property", "event", "buysell", "community", "trip"].includes(normalized);
 };
 
 // Helper to get model by type
 const getModelByType = (type) => {
-    switch (type) {
+    const normalized = normalizeType(type);
+    switch (normalized) {
         case "property": return Property;
         case "event": return Event;
         case "buysell": return BuySellListing;
@@ -45,7 +55,7 @@ const resolveItemId = async (type, idParam) => {
 export const addToWishlist = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_type = req.body.item_type;
+        const item_type = normalizeType(req.body.item_type);
         const item_id = await resolveItemId(item_type, req.body.item_id);
 
         if (!item_id || !isValidType(item_type)) {
@@ -62,7 +72,7 @@ export const addToWishlist = async (req, res) => {
         // Check if already in wishlist
         const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
         const alreadyExists = userWishlist.find(
-            w => w.item_id === item_id && w.item_type === item_type
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
         );
 
         if (alreadyExists) {
@@ -89,7 +99,7 @@ export const addToWishlist = async (req, res) => {
 export const removeFromWishlist = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_type = req.params.type;
+        const item_type = normalizeType(req.params.type);
         const item_id = await resolveItemId(item_type, req.params.id);
 
         if (!item_id || !isValidType(item_type)) {
@@ -99,7 +109,7 @@ export const removeFromWishlist = async (req, res) => {
         // Find the wishlist entry
         const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
         const entry = userWishlist.find(
-            w => w.item_id === item_id && w.item_type === item_type
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
         );
 
         if (entry) {
@@ -118,7 +128,7 @@ export const removeFromWishlist = async (req, res) => {
 export const toggleWishlist = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_type = req.body.item_type;
+        const item_type = normalizeType(req.body.item_type);
         const item_id = await resolveItemId(item_type, req.body.item_id);
 
         if (!item_id || !isValidType(item_type)) {
@@ -128,7 +138,7 @@ export const toggleWishlist = async (req, res) => {
         // Check existing
         const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
         const existing = userWishlist.find(
-            w => w.item_id === item_id && w.item_type === item_type
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
         );
 
         if (existing) {
@@ -176,7 +186,8 @@ export const getWishlist = async (req, res) => {
 
         // Filter by type if specified
         if (req.query.type && isValidType(req.query.type)) {
-            allItems = allItems.filter(w => w.item_type === req.query.type);
+            const reqType = normalizeType(req.query.type);
+            allItems = allItems.filter(w => normalizeType(w.item_type) === reqType);
         }
 
         const count = allItems.length;
@@ -193,8 +204,9 @@ export const getWishlist = async (req, res) => {
 
         // Group by type for batch fetching
         const grouped = rows.reduce((acc, item) => {
-            if (!acc[item.item_type]) acc[item.item_type] = [];
-            acc[item.item_type].push(item.item_id);
+            const normalizedType = normalizeType(item.item_type);
+            if (!acc[normalizedType]) acc[normalizedType] = [];
+            acc[normalizedType].push(item.item_id);
             return acc;
         }, {});
 
@@ -207,6 +219,69 @@ export const getWishlist = async (req, res) => {
                 grouped[type].map(id => Model.get(id).catch(() => null))
             );
 
+            // Fetch related Host and User if it is a trip
+            if (type === 'trip') {
+                const hostIds = [...new Set(items.filter(Boolean).map(t => t.host_id).filter(Boolean))];
+                let hostsMap = {};
+                let usersMap = {};
+                if (hostIds.length > 0) {
+                    try {
+                        const hostsList = await Host.batchGet(hostIds);
+                        for (const h of hostsList) {
+                            if (h && h.id) hostsMap[h.id] = h;
+                        }
+                        const userIds = [...new Set(hostsList.filter(Boolean).map(h => h.user_id).filter(Boolean))];
+                        if (userIds.length > 0) {
+                            const usersList = await User.batchGet(userIds);
+                            for (const u of usersList) {
+                                if (u && u.id) usersMap[u.id] = u;
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Trip enrichment batchGet failed", err);
+                    }
+                }
+                
+                // Enrich each trip item
+                items.forEach(t => {
+                    if (!t) return;
+                    const host = hostsMap[t.host_id];
+                    if (host) {
+                        const user = usersMap[host.user_id];
+                        t.host = {
+                            id: host.id,
+                            full_name: host.full_name,
+                            country: host.country,
+                            city: host.city,
+                            whatsapp: host.whatsapp || null,
+                            phone: host.phone || null,
+                            facebook: host.facebook || null,
+                            instagram: host.instagram || null,
+                            profile_image: user?.profile_image || null,
+                            verified: user?.verified || false,
+                            User: user ? { profile_image: user.profile_image, verified: user.verified, email: user.email } : null
+                        };
+                    }
+                    t.trip_meta = {
+                        age: t.age || null,
+                        languages: Array.isArray(t.languages) ? t.languages : []
+                    };
+                    t.flight = {
+                        airline: t.airline || null,
+                        flightNumber: t.flight_number || null,
+                        from: t.from_city,
+                        to: t.to_city,
+                        departureDate: t.travel_date,
+                        departureTime: t.departure_time,
+                        arrivalDate: t.arrival_date || null,
+                        arrivalTime: t.arrival_time || null
+                    };
+                    t.destination = `${t.to_city}, ${t.to_country}`;
+                    t.date = t.travel_date;
+                    t.time = t.departure_time;
+                });
+            }
+
             detailsMap[type] = items.filter(Boolean).reduce((m, i) => {
                 m[i.id] = i;
                 return m;
@@ -215,18 +290,19 @@ export const getWishlist = async (req, res) => {
 
         const enriched = rows.map(item => ({
             ...item,
-            details: detailsMap[item.item_type]?.[item.item_id] ? (() => {
-                let detail = { ...detailsMap[item.item_type][item.item_id] };
+            details: detailsMap[normalizeType(item.item_type)]?.[item.item_id] ? (() => {
+                let detail = { ...detailsMap[normalizeType(item.item_type)][item.item_id] };
+                const nType = normalizeType(item.item_type);
                 // Process images based on item type
-                if (item.item_type === 'property' || item.item_type === 'trip') {
+                if (nType === 'property' || nType === 'trip') {
                     if (detail.photos) detail.photos = detail.photos.map(attachCloudFrontUrl);
                     if (detail.video) detail.video = attachCloudFrontUrl(detail.video);
-                } else if (item.item_type === 'event') {
+                } else if (nType === 'event') {
                     if (detail.banner_image) detail.banner_image = attachCloudFrontUrl(detail.banner_image);
                     if (detail.gallery_images) detail.gallery_images = detail.gallery_images.map(attachCloudFrontUrl);
-                } else if (item.item_type === 'buysell') {
+                } else if (nType === 'buysell') {
                     if (detail.images) detail.images = detail.images.map(attachCloudFrontUrl);
-                } else if (item.item_type === 'community') {
+                } else if (nType === 'community') {
                     if (detail.avatar_image) detail.avatar_image = attachCloudFrontUrl(detail.avatar_image);
                     if (detail.cover_image) detail.cover_image = attachCloudFrontUrl(detail.cover_image);
                 }
@@ -256,7 +332,7 @@ export const getWishlist = async (req, res) => {
 export const checkWishlistStatus = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const item_type = req.params.type;
+        const item_type = normalizeType(req.params.type);
         const item_id = await resolveItemId(item_type, req.params.id);
 
         if (!item_id || !isValidType(item_type)) {
@@ -265,7 +341,7 @@ export const checkWishlistStatus = async (req, res) => {
 
         const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
         const exists = userWishlist.find(
-            w => w.item_id === item_id && w.item_type === item_type
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
         );
 
         return res.json({ isWishlisted: !!exists });
