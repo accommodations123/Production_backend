@@ -1,6 +1,6 @@
 import Host from "../model/Host.js";
 import User from "../model/User.js";
-import { getCache, setCache, deleteCacheByPrefix } from "../services/cacheService.js";
+import { getCache, setCache, deleteCache, deleteCacheByPrefix } from "../services/cacheService.js";
 import axios from "axios";
 import geoip from "geoip-lite";
 import AnalyticsEvent from "../model/DashboardAnalytics/AnalyticsEvent.js";
@@ -233,6 +233,8 @@ export const updateHost = async (req, res) => {
       metadata: { fields: Object.keys(req.body) }
     }).catch(console.error);
 
+    await deleteCache(`host:${userId}`);
+    await deleteCache(`user:${userId}`);
     await deleteCacheByPrefix(`host:${userId}`);
     await deleteCacheByPrefix("pending_hosts");
     await deleteCacheByPrefix("property:");

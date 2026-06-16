@@ -89,6 +89,11 @@ export const setCache = async (key, value, ttl = 60) => {
     }
   }
 
+  // Bypass local in-memory cache for user and host profiles to prevent multi-instance stale cache
+  if (key.startsWith("user:") || key.startsWith("host:")) {
+    return;
+  }
+
   const expiresAt = Date.now() + (ttl * 1000);
   cache.set(key, {
     value: clone(value),
@@ -104,6 +109,11 @@ export const getCache = async (key) => {
     } catch (err) {
       console.warn("Redis getCache error, falling back to local memory:", err.message);
     }
+  }
+
+  // Bypass local in-memory cache for user and host profiles to prevent multi-instance stale cache
+  if (key.startsWith("user:") || key.startsWith("host:")) {
+    return null;
   }
 
   const entry = cache.get(key);

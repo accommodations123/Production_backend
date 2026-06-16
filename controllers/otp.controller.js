@@ -384,6 +384,8 @@ export const updateUser = async (req, res) => {
     }).catch(console.error);
 
     // ✅ Invalidate caches
+    await deleteCache(`user:${userId}`);
+    await deleteCache(`host:${userId}`);
     await deleteCacheByPrefix(`user:${userId}`);
     await deleteCacheByPrefix(`host:${userId}`);
 
