@@ -15,8 +15,8 @@ const getRedirectUri = (req) => {
   let redirectUri = process.env.GOOGLE_REDIRECT_URI;
   
   // Auto-correct if set to frontend callback instead of backend callback
-  if (redirectUri === "https://nextkinlife.live/auth/google/callback") {
-    return "https://api.nextkinlife.live/auth/google/callback";
+  if (redirectUri === "http://35.153.223.230:80/auth/google/callback") {
+    return "http://35.153.223.230:5000/auth/google/callback";
   }
   if (redirectUri === "http://localhost:5173/auth/google/callback") {
     return "http://localhost:5000/auth/google/callback";
@@ -62,7 +62,7 @@ export const googleCallback = async (req, res) => {
     res.clearCookie("oauth_state");
 
     if (!code) {
-      return res.redirect("https://nextkinlife.live");
+      return res.redirect("http://35.153.223.230:80");
     }
 
     if (!state || !cookieState || state !== cookieState) {
@@ -86,7 +86,7 @@ export const googleCallback = async (req, res) => {
 
     const { id: googleId, email, name, picture } = profileRes.data;
     if (!email) {
-      res.redirect("https://nextkinlife.live");
+      res.redirect("http://35.153.223.230:80");
     }
 
     // Query by email GSI
@@ -126,10 +126,10 @@ export const googleCallback = async (req, res) => {
     });
 
     // âœ… CORRECT FIX
-    res.redirect("https://nextkinlife.live");
+    res.redirect("http://35.153.223.230:80");
   } catch (err) {
     console.error("GOOGLE AUTH ERROR:", err.response?.data || err);
-    res.redirect("https://nextkinlife.live");
+    res.redirect("http://35.153.223.230:80");
   }
 };
 
