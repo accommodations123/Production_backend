@@ -101,6 +101,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 /* ===================== TRUST PROXY ===================== */
 app.set("trust proxy", 1);
