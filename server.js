@@ -59,33 +59,37 @@ const app = express();
 const server = http.createServer(app);
 
 /* ===================== CORS (MUST BE FIRST) ===================== */
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true); // server-to-server or non-browser
+    if (
+      allowedOrigins.includes(origin) ||
+      /^https:\/\/([a-z0-9-]+\.)*nextkinlife\.live$/i.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Cache-Control",
+    "cache-control",
+    "Pragma",
+    "pragma",
+    "x-country",
+    "x-country-code",
+    "x-state",
+    "x-city",
+    "x-zip-code"
+  ],
+  optionsSuccessStatus: 200
+};
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true); // server-to-server
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Cache-Control",
-      "cache-control",
-      "Pragma",
-      "pragma",
-      "x-country",
-      "x-country-code",
-      "x-state",
-      "x-city",
-      "x-zip-code"
-    ]
-  })
-);
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 /* ===================== TRUST PROXY ===================== */
 app.set("trust proxy", 1);
