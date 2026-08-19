@@ -30,6 +30,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000
 });
 
 // Generate 6-digit OTP
@@ -73,8 +76,13 @@ export const sendOTP = async (req, res) => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     // Query by email GSI
-    const users = await User.query("email").eq(email).exec();
-    let user = users.length > 0 ? users[0] : null;
+    let users = [];
+    try {
+      users = await User.query("email").eq(email).using("email-index").exec();
+    } catch (e) {
+      users = await User.query("email").eq(email).exec();
+    }
+    let user = users && users.length > 0 ? users[0] : null;
 
     if (user) {
       await User.update({ id: user.id }, { otp: hashedOtp, otp_expires: expiresAt, otp_attempts: 0 });
@@ -154,8 +162,13 @@ export const verifyOTP = async (req, res) => {
     }
 
     // Query by email GSI
-    const users = await User.query("email").eq(email).exec();
-    const user = users.length > 0 ? users[0] : null;
+    let users = [];
+    try {
+      users = await User.query("email").eq(email).using("email-index").exec();
+    } catch (e) {
+      users = await User.query("email").eq(email).exec();
+    }
+    const user = users && users.length > 0 ? users[0] : null;
 
     if (!user) {
       return res.status(400).json({ message: "User not found" });
