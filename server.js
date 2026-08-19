@@ -75,16 +75,28 @@ const corsOptions = {
   allowedHeaders: [
     "Content-Type",
     "Authorization",
+    "X-Country",
+    "x-country",
+    "X-Country-Code",
+    "x-country-code",
+    "X-State",
+    "x-state",
+    "X-City",
+    "x-city",
+    "X-Zip-Code",
+    "x-zip-code",
+    "X-Requested-With",
+    "x-requested-with",
+    "Accept",
+    "accept",
+    "Origin",
+    "origin",
     "Cache-Control",
     "cache-control",
     "Pragma",
-    "pragma",
-    "x-country",
-    "x-country-code",
-    "x-state",
-    "x-city",
-    "x-zip-code"
+    "pragma"
   ],
+  exposedHeaders: ["Set-Cookie"],
   optionsSuccessStatus: 200
 };
 
