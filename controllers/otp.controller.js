@@ -274,14 +274,17 @@ export const verifyOTP = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    const isProd = process.env.NODE_ENV === "production";
+    const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
+    const host = (req.headers.host || "").toLowerCase();
+    const isNextkinDomain = host.includes("nextkinlife.live");
 
     res.cookie("access_token", token, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      domain: isProd ? ".nextkinlife.live" : undefined,
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      secure: isHttps,
+      sameSite: isHttps ? "none" : "lax",
+      domain: isNextkinDomain ? ".nextkinlife.live" : undefined,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/"
     });
 
     logAudit({
@@ -307,11 +310,16 @@ export const verifyOTP = async (req, res) => {
     }).catch(console.error);
 
     return res.json({
+      success: true,
       message: "OTP verified successfully",
+      token,
       user: {
         id: user.id,
         email: user.email,
-        verified: true
+        name: freshUser.name || user.name || "",
+        profile_image: freshUser.profile_image || user.profile_image || "",
+        verified: true,
+        role: "user"
       }
     });
 

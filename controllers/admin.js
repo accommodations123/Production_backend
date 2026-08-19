@@ -252,13 +252,17 @@ export const adminLogin = async (req, res) => {
       { expiresIn: JWT_EXPIRY }
     );
 
-    // Set HTTP-only cookie
-    const isProd = process.env.NODE_ENV === "production";
+    const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
+    const host = (req.headers.host || "").toLowerCase();
+    const isNextkinDomain = host.includes("nextkinlife.live");
+
     res.cookie("admin_access_token", token, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      maxAge: 24 * 60 * 60 * 1000
+      secure: isHttps,
+      sameSite: isHttps ? "none" : "lax",
+      domain: isNextkinDomain ? ".nextkinlife.live" : undefined,
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/"
     });
 
     // Cache admin data (no password)

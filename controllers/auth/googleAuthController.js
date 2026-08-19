@@ -116,20 +116,25 @@ export const googleCallback = async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
+    const host = (req.headers.host || "").toLowerCase();
+    const isNextkinDomain = host.includes("nextkinlife.live");
+
     res.cookie("access_token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      domain: ".nextkinlife.live",
+      secure: isHttps,
+      sameSite: isHttps ? "none" : "lax",
+      domain: isNextkinDomain ? ".nextkinlife.live" : undefined,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/"
     });
 
-    // âœ… CORRECT FIX
-    res.redirect("http://35.153.223.230:80");
+    const frontendUrl = process.env.FRONTEND_URL || "http://35.153.223.230";
+    res.redirect(frontendUrl);
   } catch (err) {
     console.error("GOOGLE AUTH ERROR:", err.response?.data || err);
-    res.redirect("http://35.153.223.230:80");
+    const frontendUrl = process.env.FRONTEND_URL || "http://35.153.223.230";
+    res.redirect(frontendUrl);
   }
 };
 
