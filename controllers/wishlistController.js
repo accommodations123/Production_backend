@@ -1,0 +1,344 @@
+import Wishlist from "../model/Wishlist.js";
+import Property from "../model/Property.js";
+import Event from "../model/Events.models.js";
+import BuySellListing from "../model/BuySellListing.js";
+import TravelTrip from "../model/travel/TravelTrip.js";
+import { ProfessionalProfile } from "../model/people/People.models.js";
+import Host from "../model/Host.js";
+import User from "../model/User.js";
+import { attachCloudFrontUrl, processHostImages } from "../utils/imageUtils.js";
+
+// Helper for parsing integers safely
+const parseInteger = (value) => {
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? null : parsed;
+};
+
+// Helper to normalize frontend type
+const normalizeType = (type) => {
+    if (type === "buy-sell") return "buysell";
+    if (type === "people") return "expert";
+    return type;
+};
+
+// Validation helper
+const isValidType = (type) => {
+    const normalized = normalizeType(type);
+    return ["property", "event", "buysell", "trip", "expert"].includes(normalized);
+};
+
+// Helper to get model by type
+const getModelByType = (type) => {
+    const normalized = normalizeType(type);
+    switch (normalized) {
+        case "property": return Property;
+        case "event": return Event;
+        case "buysell": return BuySellListing;
+        case "trip": return TravelTrip;
+        case "expert": return ProfessionalProfile;
+        default: return null;
+    }
+};
+
+// Helper to resolve ID
+const resolveItemId = async (type, idParam) => {
+    if (!idParam) return null;
+    return idParam;
+};
+
+export const addToWishlist = async (req, res) => {
+    try {
+        const user_id = req.user.id;
+        const item_type = normalizeType(req.body.item_type || req.body.type);
+        const item_id = await resolveItemId(item_type, req.body.item_id || req.body.id || req.body.expert_id);
+
+        if (!item_id || !isValidType(item_type)) {
+            return res.status(400).json({ message: "Invalid parameters" });
+        }
+
+        const Model = getModelByType(item_type);
+        const exists = await Model.get(item_id);
+
+        if (!exists) {
+            return res.status(404).json({ message: "Item not found" });
+        }
+
+        // Check if already in wishlist
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const alreadyExists = userWishlist.find(
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
+        );
+
+        if (alreadyExists) {
+            return res.status(200).json({ message: "Already in wishlist" });
+        }
+
+        const wishlist = await Wishlist.create({
+            user_id,
+            item_id,
+            item_type
+        });
+
+        return res.status(201).json({
+            message: "Added to wishlist",
+            wishlist
+        });
+
+    } catch (err) {
+        console.error("ADD WISHLIST ERROR:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const removeFromWishlist = async (req, res) => {
+    try {
+        const user_id = req.user.id;
+        const item_type = normalizeType(req.params.type);
+        const item_id = await resolveItemId(item_type, req.params.id);
+
+        if (!item_id || !isValidType(item_type)) {
+            return res.status(400).json({ message: "Invalid parameters" });
+        }
+
+        // Find the wishlist entry
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const entry = userWishlist.find(
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
+        );
+
+        if (entry) {
+            await Wishlist.delete(entry.id);
+            return res.status(200).json({ success: true, message: "Removed" });
+        }
+
+        return res.status(200).json({ success: false, message: "Not found" });
+
+    } catch (err) {
+        console.error("REMOVE WISHLIST ERROR:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const toggleWishlist = async (req, res) => {
+    try {
+        const user_id = req.user.id;
+        const item_type = normalizeType(req.body.item_type || req.body.type);
+        const item_id = await resolveItemId(item_type, req.body.item_id || req.body.id || req.body.expert_id);
+
+        if (!item_id || !isValidType(item_type)) {
+            return res.status(400).json({ message: "Invalid parameters" });
+        }
+
+        // Check existing
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const existing = userWishlist.find(
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
+        );
+
+        if (existing) {
+            await Wishlist.delete(existing.id);
+            return res.status(200).json({
+                message: "Removed from wishlist",
+                isWishlisted: false
+            });
+        }
+
+        const Model = getModelByType(item_type);
+        const itemExists = await Model.get(item_id);
+
+        if (!itemExists) {
+            return res.status(404).json({ message: "Item not found" });
+        }
+
+        await Wishlist.create({ user_id, item_id, item_type });
+
+        return res.status(201).json({
+            message: "Added to wishlist",
+            isWishlisted: true
+        });
+
+    } catch (err) {
+        if (err.name === "ConditionalCheckFailedException") {
+            return res.status(200).json({ message: "Item already in wishlist", isWishlisted: true });
+        }
+
+        console.error("TOGGLE WISHLIST ERROR:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getWishlist = async (req, res) => {
+    try {
+        const user_id = req.user.id;
+
+        const page = Math.max(parseInteger(req.query.page) || 1, 1);
+        const limit = Math.min(Math.max(parseInteger(req.query.limit) || 20, 1), 100);
+        const offset = (page - 1) * limit;
+
+        // Query by user_id GSI
+        let allItems = await Wishlist.query("user_id").eq(user_id).exec();
+
+        // Filter by type if specified
+        if (req.query.type && isValidType(req.query.type)) {
+            const reqType = normalizeType(req.query.type);
+            allItems = allItems.filter(w => normalizeType(w.item_type) === reqType);
+        }
+
+        const count = allItems.length;
+
+        if (!allItems.length) {
+            return res.json({
+                wishlist: [],
+                pagination: { total: count, page, limit }
+            });
+        }
+
+        // Paginate
+        const rows = allItems.slice(offset, offset + limit);
+
+        // Group by type for batch fetching
+        const grouped = rows.reduce((acc, item) => {
+            const normalizedType = normalizeType(item.item_type);
+            if (!acc[normalizedType]) acc[normalizedType] = [];
+            acc[normalizedType].push(item.item_id);
+            return acc;
+        }, {});
+
+        const detailsMap = {};
+
+        await Promise.all(Object.keys(grouped).map(async (type) => {
+            const Model = getModelByType(type);
+            // Fetch each item individually (DynamoDB batchGet alternative)
+            const items = await Promise.all(
+                grouped[type].map(id => Model.get(id).catch(() => null))
+            );
+
+            // Fetch related Host and User if it is a trip
+            if (type === 'trip') {
+                const hostIds = [...new Set(items.filter(Boolean).map(t => t.host_id).filter(Boolean))];
+                let hostsMap = {};
+                let usersMap = {};
+                if (hostIds.length > 0) {
+                    try {
+                        const hostsList = await Host.batchGet(hostIds);
+                        for (const h of hostsList) {
+                            if (h && h.id) hostsMap[h.id] = h;
+                        }
+                        const userIds = [...new Set(hostsList.filter(Boolean).map(h => h.user_id).filter(Boolean))];
+                        if (userIds.length > 0) {
+                            const usersList = await User.batchGet(userIds);
+                            for (const u of usersList) {
+                                if (u && u.id) usersMap[u.id] = u;
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Trip enrichment batchGet failed", err);
+                    }
+                }
+
+                // Enrich each trip item
+                items.forEach(t => {
+                    if (!t) return;
+                    const host = hostsMap[t.host_id];
+                    if (host) {
+                        const user = usersMap[host.user_id];
+                        t.host = {
+                            id: host.id,
+                            full_name: host.full_name,
+                            country: host.country,
+                            city: host.city,
+                            whatsapp: host.whatsapp || null,
+                            phone: host.phone || null,
+                            facebook: host.facebook || null,
+                            instagram: host.instagram || null,
+                            profile_image: user?.profile_image || null,
+                            verified: user?.verified || false,
+                            User: user ? { profile_image: user.profile_image, verified: user.verified, email: user.email } : null
+                        };
+                    }
+                    t.trip_meta = {
+                        age: t.age || null,
+                        languages: Array.isArray(t.languages) ? t.languages : []
+                    };
+                    t.flight = {
+                        airline: t.airline || null,
+                        flightNumber: t.flight_number || null,
+                        from: t.from_city,
+                        to: t.to_city,
+                        departureDate: t.travel_date,
+                        departureTime: t.departure_time,
+                        arrivalDate: t.arrival_date || null,
+                        arrivalTime: t.arrival_time || null
+                    };
+                    t.destination = `${t.to_city}, ${t.to_country}`;
+                    t.date = t.travel_date;
+                    t.time = t.departure_time;
+                });
+            }
+
+            detailsMap[type] = items.filter(Boolean).reduce((m, i) => {
+                m[i.id] = i;
+                return m;
+            }, {});
+        }));
+
+        const enriched = rows.map(item => ({
+            ...item,
+            details: detailsMap[normalizeType(item.item_type)]?.[item.item_id] ? (() => {
+                let detail = { ...detailsMap[normalizeType(item.item_type)][item.item_id] };
+                const nType = normalizeType(item.item_type);
+                // Process images based on item type
+                if (nType === 'property' || nType === 'trip') {
+                    if (detail.photos) detail.photos = detail.photos.map(attachCloudFrontUrl);
+                    if (detail.video) detail.video = attachCloudFrontUrl(detail.video);
+                } else if (nType === 'event') {
+                    if (detail.banner_image) detail.banner_image = attachCloudFrontUrl(detail.banner_image);
+                    if (detail.gallery_images) detail.gallery_images = detail.gallery_images.map(attachCloudFrontUrl);
+                } else if (nType === 'buysell') {
+                    if (detail.images) detail.images = detail.images.map(attachCloudFrontUrl);
+                }
+
+                // Process host mapping if it exists
+                detail = processHostImages(detail);
+                return detail;
+            })() : null
+        }));
+
+        return res.json({
+            wishlist: enriched,
+            pagination: {
+                total: count,
+                page,
+                limit,
+                totalPages: Math.ceil(count / limit)
+            }
+        });
+
+    } catch (err) {
+        console.error("GET WISHLIST ERROR:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const checkWishlistStatus = async (req, res) => {
+    try {
+        const user_id = req.user.id;
+        const item_type = normalizeType(req.params.type);
+        const item_id = await resolveItemId(item_type, req.params.id);
+
+        if (!item_id || !isValidType(item_type)) {
+            return res.status(400).json({ message: "Invalid parameters" });
+        }
+
+        const userWishlist = await Wishlist.query("user_id").eq(user_id).exec();
+        const exists = userWishlist.find(
+            w => w.item_id === item_id && normalizeType(w.item_type) === item_type
+        );
+
+        return res.json({ isWishlisted: !!exists });
+
+    } catch (err) {
+        console.error("CHECK WISHLIST ERROR:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};

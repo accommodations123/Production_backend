@@ -1,0 +1,62 @@
+import express from "express";
+import {
+  createDraft,
+  saveBasicInfo,
+  saveAddress,
+  saveMedia,
+  saveVideo,
+  saveAmenities,
+  saveRules,
+  // saveLegalDocs,
+  savePricing,
+  submitProperty,
+  getMyListings,
+  softDeleteProperty,
+  getApprovedListings,
+  getPropertyById,
+  getAllPropertiesWithHosts
+} from "../controllers/propertyController.js";
+import userauth, { optionalUserAuth } from "../middleware/userAuth.js";
+import {uploadPropertyImages,uploadPropertyVideos} from "../middleware/uploads/property.upload.js";
+import {multerErrorHandler} from '../middleware/uploads/multerErrorHandler.js'
+import { verifyPropertyOwnership } from "../middleware/verifyPropertyOwnership.js"
+import { creationRateLimit } from "../middleware/rateLimiter.js";
+
+const router = express.Router();
+
+// router.post(
+//   "/upload",
+//   userauth,
+//   upload.array("images", 10),    // IMPORTANT: field name = "images"
+//   (req, res) => {
+//     const urls = req.files.map(file => file.location);
+//     res.json({ success: true, urls });
+//   }
+// );
+
+
+// Host Flow
+router.post("/create-draft", userauth, creationRateLimit, createDraft);
+router.put("/basic-info/:id", userauth,verifyPropertyOwnership, saveBasicInfo);
+router.put("/address/:id", userauth,verifyPropertyOwnership, saveAddress);
+router.put("/media/:id", userauth,verifyPropertyOwnership, uploadPropertyImages.array("photo" , 10),multerErrorHandler, saveMedia);
+router.put("/media/video/:id", userauth,verifyPropertyOwnership, uploadPropertyVideos.single("video"),multerErrorHandler, saveVideo);
+router.put("/amenities/:id", userauth,verifyPropertyOwnership, saveAmenities);
+router.put("/rules/:id", userauth,verifyPropertyOwnership, saveRules);
+// router.put("/legal/:id",userauth,uploadPropertyDocs.array("legalDocs", 10),multerErrorHandler,saveLegalDocs);
+router.put("/pricing/:id", userauth,verifyPropertyOwnership, savePricing);
+router.put("/submit/:id", userauth,verifyPropertyOwnership, submitProperty);
+
+// Host Listings
+router.get("/my-listings", userauth, getMyListings);
+router.delete("/delete/:id", userauth,verifyPropertyOwnership, softDeleteProperty);
+
+// Public Listings
+router.get("/approved", getApprovedListings);
+router.get("/all", getAllPropertiesWithHosts);
+
+// Always keep this last
+router.get("/:id", optionalUserAuth, getPropertyById); 
+
+export default router;
+

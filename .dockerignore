@@ -1,0 +1,27 @@
+.git
+.gitignore
+.git/hooks
+ 
+# Node modules and build outputs
+node_modules
+dist
+build
+.ebextensions
+.elasticbeanstalk
+.platform
+ 
+# Local files / temp
+.tmp
+*.log
+.DS_Store
+ 
+# Jenkins/workspace
+.jenkins
+workspace
+docker-compose*.yml
+ 
+# Dockerfile and dockerignore itself are allowed, but ignore backup files
+Dockerfile.*
+*.backup
+.dockerignore
+DOCKERIGNORE

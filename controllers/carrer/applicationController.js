@@ -1,0 +1,389 @@
+import Job from "../../model/carrer/Job.js";
+import Application from "../../model/carrer/Application.js";
+import ApplicationStatusHistory from "../../model/carrer/ApplicationStatusHistory.js";
+import User from "../../model/User.js";
+import Notification from "../../model/Notification.js";
+
+import { trackEvent } from "../../services/Analytics.js";
+import { logAudit } from "../../services/auditLogger.js";
+import { notifyAndEmail } from "../../services/notificationDispatcher.js";
+
+const FALLBACK_JOB_TITLES = {
+  "2b3e71fa-4565-4067-8ac4-cffd8a59b627": "Senior Java Backend Developer",
+  "3eb26e3c-7af7-457f-ab4f-bfbb1a435e9e": "Full Stack Developer"
+};
+
+/**
+ * Parse experience from FormData.
+ * Frontend sends a string (e.g. "5+ years") but DynamoDB model expects Array of Objects.
+ * Old MySQL JSON column auto-accepted any value; Dynamoose is strict.
+ */
+const parseExperience = (experience) => {
+  if (!experience) return [];
+  if (Array.isArray(experience)) return experience;
+  // If it's a JSON string of an array, parse it
+  if (typeof experience === "string") {
+    try {
+      const parsed = JSON.parse(experience);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+      // Not valid JSON — wrap the string in an object
+    }
+    // Wrap plain string in an array of objects (e.g. "5+ years" → [{ description: "5+ years" }])
+    return [{ description: experience }];
+  }
+  return [];
+};
+
+const VALID_STATUSES = ["submitted", "viewed", "reviewing", "interview", "offer", "rejected"];
+
+/* ================= APPLY JOB ================= */
+export const applyJob = async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Login required" });
+
+    // Resume file validation on backend
+    if (!req.file) {
+      return res.status(400).json({ message: "Resume file is required" });
+    }
+
+    const allowedMimeTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: "Only PDF, DOC, and DOCX files are allowed" });
+    }
+
+    const maxFileSize = 5 * 1024 * 1024; // 5MB
+    if (req.file.size > maxFileSize) {
+      return res.status(400).json({ message: "Resume file size must be less than 5MB" });
+    }
+
+    const {
+      job_id,
+      full_name,
+      email,
+      phone,
+      linkedin_url,
+      current_location,
+      work_authorization,
+      years_of_experience
+    } = req.body;
+
+    if (!job_id || !full_name || !email) {
+      return res.status(400).json({ message: "Missing required fields: job_id, full_name, or email" });
+    }
+
+    const job = await Job.get(job_id);
+    if (!job || job.status !== "active") {
+      return res.status(404).json({ message: "Job not available" });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const jobEmailKey = `${job_id}#${normalizedEmail}`;
+
+    // Check duplicate applications (same job_id + email) utilizing job_email_key GSI query
+    const existing = await Application.query("job_email_key").eq(jobEmailKey).exec();
+    if (existing.length > 0) {
+      return res.status(409).json({ message: "You have already applied to this job." });
+    }
+
+    const resumeUrl = req.file?.location || req.file?.path || null;
+
+    // Derive first_name and last_name for compatibility
+    const names = (full_name || "").trim().split(/\s+/);
+    const derivedFirstName = names[0] || "";
+    const derivedLastName = names.slice(1).join(" ") || "";
+
+    const application = await Application.create({
+      job_id,
+      job_title: job.title,
+      user_id: req.user.id,
+      full_name,
+      first_name: derivedFirstName,
+      last_name: derivedLastName,
+      email,
+      phone,
+      linkedin_url,
+      current_location,
+      work_authorization,
+      years_of_experience,
+      job_email_key: jobEmailKey,
+      resume_url: resumeUrl,
+      status: "submitted"
+    });
+
+    trackEvent({
+      event_type: "JOB_APPLICATION_SUBMITTED",
+      actor: { user_id: req.user.id },
+      entity: { type: "job", id: application.job_id },
+      metadata: { application_id: application.id }
+    }).catch(console.error);
+
+    return res.status(201).json({ success: true, application });
+  } catch (err) {
+    return res.status(err.status || 500).json({ message: err.message || "Failed to apply for job" });
+  }
+};
+
+/* ================= MY APPLICATIONS ================= */
+export const getMyApplications = async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+    const offset = (page - 1) * limit;
+
+    // Query by user_id GSI
+    const allApps = await Application.query("user_id").eq(req.user.id).exec();
+    allApps.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const count = allApps.length;
+    const rows = allApps.slice(offset, offset + limit);
+
+    // Enrich with job data
+    const applications = await Promise.all(rows.map(async app => {
+      const job = await Job.get(app.job_id);
+      return {
+        id: app.id, status: app.status, created_at: app.created_at,
+        job: job ? {
+          id: job.id, title: job.title, company: job.company,
+          location: job.location, employment_type: job.employment_type, work_style: job.work_style
+        } : null
+      };
+    }));
+
+    return res.json({
+      success: true, page, limit, total: count,
+      hasMore: offset + rows.length < count, applications
+    });
+  } catch (err) {
+    console.error("GET MY APPLICATIONS ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch applications" });
+  }
+};
+
+/* ================= UPDATE JOB STATUS ================= */
+export const updateJobStatus = async (req, res) => {
+  if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
+
+  const { status } = req.body;
+  const allowed = ["draft", "active", "closed"];
+  if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+  const job = await Job.get(req.params.id);
+  if (!job) return res.status(404).json({ message: "Job not found" });
+
+  const prev = job.status;
+  await Job.update({ id: job.id }, { status });
+
+  trackEvent({
+    event_type: "JOB_STATUS_CHANGED",
+    actor: { user_id: req.admin.id },
+    entity: { type: "job", id: job.id },
+    metadata: { from: prev, to: status }
+  }).catch(console.error);
+
+  logAudit({
+    action: "JOB_STATUS_CHANGED",
+    actor: { admin_id: req.admin.id },
+    target: { type: "job", id: job.id },
+    severity: "MEDIUM", req, metadata: { from: prev, to: status }
+  }).catch(console.error);
+
+  const updated = await Job.get(job.id);
+  return res.json({ success: true, job: updated });
+};
+
+/* ================= UPDATE APPLICATION STATUS ================= */
+export const updateApplicationStatus = async (req, res) => {
+  try {
+    if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
+
+    const { status } = req.body;
+    if (!VALID_STATUSES.includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+    const application = await Application.get(req.params.id);
+    if (!application) return res.status(404).json({ message: "Application not found" });
+
+    const prev = application.status;
+    if (prev === status) return res.status(400).json({ message: "Status already set" });
+
+
+    await Application.update({ id: application.id }, { status });
+
+    await ApplicationStatusHistory.create({
+      application_id: application.id, from_status: prev, to_status: status,
+      acted_by_id: req.admin.id, acted_by_role: "admin"
+    });
+
+    trackEvent({
+      event_type: "APPLICATION_STATUS_CHANGED",
+      actor: { admin_id: req.admin.id },
+      entity: { type: "application", id: application.id },
+      metadata: { from: prev, to: status }
+    }).catch(console.error);
+
+    logAudit({
+      action: "APPLICATION_STATUS_CHANGED",
+      actor: { admin_id: req.admin.id },
+      target: { type: "application", id: application.id },
+      severity: "MEDIUM", req, metadata: { from: prev, to: status }
+    }).catch(console.error);
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(err.status || 500).json({ message: err.message || "Server error" });
+  }
+};
+
+/* ================= ALL APPLICATIONS (ADMIN) ================= */
+export const getAllApplications = async (req, res) => {
+  try {
+    if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
+
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    // Paginated scan — fetch items in batches of `limit` to avoid loading the
+    // entire table into memory. This is still a scan (Application has no single
+    // partition key that covers all apps) but capped per page to prevent OOM.
+    const SCAN_BATCH = Math.max(limit, 50);
+    let cursor = null;
+    const collected = [];
+    const MAX_SCAN_ITERATIONS = 20;
+    let iterations = 0;
+
+    do {
+      iterations++;
+      let query = Application.scan().limit(SCAN_BATCH);
+      if (cursor) query = query.startAt(cursor);
+      const batch = await query.exec();
+      collected.push(...batch);
+      cursor = batch.lastKey || null;
+    } while (cursor && iterations < MAX_SCAN_ITERATIONS);
+
+    collected.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const count = collected.length;
+    const rows = collected.slice(offset, offset + limit);
+
+    const applications = await Promise.all(rows.map(async app => {
+      const [job, user] = await Promise.all([
+        Job.get(app.job_id).catch(() => null),
+        User.get(app.user_id).catch(() => null)
+      ]);
+      return {
+        id: app.id, status: app.status,
+        first_name: app.first_name, last_name: app.last_name,
+        full_name: app.full_name || `${app.first_name || ""} ${app.last_name || ""}`.trim(),
+        email: app.email, phone: app.phone,
+        experience: app.experience, resume_url: app.resume_url,
+        years_of_experience: app.years_of_experience,
+        created_at: app.created_at, job_id: app.job_id, user_id: app.user_id,
+        job_title: job ? job.title : (app.job_title || FALLBACK_JOB_TITLES[app.job_id] || "Unknown Position"),
+        job: job ? { id: job.id, title: job.title } : null,
+        user: user ? { id: user.id, email: user.email } : null
+      };
+    }));
+
+    return res.json({
+      success: true, page, limit, total: count,
+      hasMore: offset + rows.length < count, applications
+    });
+  } catch (err) {
+    console.error("GET ALL APPLICATIONS ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch applications" });
+  }
+};
+
+/* ================= ADMIN VIEW APPLICATION ================= */
+export const getAdminApplicationById = async (req, res) => {
+  try {
+    if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
+
+    const application = await Application.get(req.params.id);
+    if (!application) return res.status(404).json({ message: "Application not found" });
+
+    // Auto-mark as viewed
+    if (application.status === "submitted") {
+      await Application.update({ id: application.id }, {
+        status: "viewed", viewed_by_admin: req.admin.id,
+        last_viewed_at: new Date().toISOString()
+      });
+
+      await ApplicationStatusHistory.create({
+        application_id: application.id, from_status: "submitted", to_status: "viewed",
+        acted_by_id: req.admin.id, acted_by_role: "admin"
+      });
+
+      // Fetch job title for notification
+      const job = await Job.get(application.job_id);
+      await Notification.create({
+        user_id: application.user_id, type: "application_viewed",
+        title: "Application viewed",
+        message: `Your application for "${job?.title || "a job"}" was reviewed`
+      });
+
+      application.status = "viewed";
+    }
+
+    // Enrich with job data
+    const job = await Job.get(application.job_id);
+    const result = {
+      ...application,
+      full_name: application.full_name || `${application.first_name || ""} ${application.last_name || ""}`.trim(),
+      job_title: job ? job.title : (application.job_title || FALLBACK_JOB_TITLES[application.job_id] || "Unknown Position"),
+      job: job ? { id: job.id, title: job.title } : null
+    };
+
+    return res.json({ success: true, application: result });
+  } catch (err) {
+    return res.status(err.status || 500).json({ message: err.message || "Server error" });
+  }
+};
+
+/* ================= NOTIFY APPLICATION USER ================= */
+export const notifyApplicationUser = async (req, res) => {
+  try {
+    if (!req.admin) return res.status(403).json({ message: "Unauthorized" });
+
+    const { subject, message, template, status } = req.body;
+    if (!subject || !message) return res.status(400).json({ message: "Subject and message required" });
+
+    const application = await Application.get(req.params.id);
+    if (!application) return res.status(404).json({ message: "Application/User not found" });
+
+    const user = await User.get(application.user_id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Persist status change
+    if (status && VALID_STATUSES.includes(status) && application.status !== status) {
+      const prev = application.status;
+      await Application.update({ id: application.id }, { status });
+
+      await ApplicationStatusHistory.create({
+        application_id: application.id, from_status: prev, to_status: status,
+        acted_by_id: req.admin.id, acted_by_role: "admin"
+      }).catch(err => console.error("HISTORY_LOG_FAILED:", err.message));
+    }
+
+    await notifyAndEmail({
+      userId: user.id, email: application.email,
+      type: "APPLICATION_UPDATE", title: subject, message,
+      metadata: {
+        subject, message, applicationId: application.id,
+        jobId: application.job_id, status: application.status, template
+      }
+    });
+
+    return res.json({ success: true, message: "Notification and email sent" });
+  } catch (err) {
+    console.error("NOTIFY APPLICATION ERROR:", err);
+    return res.status(500).json({ message: "Failed to notify applicant" });
+  }
+};
