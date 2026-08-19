@@ -63,20 +63,17 @@ const server = http.createServer(app);
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) return callback(null, true); // server-to-server or direct
-      const cleanOrigin = origin.replace(/\/$/, "");
-      if (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes(origin)) {
+      if (!origin) return callback(null, true); // server-to-server
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(null, false);
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
-      "X-Requested-With",
-      "Accept",
       "Cache-Control",
       "cache-control",
       "Pragma",
@@ -86,20 +83,21 @@ app.use(
       "x-state",
       "x-city",
       "x-zip-code"
-    ],
-    optionsSuccessStatus: 200
+    ]
   })
 );
-
-app.options("*", cors());
 
 /* ===================== TRUST PROXY ===================== */
 app.set("trust proxy", 1);
 
 /* ===================== SECURITY ===================== */
+// NOTE: This is a pure JSON API server (api.nextkinlife.live).
+// It never serves HTML/JS, so script-src and style-src are defense-in-depth only.
+// 'unsafe-inline' and 'unsafe-eval' are intentionally ABSENT — there are no
+// inline scripts or eval() calls to support. If a response accidentally renders
+// as HTML in a browser, these strict directives prevent script injection.
 app.use(
   helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'none'"],
@@ -107,7 +105,7 @@ app.use(
         styleSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "https://*.cloudfront.net", "https://*.s3.amazonaws.com"],
         mediaSrc: ["'self'", "https://*.cloudfront.net", "https://*.s3.amazonaws.com"],
-        connectSrc: ["'self'", "*"],
+        connectSrc: ["'self'"],
         fontSrc: ["'none'"],
         frameAncestors: ["'none'"],
         objectSrc: ["'none'"],
@@ -116,7 +114,9 @@ app.use(
         upgradeInsecureRequests: [],
       },
     },
+    // Explicit X-Content-Type-Options: nosniff (helmet enables by default, being explicit)
     xContentTypeOptions: true,
+    // X-Frame-Options: DENY (redundant with frame-ancestors: 'none', but belts-and-suspenders)
     frameguard: { action: "deny" },
   })
 );
