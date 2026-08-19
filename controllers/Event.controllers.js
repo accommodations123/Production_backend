@@ -763,43 +763,26 @@ export const softDeleteEvent = async (req, res) => {
 // ======================================================
 export const getAdminApprovedEvents = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50); // Hard CAP
     const { country, state } = req.query;
-    let events = [];
-
-    try {
-      let q = Event.query("status").eq("approved").limit(limit);
-      if (country) q = q.where("country").eq(country);
-      if (state) q = q.where("state").eq(state);
-      events = await q.exec();
-    } catch (queryErr) {
-      console.warn("Event.query('status') failed, falling back to scan:", queryErr.message);
-      let s = Event.scan().where("status").eq("approved");
-      if (country) s = s.where("country").eq(country);
-      if (state) s = s.where("state").eq(state);
-      events = await s.limit(limit).exec();
+    const startAt = req.query.startAt ? JSON.parse(req.query.startAt) : undefined;
+    const cacheKey = startAt ? null : `admin:events:approved:${country || "all"}:${state || "all"}:${limit}`;
+    if (cacheKey) {
+      const cached = await getCache(cacheKey);
+      if (cached) return res.json({ success: true, events: cached });
     }
-
-    if (!events || events.length === 0) {
-      // Secondary fallback scan in case status is case-sensitive
-      const allEvents = await Event.scan().exec();
-      events = allEvents.filter(e => {
-        const s = (e.status || "").toLowerCase();
-        return s === "approved" || e.is_approved === true;
-      });
-      if (country) events = events.filter(e => e.country === country);
-      if (state) events = events.filter(e => e.state === state);
-    }
-
-    // Filter out soft-deleted events
-    const activeEvents = events.filter(e => e.is_deleted !== true);
-    const enriched = await enrichEventsWithHosts(activeEvents);
+    let q = Event.query("status").eq("approved").sort("descending").limit(limit);
+    if (startAt) q = q.startAt(startAt);
+    q = q.where("is_deleted").eq(false);
+    if (country) q = q.where("country").eq(country);
+    if (state) q = q.where("state").eq(state);
+    let events = await q.exec();
+    const enriched = await enrichEventsWithHosts(events);
     const plain = enriched.map(processEventImages);
-
-    return res.json({ success: true, events: plain, count: plain.length, lastKey: events.lastKey });
+    if (cacheKey) await setCache(cacheKey, plain, 300);
+    return res.json({ success: true, events: plain, lastKey: events.lastKey });
   } catch (err) {
-    console.error("getAdminApprovedEvents error:", err);
-    return res.status(500).json({ success: false, message: "Server error", events: [] });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 // ======================================================
@@ -807,36 +790,25 @@ export const getAdminApprovedEvents = async (req, res) => {
 // ======================================================
 export const getAdminRejectedEvents = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50); // Hard CAP
     const { country, state } = req.query;
-    let events = [];
-
-    try {
-      let q = Event.query("status").eq("rejected").limit(limit);
-      if (country) q = q.where("country").eq(country);
-      if (state) q = q.where("state").eq(state);
-      events = await q.exec();
-    } catch (queryErr) {
-      let s = Event.scan().where("status").eq("rejected");
-      if (country) s = s.where("country").eq(country);
-      if (state) s = s.where("state").eq(state);
-      events = await s.limit(limit).exec();
+    const startAt = req.query.startAt ? JSON.parse(req.query.startAt) : undefined;
+    const cacheKey = startAt ? null : `admin:events:rejected:${country || "all"}:${state || "all"}:${limit}`;
+    if (cacheKey) {
+      const cached = await getCache(cacheKey);
+      if (cached) return res.json({ success: true, events: cached });
     }
-
-    if (!events || events.length === 0) {
-      const allEvents = await Event.scan().exec();
-      events = allEvents.filter(e => (e.status || "").toLowerCase() === "rejected");
-      if (country) events = events.filter(e => e.country === country);
-      if (state) events = events.filter(e => e.state === state);
-    }
-
-    const activeEvents = events.filter(e => e.is_deleted !== true);
-    const enriched = await enrichEventsWithHosts(activeEvents);
+    let q = Event.query("status").eq("rejected").sort("descending").limit(limit);
+    if (startAt) q = q.startAt(startAt);
+    q = q.where("is_deleted").eq(false);
+    if (country) q = q.where("country").eq(country);
+    if (state) q = q.where("state").eq(state);
+    let events = await q.exec();
+    const enriched = await enrichEventsWithHosts(events);
     const plain = enriched.map(processEventImages);
-
-    return res.json({ success: true, events: plain, count: plain.length, lastKey: events.lastKey });
+    if (cacheKey) await setCache(cacheKey, plain, 300);
+    return res.json({ success: true, events: plain, lastKey: events.lastKey });
   } catch (err) {
-    console.error("getAdminRejectedEvents error:", err);
-    return res.status(500).json({ success: false, message: "Server error", events: [] });
+    return res.status(500).json({ message: "Server error" });
   }
 };

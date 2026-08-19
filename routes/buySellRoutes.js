@@ -62,15 +62,11 @@ router.delete("/delete/:id", userAuth, deleteBuySellListing);
 // View pending listings
 router.get("/admin/buy-sell/pending", adminAuth, requireRole("super_admin", "admin"), getPendingBuySellListings);
 
-// Approve listing (support PATCH, PUT, POST)
+// Approve listing
 router.patch("/admin/buy-sell/:id/approve", adminAuth, requireRole("super_admin", "admin"), approveBuySellListing);
-router.put("/admin/buy-sell/:id/approve", adminAuth, requireRole("super_admin", "admin"), approveBuySellListing);
-router.post("/admin/buy-sell/:id/approve", adminAuth, requireRole("super_admin", "admin"), approveBuySellListing);
 
-// Block listing (support PATCH, PUT, POST)
+// Block listing
 router.patch("/admin/buy-sell/:id/block", adminAuth, requireRole("super_admin", "admin"), blockBuySellListing);
-router.put("/admin/buy-sell/:id/block", adminAuth, requireRole("super_admin", "admin"), blockBuySellListing);
-router.post("/admin/buy-sell/:id/block", adminAuth, requireRole("super_admin", "admin"), blockBuySellListing);
 router.get("/admin/buy-sell/approved", adminAuth, requireRole("super_admin", "admin"), getAdminApprovedBuySellListings);
 router.get("/admin/buy-sell/blocked", adminAuth, requireRole("super_admin", "admin"), getAdminBlockedBuySellListings);
 

@@ -506,30 +506,7 @@ async function enrichAdminProfile(profile) {
   const phone = raw.phone || host?.phone || cleanPhoneFromWhatsapp || "";
   const email = raw.email || user?.email || host?.email || "";
   const whatsapp = rawWhatsapp || host?.whatsapp || (cleanPhoneFromWhatsapp ? `https://wa.me/${cleanPhoneFromWhatsapp.replace(/[^0-9]/g, "")}` : "");
-  
-  const rawSocial = typeof raw.social_links === "object" && raw.social_links !== null ? raw.social_links : {};
-  const rawContactInfo = typeof raw.contact_info === "object" && raw.contact_info !== null ? raw.contact_info : {};
-  const rawContactPrefs = typeof raw.contact_preferences === "object" && raw.contact_preferences !== null ? raw.contact_preferences : {};
-
-  const instagram = rawSocial.instagram || raw.instagram || rawContactInfo.instagram || rawContactPrefs.instagram || host?.instagram || "";
-  const linkedin = rawSocial.linkedin || raw.linkedin || rawContactInfo.linkedin || rawContactPrefs.linkedin || host?.linkedin || "";
-  const twitter = rawSocial.twitter || rawSocial.x || raw.twitter || raw.x || rawContactInfo.twitter || "";
-  const github = rawSocial.github || raw.github || rawContactInfo.github || "";
-  const facebook = rawSocial.facebook || raw.facebook || rawContactInfo.facebook || "";
-  const youtube = rawSocial.youtube || raw.youtube || rawContactInfo.youtube || "";
-  const website = raw.website || rawSocial.website || rawContactInfo.website || "";
-
-  const social_links = {
-    ...rawSocial,
-    ...(instagram ? { instagram } : {}),
-    ...(linkedin ? { linkedin } : {}),
-    ...(twitter ? { twitter } : {}),
-    ...(github ? { github } : {}),
-    ...(facebook ? { facebook } : {}),
-    ...(youtube ? { youtube } : {}),
-    ...(whatsapp ? { whatsapp } : {}),
-    ...(website ? { website } : {})
-  };
+  const website = raw.website || raw.social_links?.website || "";
 
   return {
     ...raw,
@@ -537,37 +514,17 @@ async function enrichAdminProfile(profile) {
     email,
     whatsapp,
     website,
-    instagram,
-    linkedin,
-    twitter,
-    github,
-    facebook,
-    youtube,
-    social_links,
     contact: {
       email,
       phone,
       whatsapp,
-      website,
-      instagram,
-      linkedin,
-      twitter,
-      github,
-      facebook,
-      youtube
+      website
     },
     contact_info: {
-      ...rawContactInfo,
       email,
       phone,
       whatsapp,
-      website,
-      instagram,
-      linkedin,
-      twitter,
-      github,
-      facebook,
-      youtube
+      website
     }
   };
 }
