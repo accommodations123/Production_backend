@@ -8,7 +8,7 @@ import { getCache, setCache } from "../services/cacheService.js";
 
 export default async function userAuth(req, res, next) {
   try {
-    const token = req.cookies?.access_token;
+    const token = req.cookies?.access_token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
     if (!token) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -84,12 +84,27 @@ export default async function userAuth(req, res, next) {
 
 export async function optionalUserAuth(req, res, next) {
   try {
-    const token = req.cookies?.access_token;
+    const token = req.cookies?.access_token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
     if (token) {
       const secret = process.env.JWT_USER_SECRET || process.env.JWT_SECRET;
       const decoded = jwt.verify(token, secret);
       if (decoded && decoded.id) {
-        req.user = { id: decoded.id, role: decoded.role || "user" };
+        const cachedUser = await getCache(`user:${decoded.id}`).catch(() => null);
+        if (cachedUser) {
+          req.user = cachedUser;
+        } else {
+          const dbUser = await User.get(decoded.id);
+          if (dbUser && dbUser.verified) {
+            req.user = {
+              id: dbUser.id,
+              email: dbUser.email,
+              name: dbUser.name,
+              profile_image: dbUser.profile_image,
+              verified: dbUser.verified,
+              role: decoded.role || "user"
+            };
+          }
+        }
       }
     }
   } catch (e) {}

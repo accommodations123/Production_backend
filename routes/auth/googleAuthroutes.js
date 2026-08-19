@@ -4,11 +4,11 @@ import {
   googleCallback,
   getMe
 } from "../../controllers/auth/googleAuthController.js";
-import userAuth from "../../middleware/userAuth.js";
+import { optionalUserAuth } from "../../middleware/userAuth.js";
 
 const router = express.Router();
 
 router.get("/google", googleLogin);
 router.get("/google/callback", googleCallback);
-router.get("/me", userAuth,getMe)
+router.get("/me", optionalUserAuth, getMe);
 export default router;
